@@ -3567,5 +3567,149 @@
     toast('Theme updated');
   };
 
+
+  // ============================================================
+  // PHASE 5 CONTINUED: Pipeline + Permissions + Webhooks tabs
+  // + Modernized Tasks (card-first) + Leads avatar fix
+  // ============================================================
+
+  style.textContent += `
+    .pipeline-stage-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+    .pipeline-stage-row:last-child { border-bottom: 0; }
+    .pipeline-stage-row .color-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .pipeline-stage-row .info { flex: 1; }
+    .pipeline-stage-row .info b { font-size: 14px; color: #0f172a; }
+    .pipeline-stage-row .info span { font-size: 12px; color: #64748b; }
+    .pipeline-stage-row .chance { font-size: 12px; font-weight: 700; color: #0d9488; }
+    .perm-matrix { overflow: auto; }
+    .perm-matrix table { width: 100%; border-collapse: collapse; }
+    .perm-matrix th, .perm-matrix td { padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center; font-size: 12px; }
+    .perm-matrix th { background: #f8fafc; color: #64748b; font-weight: 600; }
+    .perm-matrix td:first-child { text-align: left; font-weight: 600; color: #0f172a; }
+    .perm-matrix input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+    .webhook-row { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+    .webhook-row:last-child { border-bottom: 0; }
+    .webhook-row .url { flex: 1; font-family: ui-monospace, monospace; font-size: 12px; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .webhook-row .status-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; }
+    .webhook-row .status-badge.active { background: #dcfce7; color: #166534; }
+    .webhook-row .status-badge.inactive { background: #f1f5f9; color: #64748b; }
+    .task-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px; margin-bottom: 10px; cursor: pointer; transition: border-color 0.08s, box-shadow 0.08s, transform 0.08s; }
+    .task-card:hover { border-color: #14b8a6; box-shadow: 0 4px 14px rgba(15,23,42,0.05); transform: translateY(-1px); }
+    .task-card:active { transform: scale(0.98); }
+    .task-card .task-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .task-card .type-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; }
+    .task-card .type-badge.TASK { background: #dbeafe; color: #1e40af; }
+    .task-card .type-badge.CALL { background: #fef3c7; color: #92400e; }
+    .task-card .type-badge.MEETING { background: #e0e7ff; color: #3730a3; }
+    .task-card .type-badge.EMAIL { background: #d1fae5; color: #065f46; }
+    .task-card .task-subject { flex: 1; font-size: 14px; font-weight: 600; color: #0f172a; }
+    .task-card .task-meta { font-size: 12px; color: #64748b; display: flex; gap: 10px; align-items: center; }
+    .task-card .due-chip { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; }
+    .task-card .due-chip.overdue { background: #fee2e2; color: #991b1b; }
+    .task-card .due-chip.today { background: #ffedd5; color: #9a3412; }
+    .task-card .due-chip.future { background: #f1f5f9; color: #475569; }
+    .task-card .done-btn { font-size: 11px; padding: 4px 10px; border-radius: 6px; background: #f0fdfa; color: #0d9488; border: 0; font-weight: 600; cursor: pointer; }
+    .task-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+    @media (max-width: 680px) { .task-grid { grid-template-columns: 1fr; } }
+  `;
+
+  // Pipeline tab in Settings
+  window.__settingsPipeline = async function () {
+    var el = document.getElementById('settingsContent');
+    var data = await api('/crm/api/pipeline');
+    var stages = (data && data.stages) || (Array.isArray(data) ? data : []);
+    var list = stages.map(function(s) {
+      return '<div class="pipeline-stage-row"><div class="color-dot" style="background:' + (s.color || '#cbd5e1') + '"></div><div class="info"><b>' + esc(s.name || s.label || s.code || '') + '</b><span>' + esc(s.code || '') + '</span></div><span class="chance">' + (s.probability || s.chance || 0) + '%</span></div>';
+    }).join('') || '<p class="hello">No stages. The default pipeline seeds on first use.</p>';
+    el.innerHTML = '<div class="settings-section"><h3>Pipeline stages</h3>' + list + '</div><p class="hello">Stages are seeded when you first use the CRM. Custom stage editing coming in a future update.</p>';
+  };
+
+  // Permissions tab in Settings
+  window.__settingsPermissions = async function () {
+    var el = document.getElementById('settingsContent');
+    var data = await api('/crm/api/access');
+    if (!data || data.error) { el.innerHTML = '<p class="hello">Could not load permissions.</p>'; return; }
+    var areas = data.areas || [];
+    var actions = data.actions || [];
+    var rows = data.rows || [];
+    var roles = ['OWNER', 'ADMIN', 'MANAGER', 'SALES', 'VIEWER'];
+    var on = function(role, area, action) { return rows.some(function(r) { return r.roleName === role && r.area === area && r.action === action && Number(r.allowed); }); };
+    var head = '<tr><th>Role</th>' + actions.map(function(a) { return '<th>' + esc(a) + '</th>'; }).join('') + '</tr>';
+    var body = '';
+    areas.forEach(function(area) {
+      body += '<tr><td colspan="' + (actions.length + 1) + '" style="background:#f8fafc;font-weight:700;color:#475569;padding:8px 10px">' + esc(area) + '</td></tr>';
+      roles.forEach(function(role) {
+        body += '<tr><td>' + role + (role === 'OWNER' ? ' (locked)' : '') + '</td>' + actions.map(function(action) {
+          var checked = on(role, area, action) ? 'checked' : '';
+          var disabled = role === 'OWNER' ? 'disabled' : '';
+          return '<td><input type="checkbox" ' + checked + ' ' + disabled + ' onchange="window.__setPerm(\'' + role + '\',\'' + area + '\',\'' + action + '\',this.checked)"></td>';
+        }).join('') + '</tr>';
+      });
+    });
+    el.innerHTML = '<div class="settings-section"><h3>Permission matrix</h3><div class="perm-matrix"><table>' + head + body + '</table></div></div>';
+  };
+  window.__setPerm = async function (role, area, action, allowed) {
+    var res = await api('/crm/api/access', { method: 'POST', body: JSON.stringify({ role: role, area: area, action: action, allowed: allowed }) });
+    if (!res || res.error) toast('Could not save');
+  };
+
+  // Webhooks tab in Settings
+  window.__settingsWebhooks = async function () {
+    var el = document.getElementById('settingsContent');
+    var workflows = (bag.workflows || []).filter(function(w) { return w.action === 'webhook' && w.target; });
+    var list = workflows.map(function(w) {
+      return '<div class="webhook-row"><span class="status-badge ' + (Number(w.active) ? 'active' : 'inactive') + '">' + (Number(w.active) ? 'On' : 'Off') + '</span><span class="url">' + esc(w.target || '') + '</span><span style="font-size:12px;color:#64748b">' + esc(w.trigger || '') + '</span></div>';
+    }).join('') || '<p class="hello">No webhooks configured. Create a workflow with a webhook action from the Automation page.</p>';
+    el.innerHTML = '<div class="settings-section"><h3>Outbound webhooks</h3>' + list + '</div><p class="hello">Webhooks fire when workflow triggers match (e.g., lead.created, deal.won). Configure them from the Automation page in the sidebar.</p>';
+  };
+
+  // Update drawSettings to include new tabs
+  var oldDrawSettings = window.drawSettings;
+  if (oldDrawSettings) {
+    window.drawSettings = function () {
+      var tab = window.__settingsTab || 'workspace';
+      var tabs = [{id:'workspace',label:'Workspace'},{id:'team',label:'Team'},{id:'pipeline',label:'Pipeline'},{id:'permissions',label:'Permissions'},{id:'sessions',label:'Sessions'},{id:'webhooks',label:'Webhooks'},{id:'integrations',label:'Integrations'},{id:'preferences',label:'Preferences'}];
+      var navHtml = tabs.map(function(t) { return '<button class="' + (tab === t.id ? 'on' : '') + '" onclick="window.__settingsTab=\'' + t.id + '\';drawSettings()">' + t.label + '</button>'; }).join('');
+      document.getElementById('view').innerHTML = '<div class="board-head"><h1>Settings</h1></div><div class="settings-layout"><nav class="settings-nav">' + navHtml + '</nav><div class="settings-content" id="settingsContent">Loading...</div></div>';
+      if (tab === 'workspace') window.__settingsWorkspace();
+      else if (tab === 'team') window.__settingsTeam();
+      else if (tab === 'pipeline') window.__settingsPipeline();
+      else if (tab === 'permissions') window.__settingsPermissions();
+      else if (tab === 'sessions') window.__settingsSessions();
+      else if (tab === 'webhooks') window.__settingsWebhooks();
+      else if (tab === 'integrations') window.__settingsIntegrations();
+      else if (tab === 'preferences') window.__settingsPreferences();
+    };
+  }
+
+  // Modernize Tasks — card-first layout
+  var origDrawTasks = (typeof drawTasks === 'function') ? drawTasks : null;
+  if (origDrawTasks) {
+    drawTasks = function () {
+      var today = new Date().toISOString().slice(0, 10);
+      var q = (document.getElementById('q').value || '').trim().toLowerCase();
+      var rows = (bag.activities || []).filter(function(row) { return row.type === 'TASK' || row.type === 'CALL' || row.type === 'MEETING'; });
+      var due = function(row) { return String(row.dueAt || '').slice(0, 10); };
+      if (taskView === 'today') rows = rows.filter(function(row) { return row.status === 'PLANNED' && due(row) === today; });
+      if (taskView === 'overdue') rows = rows.filter(function(row) { return row.status === 'PLANNED' && due(row) && due(row) < today; });
+      if (taskView === 'upcoming') rows = rows.filter(function(row) { return row.status === 'PLANNED' && due(row) > today; });
+      if (taskOwner) rows = rows.filter(function(row) { return row.ownerId === taskOwner; });
+      if (taskType) rows = rows.filter(function(row) { return row.type === taskType; });
+      if (q) rows = rows.filter(function(row) { return (row.subject + ' ' + (row.notes || '')).toLowerCase().includes(q); });
+      rows.sort(function(a, b) { return due(a).localeCompare(due(b)); });
+      var tab = function(id, label) { return '<button type="button" class="' + (taskView === id ? 'on' : '') + '" onclick="taskView=\'' + id + '\';drawTasks()">' + label + '</button>'; };
+      var cards = rows.map(function(row) {
+        var d = due(row);
+        var dueClass = !d ? 'future' : (d < today ? 'overdue' : (d === today ? 'today' : 'future'));
+        var dueLabel = d || 'No date';
+        var owner = ownerName(row.ownerId) || 'Unassigned';
+        var grad = avatarGradient(owner);
+        var init = (owner || '?').slice(0, 2).toUpperCase();
+        return '<div class="task-card" onclick="openTask(\'' + (row.relatedType || '') + '\',\'' + (row.relatedId || '') + '\')"><div class="task-top"><span class="type-badge ' + (row.type || 'TASK') + '">' + esc(row.type || 'TASK') + '</span><b class="task-subject">' + esc(row.subject || 'Untitled') + '</b></div><div class="task-meta"><div class="avatar" style="background:' + grad + ';width:24px;height:24px;border-radius:50%;font-size:9px;font-weight:800;color:#fff;display:grid;place-items:center">' + esc(init) + '</div><span>' + esc(owner) + '</span><span class="due-chip ' + dueClass + '">' + esc(dueLabel) + '</span>' + (row.status === 'PLANNED' ? '<button class="done-btn" onclick="event.stopPropagation();hold(\'' + row.id + '\')">Done</button>' : '<span style="color:#22c55e;font-weight:600">Done</span>') + '</div></div>';
+      }).join('') || '<div class="empty"><div class="empty-ico">✓</div><p>No tasks match.</p></div>';
+      document.getElementById('view').innerHTML = '<div class="board-head"><div><h1>Tasks</h1><p class="hello">' + rows.length + ' task' + (rows.length === 1 ? '' : 's') + '</p></div><span><button type="button" class="ghost" onclick="go(\'player\')">Work the list</button> <button type="button" onclick="document.getElementById(\'taskForm\').hidden=false">Add task</button></span></div><div class="tabs">' + tab('all', 'All') + tab('today', 'Today') + tab('overdue', 'Overdue') + tab('upcoming', 'Upcoming') + '</div><div class="task-grid">' + cards + '</div>';
+    };
+  }
+
 })();
 
