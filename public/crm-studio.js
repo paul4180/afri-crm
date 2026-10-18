@@ -1873,10 +1873,24 @@
     const home = scroll && scroll.querySelector('button[data-page="home"]');
     if (!home) return;
     home.insertAdjacentHTML('afterend',
+      '<div class="nav-section-header">Selling</div>' +
       navItem('leads', 'Leads', svg('<path d="M4 7h16M4 12h10M4 17h7"/>')) +
-      navItem('comm', 'Inbox', svg('<path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/>')) +
-      navItem('products', 'Catalog', svg('<path d="M4 7h16v12H4z"/><path d="M4 11h16"/>')) +
+      navItem('deals', 'Deals', svg('<path d="M3 8h18v8H3z"/><path d="M3 12h18"/>')) +
+      navItem('opportunities', 'Opportunities', svg('<path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="4"/>')) +
+      '<div class="nav-section-header">People</div>' +
+      navItem('contacts', 'Contacts', svg('<path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z"/><path d="M8 11c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3z"/><path d="M2 21c0-4.42 2.69-8 6-8s6 3.58 6 8"/><path d="M14 21c0-2.66 1.33-4 2.5-5"/>')) +
+      navItem('companies', 'Companies', svg('<path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/>')) +
+      '<div class="nav-section-header">Work</div>' +
+      navItem('tasks', 'Tasks', svg('<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>')) +
+      navItem('calendar', 'Calendar', svg('<path d="M3 5h18v16H3z"/><path d="M3 9h18M8 3v4M16 3v4"/>')) +
+      navItem('dial', 'Call list', svg('<path d="M7 3h3l2 5-2 1a12 12 0 0 0 5 5l1-2 5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 5 5a2 2 0 0 1 2-2z"/>')) +
+      '<div class="nav-section-header">Insights</div>' +
+      navItem('analytics', 'Analytics', svg('<path d="M4 19V5M4 19h16"/><path d="M8 16v-5M12 16V8M16 16v-3"/>')) +
+      navItem('forecast', 'Forecast', svg('<path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/>')) +
+      '<div class="nav-section-header">Automation</div>' +
       navItem('flow', 'Workflow', svg('<circle cx="6" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="M8 7h6a4 4 0 0 1 4 4v5"/>')) +
+      navItem('sequences', 'Sequences', svg('<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="8" cy="18" r="2"/>')) +
+      '<div class="nav-section-header">Setup</div>' +
       navItem('teams', 'Access', svg('<path d="M12 3 4 7v5c0 5 3.5 7.5 8 9 4.5-1.5 8-4 8-9V7z"/>')) +
       navItem('audit', 'Organization', svg('<circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>')) +
       navItem('settings', 'Settings', svg('<circle cx="12" cy="12" r="3"/><path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>'))
@@ -3711,5 +3725,30 @@
     };
   }
 
+
+  style.textContent += `
+  /* ============================================================
+     AFRI BRAND DESIGN SYSTEM
+     - Inter font (geometric sans, designed for screens)
+     - 4px spacing system
+     - Teal primary, warm dark/light backgrounds
+     - Wide sidebar (220px) with category headers
+     - Minimal top bar (search + create + account)
+     ============================================================ */
+  body { font-family: "Inter", system-ui, -apple-system, sans-serif !important; }
+  aside { width: 220px !important; }
+  aside .navscroll { padding: 4px 8px !important; }
+  aside button { padding: 8px 10px !important; font-size: 13px !important; display: flex; align-items: center; gap: 10px; }
+  aside button svg { width: 18px !important; height: 18px !important; flex-shrink: 0; opacity: 0.7; }
+  aside button.on svg { opacity: 1; }
+  aside .brand { padding: 12px 14px !important; display: flex; align-items: center; gap: 10px; }
+  aside .brand .mark { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #14b8a6, #0d9488); display: grid; place-items: center; font-weight: 800; color: #fff; font-size: 16px; flex-shrink: 0; box-shadow: 0 4px 12px rgba(13,148,136,0.25); }
+  aside .brand .meta { font-size: 13px; font-weight: 700; color: #0f172a; }
+  [data-theme="dark"] aside .brand .meta { color: #f8fafc; }
+  header { padding: 0 20px !important; }
+  header .search { flex: 1; max-width: 400px; }
+  header .search input { width: 100% !important; }
+  header .tools { margin-left: auto; }
+`;
 })();
 

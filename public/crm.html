@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Afri CRM</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script>
   // Apply theme ASAP to avoid flash-of-wrong-theme
   (function() {
@@ -16,7 +19,7 @@
 <style>
   :root { --side:#1e293b; --ink:#1e293b; --muted:#64748b; --line:#e2e8f0; --bg:#f4f7fb; --accent:#0f766e; }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: "Segoe UI", sans-serif; color: var(--ink); background: #fff; }
+  body { margin: 0; font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif; color: var(--ink); background: #fff; }
   button, input, select, textarea { font: inherit; }
   a { color: inherit; }
 
@@ -462,7 +465,7 @@
   <aside id="nav"></aside>
   <div class="work">
     <header>
-      <label class="search"><input id="q" placeholder="Search records" oninput="queueDraw()"></label>
+      <label class="search"><input id="q" placeholder="Search records..." oninput="queueDraw()"><kbd class="shortcut" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none">&#8984;K</kbd></label>
       <div class="tools">
         <button class="iconbtn" type="button" title="Ask the records" onclick="go('agent')"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/></svg></button>
         <div class="menu"><button class="iconbtn" type="button" title="Create" onclick="toggleCreate()">+</button><div class="drop" id="createMenu"><button type="button" onclick="go('contacts','contact')">Contact</button><button type="button" onclick="go('companies','company')">Company</button><button type="button" onclick="go('deals','deal')">Deal</button><button type="button" onclick="go('tasks','task')">Task</button><button type="button" onclick="go('leads')">Lead</button></div></div>
