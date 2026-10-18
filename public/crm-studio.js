@@ -3566,9 +3566,23 @@
   window.__revokeSession = async function (id) { await api('/crm/api/sessions/' + id + '/revoke', { method: 'POST' }); toast('Revoked'); window.__settingsSessions(); };
   window.__settingsIntegrations = async function () {
     var el = document.getElementById('settingsContent');
-    var data = await api('/crm/api/tools');
-    var rows = [{n:'Gmail',i:'\u2709',s:data&&data.googleReady},{n:'Google Calendar',i:'\uD83D\uDCC5',s:data&&data.googleReady},{n:'Outlook',i:'\uD83D\uDCE7',s:data&&data.microsoftReady},{n:'WhatsApp',i:'\uD83D\uDCAC',s:data&&data.whatsappReady},{n:'Email (Resend)',i:'\uD83D\uDCE8',s:data&&data.emailReady}].map(function(r){return '<div class="integration-row"><div class="ico">'+r.i+'</div><div class="info"><b>'+r.n+'</b><span>'+(r.s?'Connected':'Not configured')+'</span></div><span class="status-badge '+(r.s?'connected':'disconnected')+'">'+(r.s?'On':'Off')+'</span></div>';}).join('');
-    el.innerHTML = '<div class="settings-section"><h3>Connected services</h3>'+rows+'</div><p class="hello">Connect Gmail/Calendar/Outlook from the Integrations page in the sidebar. Email and WhatsApp need API keys on Railway.</p>';
+    el.innerHTML = '<div class="settings-section"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div><h3 style="margin:0">Integration Marketplace</h3><p class="hello" style="margin:4px 0 0">Connect your workspace apps and tools to Afri CRM.</p></div><button type="button" class="ghost" onclick="go(\'integrations\')" style="font-size:12px">Open full page ›</button></div><div id="intGrid" class="integration-grid">Loading...</div><div id="apiKeySection" style="margin-top:24px"></div><div id="webhookSection" style="margin-top:24px"></div></div>';
+    var data = await api('/crm/api/integrations');
+    var grid = document.getElementById('intGrid');
+    if (!data || data.error) { grid.innerHTML = '<p class="hello">Could not load integrations.</p>'; return; }
+    grid.innerHTML = data.map(function(i) {
+      var statusClass = i.status === 'connected' ? 'connected' : i.status === 'ready' ? 'ready' : i.status === 'coming_soon' ? 'coming_soon' : i.status === 'always' ? 'always' : 'not_configured';
+      var statusLabel = i.status === 'connected' ? 'Connected' : i.status === 'ready' ? 'Ready' : i.status === 'coming_soon' ? 'Coming soon' : i.status === 'always' ? 'Available' : 'Not configured';
+      var btn = '';
+      if (i.status === 'connected') btn = '<button class="configure" onclick="toast(\'Already connected — manage from full Integrations page\')">Manage</button>';
+      else if (i.status === 'ready') btn = '<button class="connect" onclick="go(\'integrations\')">Connect</button>';
+      else if (i.status === 'not_configured') btn = '<button class="configure" onclick="go(\'integrations\')">Configure</button>';
+      else if (i.status === 'always') btn = '<button class="connect" onclick="window.__showApiKeys()">Manage</button>';
+      else if (i.status === 'coming_soon') btn = '<span style="font-size:11px;color:#94a3b8">Notify me</span>';
+      return '<div class="integration-card"><div class="top"><div class="ico">' + i.icon + '</div><div class="info"><b>' + esc(i.name) + '</b><span>' + esc(i.category) + '</span></div></div><p class="desc">' + esc(i.description) + '</p><div style="display:flex;gap:8px;align-items:center"><span class="status-badge ' + statusClass + '">' + statusLabel + '</span>' + btn + '</div></div>';
+    }).join('');
+    if (window.__showApiKeys) window.__showApiKeys();
+    if (window.__showWebhooks) window.__showWebhooks();
   };
   window.__settingsPreferences = function () {
     var el = document.getElementById('settingsContent');
