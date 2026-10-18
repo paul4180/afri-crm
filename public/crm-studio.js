@@ -1866,7 +1866,7 @@
   `;
   document.head.appendChild(style);
 
-  const basePaint = paintNav;
+  const basePaint = (typeof paintNav === 'function') ? paintNav : function(){};
   paintNav = function () {
     basePaint();
     const scroll = document.querySelector('#nav .navscroll');
@@ -1953,7 +1953,7 @@
       <div class="card" id="leadForm" hidden><div class="pipe" style="grid-template-columns:1fr 1fr"><label>First name<input id="lFirst"></label><label>Last name<input id="lLast"></label><label>Company<input id="lCompany"></label><label>Phone<input id="lPhone"></label><label>Email<input id="lEmail"></label><label>What they asked<input id="lAbout"></label><label>Source<input id="lSource" placeholder="Phone, email, web form"></label><label>Rating<select id="lRating"><option>WARM</option><option>HOT</option><option>COLD</option></select></label><label>Owner<select id="lOwner"><option value="">Me</option>${ownerOptions()}</select></label></div><button type="button" onclick="saveLead()">Save lead</button></div>
       <div class="leadboard">${board}</div>`;
   };
-  const oldSave = saveLead;
+  const oldSave = (typeof saveLead === 'function') ? saveLead : null;
   saveLead = async function () {
     const about = document.getElementById('lAbout');
     if (about && about.value && document.getElementById('lFirst')) {
@@ -1965,7 +1965,7 @@
       refresh();
       return;
     }
-    return oldSave();
+    return oldSave ? oldSave() : undefined;
   };
   window.leadDrag = (event, id) => { event.dataTransfer.setData('text/plain', id); };
   window.leadDrop = async (event, status) => {
@@ -2158,10 +2158,10 @@
       <div class="catalog"><aside class="card"><b>Category</b>${cats.map((name) => `<button type="button" class="${catalogCat === name ? '' : 'ghost'}" style="width:100%;margin-top:6px" onclick="catalogCat='${esc(name)}';drawProducts()">${esc(name)}</button>`).join('')}</aside>
       <div><div class="card"><div class="pipe" style="grid-template-columns:1fr 1fr 120px 120px"><label>Name<input id="pName"></label><label>Code<input id="pCode"></label><label>Price<input id="pPrice" inputmode="decimal"></label><label>On hand<input id="pStock" inputmode="decimal" value="0"></label><label>Category<input id="pCat" value="General"></label></div><button type="button" onclick="saveProduct()">Save product</button></div><div class="goods">${cards}</div></div></div>`;
   };
-  const oldProduct = saveProduct;
+  const oldProduct = (typeof saveProduct === 'function') ? saveProduct : null;
   saveProduct = async function () {
     const stock = document.getElementById('pStock');
-    if (!stock) return oldProduct();
+    if (!stock) return oldProduct ? oldProduct() : undefined;
     const name = document.getElementById('pName').value.trim();
     if (!name) return toast('Name the product');
     const result = await api('/crm/api/products', { method: 'POST', body: JSON.stringify({ name, code: document.getElementById('pCode').value, price: document.getElementById('pPrice').value, stock: stock.value, category: document.getElementById('pCat').value || 'General' }) });
@@ -2179,7 +2179,7 @@
     drawProducts();
   };
 
-  const baseBell = loadBell;
+  const baseBell = (typeof loadBell === 'function') ? loadBell : function(){};
   loadBell = async function () {
     const data = await api('/crm/api/notifications');
     if (!data || data.error) return baseBell();
@@ -2226,7 +2226,7 @@
   box.id = 'searchhits';
   box.className = 'searchhits';
   document.querySelector('header').appendChild(box);
-  const baseQueue = queueDraw;
+  const baseQueue = (typeof queueDraw === 'function') ? queueDraw : function(){};
   queueDraw = function () {
     baseQueue();
     clearTimeout(window.__find);
@@ -3301,7 +3301,7 @@
 
   // Wrap the existing draw() so the loading bar fires on every navigation
   if (typeof draw === 'function' && !draw.__wrapped) {
-    const origDraw = draw;
+    const origDraw = (typeof draw === 'function') ? draw : function(){};
     draw = function () {
       window.__startProgress();
       const result = origDraw.apply(this, arguments);
@@ -3449,7 +3449,7 @@
   // The existing #q input triggers queueDraw() on every keystroke.
   // Wrap queueDraw so it debounces (only fires after 200ms of no typing).
   if (typeof queueDraw === 'function' && !queueDraw.__debounced) {
-    const origQueueDraw = queueDraw;
+    const origQueueDraw = (typeof queueDraw === 'function') ? queueDraw : function(){};
     let __searchTimer = null;
     queueDraw = function () {
       clearTimeout(__searchTimer);
