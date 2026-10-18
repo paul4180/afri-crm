@@ -1310,6 +1310,42 @@ export function registerCrm(app, prisma) {
     writeAudit(user.tenantId, user.sub, status === 'SENT' ? 'sent' : 'logged', 'contacts', contact.id, subject);
     return { id, status, via };
   });
+  // Live email history — pulls recent Gmail/Outlook messages matching this contact's email
+  app.get('/crm/api/contacts/:id/emails', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    const contact = one('contacts', user.tenantId, req.params.id);
+    if (!contact) return reply.code(404).send({ error: 'Not found' });
+    if (!canSee(user, contact)) return reply.code(403).send({ error: 'That record is not yours' });
+    if (!contact.email) return { messages: [], note: 'This contact has no email.' };
+    // Logged emails first (always available)
+    const logged = db.prepare('SELECT subject, body, status, via, createdAt FROM emails WHERE tenantId = ? AND contactId = ? ORDER BY createdAt DESC LIMIT 10').all(user.tenantId, contact.id);
+    const out = logged.map(e => ({ subject: e.subject, snippet: (e.body || '').slice(0, 200), when: e.createdAt, source: e.via ? 'sent:' + e.via : 'logged' }));
+    // Live Gmail messages
+    const gmail = db.prepare('SELECT * FROM connections WHERE tenantId = ? AND provider = ?').get(user.tenantId, 'gmail');
+    if (gmail) {
+      const token = await freshToken(gmail);
+      if (token) {
+        try {
+          const q = encodeURIComponent('from:' + contact.email + ' OR to:' + contact.email);
+          const listRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?q=' + q + '&maxResults=5', { headers: { Authorization: 'Bearer ' + token } });
+          const list = await listRes.json().catch(() => ({}));
+          for (const m of (list.messages || []).slice(0, 5)) {
+            const msgRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/' + m.id + '?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date', { headers: { Authorization: 'Bearer ' + token } });
+            const msg = await msgRes.json().catch(() => null);
+            if (!msg) continue;
+            const hdr = (name) => (msg.payload && msg.payload.headers || []).find(h => h.name === name);
+            out.push({
+              subject: (hdr('Subject') || {}).value || '(no subject)',
+              snippet: (msg.snippet || '').slice(0, 200),
+              when: (hdr('Date') || {}).value || '',
+              source: 'gmail'
+            });
+          }
+        } catch (e) { /* token may be expired */ }
+      }
+    }
+    return { messages: out.slice(0, 15), contact_email: contact.email };
+  });
   app.post('/crm/api/contacts/:id/merge', async (req, reply) => {
     const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
     const keep = one('contacts', user.tenantId, req.params.id);
@@ -2309,16 +2345,22 @@ export function registerCrm(app, prisma) {
   // ============================================================
   app.get('/crm/api/integrations', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
-    const connections = db.prepare('SELECT provider, status FROM connections WHERE tenantId = ?').all(user.tenantId);
+    const connections = db.prepare('SELECT provider, email, status FROM connections WHERE tenantId = ?').all(user.tenantId);
     const connected = {};
-    connections.forEach(c => { connected[c.provider] = c.status === 'CONNECTED'; });
+    const connEmail = {};
+    connections.forEach(c => { connected[c.provider] = c.status === 'CONNECTED'; if (c.email) connEmail[c.provider] = c.email; });
     const tools = db.prepare('SELECT provider, clientId FROM tool_apps WHERE tenantId = ?').all(user.tenantId);
     const configured = {};
     tools.forEach(t => { configured[t.provider] = Boolean(t.clientId); });
+    // Platform OAuth enabled when env vars are set on Railway — works for all tenants in one click
+    const googlePlatform = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+    const microsoftPlatform = Boolean(process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET);
+    const googleReady = googlePlatform || configured.google;
+    const microsoftReady = microsoftPlatform || configured.microsoft;
     return [
-      { id: 'gmail', name: 'Gmail', icon: '✉', category: 'Email', status: connected.gmail ? 'connected' : (configured.gmail ? 'ready' : 'not_configured'), description: 'Sync emails, send from CRM, log conversations.' },
-      { id: 'google_calendar', name: 'Google Calendar', icon: '📅', category: 'Calendar', status: connected.gmail ? 'connected' : (configured.gmail ? 'ready' : 'not_configured'), description: 'See meetings, sync tasks to calendar.' },
-      { id: 'outlook', name: 'Outlook', icon: '📧', category: 'Email', status: connected.microsoft ? 'connected' : (configured.microsoft ? 'ready' : 'not_configured'), description: 'Sync Outlook emails and calendar.' },
+      { id: 'gmail', name: 'Gmail', icon: '✉', category: 'Email', status: connected.gmail ? 'connected' : (googleReady ? 'ready' : 'not_configured'), description: 'Sync emails, send from CRM, log conversations.', email: connEmail.gmail, oauthUrl: '/crm/api/connect/gmail', platform: googlePlatform },
+      { id: 'google_calendar', name: 'Google Calendar', icon: '📅', category: 'Calendar', status: connected.calendar ? 'connected' : (googleReady ? 'ready' : 'not_configured'), description: 'See meetings, sync tasks to calendar.', email: connEmail.calendar, oauthUrl: '/crm/api/connect/calendar', platform: googlePlatform },
+      { id: 'outlook', name: 'Outlook', icon: '📧', category: 'Email', status: connected.outlook ? 'connected' : (microsoftReady ? 'ready' : 'not_configured'), description: 'Sync Outlook emails and calendar.', email: connEmail.outlook, oauthUrl: '/crm/api/connect/outlook', platform: microsoftPlatform },
       { id: 'whatsapp', name: 'WhatsApp', icon: '💬', category: 'Messaging', status: process.env.WHATSAPP_TOKEN ? 'connected' : 'not_configured', description: 'Send WhatsApp messages from contact records.' },
       { id: 'email', name: 'Email (Resend)', icon: '📨', category: 'Email', status: process.env.RESEND_API_KEY ? 'connected' : 'not_configured', description: 'Send transactional emails via Resend API.' },
       { id: 'flutterwave', name: 'Flutterwave', icon: '💳', category: 'Payments', status: process.env.FLUTTERWAVE_SECRET_KEY ? 'connected' : 'not_configured', description: 'Collect payments, generate payment links.' },
@@ -2331,6 +2373,87 @@ export function registerCrm(app, prisma) {
       { id: 'calendly', name: 'Calendly', icon: '📆', category: 'Scheduling', status: 'coming_soon', description: 'Embed booking links, sync meetings.' },
       { id: 'zapier', name: 'Zapier', icon: '⚡', category: 'Automation', status: 'coming_soon', description: 'Connect 5000+ apps via Zapier webhooks.' },
     ];
+  });
+
+  // ============================================================
+  // OAUTH SETUP — gives the workspace owner clear setup instructions
+  // Returns redirect URLs + Railway env var names + console links
+  // ============================================================
+  app.get('/crm/api/oauth/setup', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only owners and admins can view OAuth setup.' });
+    const origin = originOf(req);
+    return {
+      redirect_base: origin,
+      providers: [
+        {
+          id: 'google',
+          name: 'Google (Gmail + Calendar)',
+          console_url: 'https://console.cloud.google.com/apis/credentials',
+          env_vars: { client_id: 'GOOGLE_CLIENT_ID', client_secret: 'GOOGLE_CLIENT_SECRET' },
+          redirect_urls: [
+            origin + '/crm/api/connect/google/callback',
+          ],
+          scopes: 'openid email https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly',
+          platform_enabled: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+          steps: [
+            'Go to Google Cloud Console → APIs & Services → Credentials',
+            'Click "Create Credentials" → "OAuth client ID"',
+            'Application type: Web application',
+            'Add the redirect URL above to "Authorized redirect URIs"',
+            'Copy the Client ID and Client Secret',
+            'On Railway, add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET as variables',
+            'Redeploy. All users in your workspace can now click Connect Gmail.'
+          ]
+        },
+        {
+          id: 'microsoft',
+          name: 'Microsoft (Outlook + Calendar)',
+          console_url: 'https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade',
+          env_vars: { client_id: 'MICROSOFT_CLIENT_ID', client_secret: 'MICROSOFT_CLIENT_SECRET' },
+          redirect_urls: [
+            origin + '/crm/api/connect/microsoft/callback',
+          ],
+          scopes: 'openid email offline_access User.Read Mail.Send Calendars.Read',
+          platform_enabled: Boolean(process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET),
+          steps: [
+            'Go to Azure Portal → App registrations → New registration',
+            'Name: Afri CRM',
+            'Supported account types: "Accounts in any organizational directory and personal Microsoft accounts"',
+            'Add the redirect URL above as a Web platform redirect URI',
+            'Under Certificates & secrets, create a new client secret and copy the value',
+            'Under API permissions, add Mail.Send, Calendars.Read, User.Read (delegated)',
+            'On Railway, add MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET as variables',
+            'Redeploy. All users can now click Connect Outlook.'
+          ]
+        }
+      ]
+    };
+  });
+
+  // Per-tenant "Bring your own credentials" — for owners who want their own OAuth client
+  app.post('/crm/api/oauth/credentials/:provider', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only owners and admins can configure credentials.' });
+    const provider = ['google', 'microsoft'].includes(req.params.provider) ? req.params.provider : '';
+    if (!provider) return reply.code(400).send({ error: 'Unknown provider' });
+    const clientId = String(req.body?.clientId || '').trim();
+    const clientSecret = String(req.body?.clientSecret || '').trim();
+    if (!clientId || !clientSecret) return reply.code(400).send({ error: 'Client ID and secret are required.' });
+    db.prepare('INSERT INTO tool_apps (tenantId, provider, clientId, clientSecret) VALUES (?,?,?,?) ON CONFLICT(tenantId, provider) DO UPDATE SET clientId = excluded.clientId, clientSecret = excluded.clientSecret').run(user.tenantId, provider, clientId, clientSecret);
+    writeAudit(user.tenantId, user.sub, 'configure', 'oauth-' + provider, provider, clientId.slice(0, 12) + '...');
+    return { ok: true, message: 'Credentials saved. Users can now click Connect.' };
+  });
+
+  app.delete('/crm/api/oauth/credentials/:provider', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only owners and admins can remove credentials.' });
+    const provider = ['google', 'microsoft'].includes(req.params.provider) ? req.params.provider : '';
+    if (!provider) return reply.code(400).send({ error: 'Unknown provider' });
+    db.prepare('DELETE FROM tool_apps WHERE tenantId = ? AND provider = ?').run(user.tenantId, provider);
+    db.prepare('DELETE FROM connections WHERE tenantId = ? AND provider IN (?,?)').run(user.tenantId, provider === 'google' ? 'gmail' : 'outlook', provider === 'google' ? 'calendar' : 'outlook');
+    writeAudit(user.tenantId, user.sub, 'remove', 'oauth-' + provider, provider, '');
+    return { ok: true };
   });
 
 
