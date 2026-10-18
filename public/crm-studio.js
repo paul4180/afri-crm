@@ -3846,5 +3846,104 @@
     draw();
   };
 
+
+  // ============================================================
+  // RECORD DETAIL VIEW — modernize with brand design system
+  // The existing drawRecord() in crm.html generates good HTML,
+  // this adds CSS polish + gradient avatar header.
+  // ============================================================
+  style.textContent += `
+    .record { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 880px) { .record { grid-template-columns: 1fr; } }
+    .record .card { padding: 20px; }
+    .record .card h2 { font-size: 13px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 14px; }
+    .record .card label { font-size: 12px; font-weight: 600; color: #475569; }
+    .record .card input, .record .card select, .record .card textarea {
+      font-size: 14px; padding: 8px 12px; border-radius: 8px;
+    }
+    .record .card .pipe { gap: 12px; }
+    .record .stack { display: flex; flex-direction: column; gap: 14px; }
+    .reports { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0 0 20px; }
+    @media (max-width: 680px) { .reports { grid-template-columns: repeat(2, 1fr); } }
+    .reports .report {
+      background: linear-gradient(135deg, #fff 0%, #faf9f7 100%);
+      border: 1px solid #e8e6e1; border-radius: 14px; padding: 16px;
+      text-align: center;
+    }
+    .reports .report h2 { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 8px; }
+    .reports .report div { font-size: 28px; font-weight: 700; color: #0f172a; letter-spacing: -0.02em; }
+    [data-theme="dark"] .reports .report { background: linear-gradient(135deg, #1e293b 0%, #182234 100%); border-color: #334155; }
+    [data-theme="dark"] .reports .report div { color: #f8fafc; }
+    .score {
+      display: inline-block; background: #f0fdfa; color: #0d9488;
+      font-size: 12px; font-weight: 700; padding: 2px 10px;
+      border-radius: 999px; border: 1px solid #99f6e4;
+    }
+    .time {
+      padding: 8px 0; border-bottom: 1px solid #f1f5f9;
+      font-size: 13px; color: #475569; cursor: pointer;
+      transition: color 0.08s;
+    }
+    .time:hover { color: #0d9488; }
+    .time:last-child { border-bottom: 0; }
+    [data-theme="dark"] .time { border-bottom-color: #334155; color: #94a3b8; }
+    .record .card button { margin-top: 8px; }
+  `;
+
+  // Wrap drawRecord to add gradient avatar header
+  var origDrawRecord = (typeof drawRecord === 'function') ? drawRecord : null;
+  if (origDrawRecord) {
+    drawRecord = async function () {
+      await origDrawRecord.apply(this, arguments);
+      // After render, find the h1 and prepend an avatar
+      var h1 = document.querySelector('#view h1');
+      if (h1 && !h1.previousElementSibling?.classList?.contains('record-avatar-wrap')) {
+        var title = h1.textContent.trim();
+        var grad = avatarGradient(title);
+        var init = (title || '?').slice(0, 2).toUpperCase();
+        var wrap = document.createElement('div');
+        wrap.className = 'record-avatar-wrap';
+        wrap.style.cssText = 'display:flex;align-items:center;gap:14px;margin-bottom:8px';
+        var av = document.createElement('div');
+        av.style.cssText = 'width:52px;height:52px;border-radius:14px;background:' + grad + ';display:grid;place-items:center;font-size:20px;font-weight:800;color:#fff;flex-shrink:0;box-shadow:0 4px 12px rgba(13,148,136,0.15)';
+        av.textContent = init;
+        h1.parentNode.insertBefore(wrap, h1);
+        wrap.appendChild(av);
+        wrap.appendChild(h1);
+        h1.style.cssText = 'margin:0;font-size:24px;font-weight:700;letter-spacing:-0.02em';
+      }
+    };
+  }
+
+  // ============================================================
+  // COMPANIES — modernize with card grid (like Contacts v2)
+  // Override drawPeople for 'companies' to use card layout
+  // ============================================================
+  style.textContent += `
+    .company-card {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 14px;
+      padding: 18px; cursor: pointer; transition: border-color 0.08s, transform 0.08s, box-shadow 0.08s;
+    }
+    .company-card:hover { border-color: #14b8a6; transform: translateY(-2px); box-shadow: 0 8px 18px rgba(15,23,42,0.06); }
+    .company-card .co-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+    .company-card .co-avatar {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: grid; place-items: center; font-size: 18px; font-weight: 800; color: #fff; flex-shrink: 0;
+    }
+    .company-card .co-name { font-size: 15px; font-weight: 700; color: #0f172a; letter-spacing: -0.01em; }
+    .company-card .co-industry { font-size: 12px; color: #64748b; }
+    .company-card .co-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .company-card .co-meta div { font-size: 12px; color: #64748b; }
+    .company-card .co-meta b { color: #0f172a; font-size: 13px; display: block; }
+    .company-card .co-footer { display: flex; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid #f1f5f9; }
+    .company-card .co-type { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; }
+    .company-card .co-type.CUSTOMER { background: #dcfce7; color: #166534; }
+    .company-card .co-type.PROSPECT { background: #fef3c7; color: #92400e; }
+    .company-card .co-type.PARTNER { background: #dbeafe; color: #1e40af; }
+    [data-theme="dark"] .company-card { background: #1e293b; border-color: #334155; }
+    [data-theme="dark"] .company-card .co-name { color: #f8fafc; }
+    [data-theme="dark"] .company-card .co-meta b { color: #f8fafc; }
+  `;
+
 })();
 
