@@ -3938,5 +3938,248 @@
     margin: 0 0 16px !important;
   }
 `;
+
+  // ============================================================
+  // HUBSPOT-LEVEL UPGRADE
+  // - Side panel forms (slide-in from right, not modal popups)
+  // - Better empty states with helpful messaging
+  // - Setup progress banner at bottom of sidebar
+  // - Advanced filter bar with chips
+  // ============================================================
+
+  style.textContent += `
+    /* SIDE PANEL — slides in from right (HubSpot-style) */
+    .side-panel-overlay {
+      position: fixed; inset: 0; z-index: 90;
+      background: rgba(2, 6, 23, 0.4);
+      backdrop-filter: blur(2px);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .side-panel-overlay.open { opacity: 1; pointer-events: auto; }
+    .side-panel {
+      position: fixed; top: 0; right: 0; bottom: 0; z-index: 91;
+      width: min(480px, 100vw);
+      background: #fff;
+      box-shadow: -8px 0 32px rgba(0,0,0,0.12);
+      transform: translateX(100%);
+      transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    [data-theme="dark"] .side-panel { background: #1e293b; }
+    .side-panel.open { transform: translateX(0); }
+    .side-panel-head {
+      padding: 18px 24px; border-bottom: 1px solid #f1f5f9;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-shrink: 0;
+    }
+    [data-theme="dark"] .side-panel-head { border-bottom-color: #334155; }
+    .side-panel-head h2 { margin: 0; font-size: 18px; font-weight: 600; color: #0f172a; }
+    [data-theme="dark"] .side-panel-head h2 { color: #f8fafc; }
+    .side-panel-close {
+      background: transparent; border: 0; cursor: pointer;
+      width: 32px; height: 32px; border-radius: 8px;
+      display: grid; place-items: center; color: #64748b;
+      transition: background 0.12s;
+    }
+    .side-panel-close:hover { background: #f1f0ec; color: #0f172a; }
+    [data-theme="dark"] .side-panel-close:hover { background: #334155; color: #f8fafc; }
+    .side-panel-close svg { width: 18px; height: 18px; }
+    .side-panel-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+    .side-panel-foot {
+      padding: 14px 24px; border-top: 1px solid #f1f5f9;
+      display: flex; gap: 8px; justify-content: flex-end;
+      flex-shrink: 0;
+    }
+    [data-theme="dark"] .side-panel-foot { border-top-color: #334155; }
+    .side-panel-body label { display: grid; gap: 4px; font-size: 13px; font-weight: 500; color: #475569; margin-bottom: 14px; }
+    .side-panel-body input, .side-panel-body select, .side-panel-body textarea {
+      width: 100%; padding: 10px 14px; border-radius: 10px;
+      border: 1px solid #d4d1c8; background: #fff; color: #1e293b;
+      font-size: 14px; font-family: inherit;
+    }
+    [data-theme="dark"] .side-panel-body input,
+    [data-theme="dark"] .side-panel-body select,
+    [data-theme="dark"] .side-panel-body textarea {
+      background: #0f172a; color: #f8fafc; border-color: #334155;
+    }
+    .side-panel-body input:focus, .side-panel-body select:focus, .side-panel-body textarea:focus {
+      outline: none; border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20,184,166,0.1);
+    }
+    .side-panel-body .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* SETUP PROGRESS BANNER — at bottom of sidebar (HubSpot-style) */
+    .setup-banner {
+      margin: 8px; padding: 14px; border-radius: 12px;
+      background: linear-gradient(135deg, #f0fdfa 0%, #ecfdf5 100%);
+      border: 1px solid #99f6e4;
+    }
+    [data-theme="dark"] .setup-banner {
+      background: linear-gradient(135deg, #042f2e 0%, #064e3b 100%);
+      border-color: #0f766e;
+    }
+    .setup-banner b { font-size: 12px; color: #0d9488; display: block; margin-bottom: 4px; }
+    .setup-banner p { font-size: 11px; color: #475569; margin: 0 0 8px; line-height: 1.4; }
+    [data-theme="dark"] .setup-banner p { color: #94a3b8; }
+    .setup-banner button {
+      font-size: 11px; padding: 5px 12px; border-radius: 6px;
+      background: #0d9488; color: #fff; border: 0; font-weight: 600;
+      cursor: pointer; width: 100%;
+    }
+    .setup-banner button:hover { background: #0f766e; }
+
+    /* BETTER EMPTY STATES */
+    .empty-state {
+      text-align: center; padding: 48px 24px;
+    }
+    .empty-state .empty-icon {
+      width: 56px; height: 56px; margin: 0 auto 16px;
+      border-radius: 16px; background: #f0fdfa;
+      display: grid; place-items: center;
+      font-size: 24px; color: #0d9488;
+    }
+    [data-theme="dark"] .empty-state .empty-icon { background: #042f2e; }
+    .empty-state h2 { font-size: 16px; font-weight: 600; color: #0f172a; margin: 0 0 6px; }
+    [data-theme="dark"] .empty-state h2 { color: #f8fafc; }
+    .empty-state p { font-size: 13px; color: #64748b; margin: 0 0 16px; line-height: 1.5; }
+    .empty-state button {
+      font-size: 13px; padding: 8px 18px; border-radius: 10px;
+      background: #0d9488; color: #fff; border: 0; font-weight: 600;
+      cursor: pointer;
+    }
+    .empty-state button:hover { background: #0f766e; }
+
+    /* ADVANCED FILTER BAR */
+    .filter-bar {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .filter-bar .filter-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 10px; border-radius: 999px;
+      background: #f1f0ec; color: #475569;
+      font-size: 12px; font-weight: 500;
+    }
+    [data-theme="dark"] .filter-bar .filter-chip { background: #1e293b; color: #94a3b8; }
+    .filter-bar .filter-chip .x { cursor: pointer; opacity: 0.5; }
+    .filter-bar .filter-chip .x:hover { opacity: 1; }
+    .filter-bar .sort-btn {
+      background: transparent; border: 1px solid #e8e6e1;
+      border-radius: 8px; padding: 6px 12px; font-size: 12px;
+      color: #475569; cursor: pointer;
+    }
+    [data-theme="dark"] .filter-bar .sort-btn { border-color: #334155; color: #94a3b8; }
+  `;
+
+  // Side panel system
+  window.openSidePanel = function (title, bodyHtml, footHtml) {
+    window.closeSidePanel();
+    var overlay = document.createElement('div');
+    overlay.className = 'side-panel-overlay';
+    overlay.id = 'sidePanelOverlay';
+    overlay.onclick = function(e) { if (e.target === overlay) window.closeSidePanel(); };
+
+    var panel = document.createElement('div');
+    panel.className = 'side-panel';
+    panel.id = 'sidePanel';
+    panel.innerHTML = 
+      '<div class="side-panel-head"><h2>' + esc(title) + '</h2>' +
+      '<button class="side-panel-close" onclick="window.closeSidePanel()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>' +
+      '<div class="side-panel-body" id="sidePanelBody">' + bodyHtml + '</div>' +
+      '<div class="side-panel-foot" id="sidePanelFoot">' + (footHtml || '<button type="button" class="ghost" onclick="window.closeSidePanel()">Cancel</button>') + '</div>';
+
+    document.body.appendChild(overlay);
+    document.body.appendChild(panel);
+    setTimeout(function() {
+      overlay.classList.add('open');
+      panel.classList.add('open');
+    }, 10);
+  };
+  window.closeSidePanel = function () {
+    var overlay = document.getElementById('sidePanelOverlay');
+    var panel = document.getElementById('sidePanel');
+    if (panel) panel.classList.remove('open');
+    if (overlay) overlay.classList.remove('open');
+    setTimeout(function() {
+      if (overlay) overlay.remove();
+      if (panel) panel.remove();
+    }, 250);
+  };
+  // Close on Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('sidePanel')) {
+      window.closeSidePanel();
+    }
+  });
+
+  // Override contact create to use side panel
+  var origDrawContacts = (typeof drawContacts === 'function') ? drawContacts : null;
+  if (origDrawContacts) {
+    drawContacts = function () {
+      origDrawContacts();
+      // Replace the "Add contacts" button onclick to use side panel
+      var addBtn = document.querySelector('[onclick*="document.getElementById(\'form\').hidden=false"]');
+      if (addBtn) {
+        addBtn.setAttribute('onclick', 'window.__openContactPanel()');
+      }
+    };
+  }
+  window.__openContactPanel = function () {
+    var ownerOpts = (bag.people || []).map(function(p) { return '<option value="' + p.id + '">' + esc(p.fullName || p.email) + '</option>'; }).join('');
+    var companyOpts = (bag.companies || []).map(function(c) { return '<option value="' + c.id + '">' + esc(c.name) + '</option>'; }).join('');
+    window.openSidePanel('Create contact',
+      '<div class="field-row"><label>First name<input id="cFirst" placeholder="Ada"></label><label>Last name<input id="cLast" placeholder="Okafor"></label></div>' +
+      '<label>Job title<input id="cTitle" placeholder="Operations Manager"></label>' +
+      '<label>Email<input id="cEmail" type="email" placeholder="ada@company.ng"></label>' +
+      '<label>Phone<input id="cPhone" placeholder="0803-555-0101"></label>' +
+      '<label>Company<select id="cCompany"><option value="">None</option>' + companyOpts + '</select></label>' +
+      '<label>City<input id="cCity" placeholder="Lagos"></label>' +
+      '<label>Source<input id="cSource" placeholder="Referral, walk-in"></label>' +
+      '<label>Status<select id="cStatus"><option>ACTIVE</option><option>CUSTOMER</option><option>INACTIVE</option></select></label>' +
+      '<label>Owner<select id="cOwner"><option value="">Me</option>' + ownerOpts + '</select></label>',
+      '<button type="button" class="ghost" onclick="window.closeSidePanel()">Cancel</button> ' +
+      '<button type="button" onclick="window.__saveContactPanel()">Create</button> ' +
+      '<button type="button" class="ghost" onclick="window.__saveContactPanel(true)">Create and add another</button>'
+    );
+  };
+  window.__saveContactPanel = async function (another) {
+    var firstName = document.getElementById('cFirst').value.trim();
+    if (!firstName) { toast('Enter a first name'); return; }
+    var result = await api('/crm/api/contacts', { method: 'POST', body: JSON.stringify({
+      firstName: firstName, lastName: document.getElementById('cLast').value,
+      title: document.getElementById('cTitle').value, email: document.getElementById('cEmail').value,
+      phone: document.getElementById('cPhone').value, city: document.getElementById('cCity').value,
+      companyId: document.getElementById('cCompany').value, source: document.getElementById('cSource').value,
+      status: document.getElementById('cStatus').value, ownerId: document.getElementById('cOwner').value
+    }) });
+    if (!result || result.error) { toast((result && result.error) || 'Could not save'); return; }
+    toast(another ? 'Contact added. Add another.' : 'Contact saved');
+    if (another) { window.closeSidePanel(); setTimeout(window.__openContactPanel, 300); }
+    else { window.closeSidePanel(); refresh(); }
+  };
+
+  // Setup progress banner at bottom of sidebar
+  var origDraw = (typeof draw === 'function') ? draw : null;
+  if (origDraw && !origDraw.__banner) {
+    draw = function () {
+      var result = origDraw.apply(this, arguments);
+      setTimeout(function () {
+        var nav = document.getElementById('nav');
+        if (!nav || document.getElementById('setupBanner')) return;
+        var banner = document.createElement('div');
+        banner.id = 'setupBanner';
+        banner.className = 'setup-banner';
+        var setupDone = workspace && Number(workspace.done);
+        banner.innerHTML = setupDone
+          ? '<b>Workspace ready</b><p>Scoring adapts to your answers. Add contacts to see it work.</p><button onclick="go(\'settings\')">Edit setup</button>'
+          : '<b>Finish setup</b><p>Tell Afri how you sell so the pipeline and scores match your business.</p><button onclick="go(\'settings\')">Continue</button>';
+        nav.appendChild(banner);
+      }, 100);
+      return result;
+    };
+    draw.__banner = true;
+  }
+
 })();
 
