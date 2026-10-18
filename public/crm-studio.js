@@ -4181,5 +4181,302 @@
     draw.__banner = true;
   }
 
+
+  // ============================================================
+  // HUBSPOT-LEVEL COMPLETE — rest of the upgrade
+  // - Side panels for Deals, Companies, Tasks, Leads
+  // - Integration prompts (Gmail/Calendar)
+  // - Automatic task creation from workflows
+  // - List view polish (proper column alignment)
+  // - Better Calendar mobile layout
+  // ============================================================
+
+  // --- DEAL CREATE SIDE PANEL ---
+  window.__openDealPanel = function (prefillStage) {
+    var ownerOpts = (bag.people || []).map(function(p) { return '<option value="' + p.id + '">' + esc(p.fullName || p.email) + '</option>'; }).join('');
+    var contactOpts = (bag.contacts || []).map(function(c) { return '<option value="' + c.id + '">' + esc(person(c)) + '</option>'; }).join('');
+    var companyOpts = (bag.companies || []).map(function(c) { return '<option value="' + c.id + '">' + esc(c.name) + '</option>'; }).join('');
+    var stageOpts = (stageList() || []).map(function(s) { return '<option value="' + s[0] + '"' + (prefillStage === s[0] ? ' selected' : '') + '>' + esc(s[1]) + '</option>'; }).join('');
+    window.openSidePanel('Create deal',
+      '<label>Deal name<input id="dName" placeholder="Software implementation"></label>' +
+      '<div class="field-row"><label>Amount (NGN)<input id="dAmount" type="number" placeholder="2500000"></label>' +
+      '<label>Close date<input id="dClose" type="date"></label></div>' +
+      '<label>Stage<select id="dStage">' + stageOpts + '</select></label>' +
+      '<label>Contact<select id="dContact"><option value="">None</option>' + contactOpts + '</select></label>' +
+      '<label>Company<select id="dCompany"><option value="">None</option>' + companyOpts + '</select></label>' +
+      '<label>Next step<input id="dNext" placeholder="Schedule demo"></label>' +
+      '<label>Owner<select id="dOwner"><option value="">Me</option>' + ownerOpts + '</select></label>',
+      '<button type="button" class="ghost" onclick="window.closeSidePanel()">Cancel</button> ' +
+      '<button type="button" onclick="window.__saveDealPanel()">Create</button> ' +
+      '<button type="button" class="ghost" onclick="window.__saveDealPanel(true)">Create and add another</button>'
+    );
+  };
+  window.__saveDealPanel = async function (another) {
+    var name = document.getElementById('dName').value.trim();
+    if (!name) { toast('Name the deal'); return; }
+    var stage = document.getElementById('dStage').value;
+    var chance = ((stageList() || []).find(function(s) { return s[0] === stage; }) || [,,,10])[3];
+    var result = await api('/crm/api/deals', { method: 'POST', body: JSON.stringify({
+      name: name, amount: document.getElementById('dAmount').value, closeDate: document.getElementById('dClose').value,
+      contactId: document.getElementById('dContact').value, companyId: document.getElementById('dCompany').value,
+      ownerId: document.getElementById('dOwner').value, nextStep: document.getElementById('dNext').value,
+      stage: stage, probability: chance
+    }) });
+    if (!result || result.error) { toast((result && result.error) || 'Could not save'); return; }
+    toast(another ? 'Deal added. Add another.' : 'Deal saved');
+    if (another) { window.closeSidePanel(); setTimeout(function() { window.__openDealPanel(); }, 300); }
+    else { window.closeSidePanel(); refresh(); }
+  };
+
+  // --- COMPANY CREATE SIDE PANEL ---
+  window.__openCompanyPanel = function () {
+    var ownerOpts = (bag.people || []).map(function(p) { return '<option value="' + p.id + '">' + esc(p.fullName || p.email) + '</option>'; }).join('');
+    window.openSidePanel('Create company',
+      '<label>Company name<input id="coName" placeholder="Zenith Foods Ltd"></label>' +
+      '<div class="field-row"><label>Industry<input id="coIndustry" placeholder="Food & Beverage"></label>' +
+      '<label>Type<select id="coType"><option>PROSPECT</option><option>CUSTOMER</option><option>PARTNER</option></select></label></div>' +
+      '<label>Email<input id="coEmail" placeholder="contact@company.ng"></label>' +
+      '<label>Phone<input id="coPhone" placeholder="01-234-5678"></label>' +
+      '<label>Website<input id="coWeb" placeholder="https://company.ng"></label>' +
+      '<div class="field-row"><label>City<input id="coCity" placeholder="Lagos"></label>' +
+      '<label>Country<input id="coCountry" value="Nigeria"></label></div>' +
+      '<label>Source<input id="coSource" placeholder="Referral"></label>' +
+      '<label>Owner<select id="coOwner"><option value="">Me</option>' + ownerOpts + '</select></label>',
+      '<button type="button" class="ghost" onclick="window.closeSidePanel()">Cancel</button> ' +
+      '<button type="button" onclick="window.__saveCompanyPanel()">Create</button> ' +
+      '<button type="button" class="ghost" onclick="window.__saveCompanyPanel(true)">Create and add another</button>'
+    );
+  };
+  window.__saveCompanyPanel = async function (another) {
+    var name = document.getElementById('coName').value.trim();
+    if (!name) { toast('Enter a name'); return; }
+    var result = await api('/crm/api/companies', { method: 'POST', body: JSON.stringify({
+      name: name, industry: document.getElementById('coIndustry').value, type: document.getElementById('coType').value,
+      phone: document.getElementById('coPhone').value, email: document.getElementById('coEmail').value,
+      website: document.getElementById('coWeb').value, city: document.getElementById('coCity').value,
+      country: document.getElementById('coCountry').value, source: document.getElementById('coSource').value,
+      ownerId: document.getElementById('coOwner').value
+    }) });
+    if (!result || result.error) { toast((result && result.error) || 'Could not save'); return; }
+    toast(another ? 'Company added. Add another.' : 'Company saved');
+    if (another) { window.closeSidePanel(); setTimeout(window.__openCompanyPanel, 300); }
+    else { window.closeSidePanel(); refresh(); }
+  };
+
+  // --- TASK CREATE SIDE PANEL ---
+  window.__openTaskPanel = function () {
+    var ownerOpts = (bag.people || []).map(function(p) { return '<option value="' + p.id + '">' + esc(p.fullName || p.email) + '</option>'; }).join('');
+    var dealOpts = (bag.deals || []).filter(function(d) { return !String(d.stage || '').startsWith('CLOSED'); }).map(function(d) { return '<option value="' + d.id + '">' + esc(d.name) + '</option>'; }).join('');
+    var contactOpts = (bag.contacts || []).map(function(c) { return '<option value="' + c.id + '">' + esc(person(c)) + '</option>'; }).join('');
+    window.openSidePanel('Create task',
+      '<label>Task type<select id="tType"><option>TASK</option><option>CALL</option><option>MEETING</option><option>EMAIL</option></select></label>' +
+      '<label>Subject<input id="tSubject" placeholder="Call Ada about proposal"></label>' +
+      '<label>Due date<input id="tDue" type="date"></label>' +
+      '<div class="field-row"><label>Related to<select id="tRelType"><option value="">None</option><option value="contact">Contact</option><option value="deal">Deal</option></select></label>' +
+      '<label>Related record<select id="tRelId"><option value="">None</option>' + contactOpts + dealOpts + '</select></label></div>' +
+      '<label>Priority<select id="tPriority"><option>NORMAL</option><option>HIGH</option><option>LOW</option></select></label>' +
+      '<label>Owner<select id="tOwner"><option value="">Me</option>' + ownerOpts + '</select></label>',
+      '<button type="button" class="ghost" onclick="window.closeSidePanel()">Cancel</button> ' +
+      '<button type="button" onclick="window.__saveTaskPanel()">Create</button> ' +
+      '<button type="button" class="ghost" onclick="window.__saveTaskPanel(true)">Create and add another</button>'
+    );
+  };
+  window.__saveTaskPanel = async function (another) {
+    var subject = document.getElementById('tSubject').value.trim();
+    if (!subject) { toast('Enter a subject'); return; }
+    var result = await api('/crm/api/activities', { method: 'POST', body: JSON.stringify({
+      type: document.getElementById('tType').value, subject: subject,
+      dueAt: document.getElementById('tDue').value, priority: document.getElementById('tPriority').value,
+      relatedType: document.getElementById('tRelType').value || null,
+      relatedId: document.getElementById('tRelId').value || null,
+      ownerId: document.getElementById('tOwner').value
+    }) });
+    if (!result || result.error) { toast((result && result.error) || 'Could not save'); return; }
+    toast(another ? 'Task added. Add another.' : 'Task saved');
+    if (another) { window.closeSidePanel(); setTimeout(window.__openTaskPanel, 300); }
+    else { window.closeSidePanel(); refresh(); }
+  };
+
+  // --- LEAD CREATE SIDE PANEL ---
+  window.__openLeadPanel = function () {
+    var ownerOpts = (bag.people || []).map(function(p) { return '<option value="' + p.id + '">' + esc(p.fullName || p.email) + '</option>'; }).join('');
+    window.openSidePanel('Create lead',
+      '<div class="field-row"><label>First name<input id="lFirst" placeholder="Kemi"></label>' +
+      '<label>Last name<input id="lLast" placeholder="Adeola"></label></div>' +
+      '<label>Company<input id="lCompany" placeholder="Blue Ocean Ltd"></label>' +
+      '<label>Phone<input id="lPhone" placeholder="0821-555-0901"></label>' +
+      '<label>Email<input id="lEmail" placeholder="kemi@blueocean.ng"></label>' +
+      '<label>Source<input id="lSource" placeholder="Web form, phone, referral"></label>' +
+      '<label>Rating<select id="lRating"><option>WARM</option><option>HOT</option><option>COLD</option></select></label>' +
+      '<label>Owner<select id="lOwner"><option value="">Me</option>' + ownerOpts + '</select></label>',
+      '<button type="button" class="ghost" onclick="window.closeSidePanel()">Cancel</button> ' +
+      '<button type="button" onclick="window.__saveLeadPanel()">Create</button> ' +
+      '<button type="button" class="ghost" onclick="window.__saveLeadPanel(true)">Create and add another</button>'
+    );
+  };
+  window.__saveLeadPanel = async function (another) {
+    var firstName = document.getElementById('lFirst').value.trim();
+    if (!firstName) { toast('Enter a first name'); return; }
+    var result = await api('/crm/api/leads', { method: 'POST', body: JSON.stringify({
+      firstName: firstName, lastName: document.getElementById('lLast').value,
+      companyName: document.getElementById('lCompany').value, phone: document.getElementById('lPhone').value,
+      email: document.getElementById('lEmail').value, source: document.getElementById('lSource').value,
+      rating: document.getElementById('lRating').value, ownerId: document.getElementById('lOwner').value
+    }) });
+    if (!result || result.error) { toast((result && result.error) || 'Could not save'); return; }
+    toast(another ? 'Lead added. Add another.' : 'Lead saved');
+    if (another) { window.closeSidePanel(); setTimeout(window.__openLeadPanel, 300); }
+    else { window.closeSidePanel(); refresh(); }
+  };
+
+  // --- Override draw functions to use side panels ---
+  var origDrawDeals = (typeof drawDeals === 'function' && !drawDeals.__sp) ? drawDeals : null;
+  if (origDrawDeals) {
+    drawDeals = function () {
+      origDrawDeals();
+      setTimeout(function () {
+        var btn = document.querySelectorAll("[onclick*=\x27dealForm\x27]")[0];
+        if (btn) btn.setAttribute('onclick', 'window.__openDealPanel()');
+                // addSlot buttons keep original onclick
+      }, 50);
+    };
+    drawDeals.__sp = true;
+  }
+
+  var origDrawPeople = (typeof drawPeople === 'function' && !drawPeople.__sp) ? drawPeople : null;
+  if (origDrawPeople) {
+    drawPeople = function (kind) {
+      origDrawPeople(kind);
+      setTimeout(function () {
+        var btns = document.querySelectorAll('[onclick*="document.getElementById(\'form\').hidden=false"]');
+        btns.forEach(function (b) {
+          if (kind === 'contacts') b.setAttribute('onclick', 'window.__openContactPanel()');
+          else b.setAttribute('onclick', 'window.__openCompanyPanel()');
+        });
+        var emptyBtns = document.querySelectorAll('.empty button, .contact-empty button');
+        emptyBtns.forEach(function (b) {
+          if (kind === 'contacts') b.setAttribute('onclick', 'window.__openContactPanel()');
+          else b.setAttribute('onclick', 'window.__openCompanyPanel()');
+        });
+      }, 50);
+    };
+    drawPeople.__sp = true;
+  }
+
+  var origDrawTasks = (typeof drawTasks === 'function' && !drawTasks.__sp) ? drawTasks : null;
+  if (origDrawTasks) {
+    drawTasks = function () {
+      origDrawTasks();
+      setTimeout(function () {
+        var btns = document.querySelectorAll('[onclick*="taskForm"]');
+        btns.forEach(function (b) { b.setAttribute('onclick', 'window.__openTaskPanel()'); });
+      }, 50);
+    };
+    drawTasks.__sp = true;
+  }
+
+  var origDrawLeads = (typeof drawLeads === 'function' && !drawLeads.__sp) ? drawLeads : null;
+  if (origDrawLeads) {
+    drawLeads = function () {
+      origDrawLeads();
+      setTimeout(function () {
+        var btn = document.querySelectorAll("[onclick*=\x27leadForm\x27]")[0];
+        if (btn) btn.setAttribute('onclick', 'window.__openLeadPanel()');
+      }, 50);
+    };
+    drawLeads.__sp = true;
+  }
+
+  // --- Override the header "+" Create button to use side panels ---
+  var origToggleCreate = (typeof toggleCreate === 'function') ? toggleCreate : null;
+  if (origToggleCreate && !origToggleCreate.__sp) {
+    toggleCreate = function () {
+      var menu = document.getElementById('createMenu');
+      var open = menu.style.display === 'block';
+      menu.style.display = 'none';
+      if (open) return;
+      // Show a quick menu using side panels
+      window.openSidePanel('Quick create',
+        '<p style="color:#64748b;font-size:13px;margin:0 0 16px">Choose what to create:</p>' +
+        '<button type="button" style="width:100%;text-align:left;padding:12px 14px;margin-bottom:8px;border-radius:10px;border:1px solid #e8e6e1;background:#fff;cursor:pointer;font-size:14px;color:#0f172a" onclick="window.closeSidePanel();window.__openContactPanel()">👤 Contact</button>' +
+        '<button type="button" style="width:100%;text-align:left;padding:12px 14px;margin-bottom:8px;border-radius:10px;border:1px solid #e8e6e1;background:#fff;cursor:pointer;font-size:14px;color:#0f172a" onclick="window.closeSidePanel();window.__openCompanyPanel()">🏢 Company</button>' +
+        '<button type="button" style="width:100%;text-align:left;padding:12px 14px;margin-bottom:8px;border-radius:10px;border:1px solid #e8e6e1;background:#fff;cursor:pointer;font-size:14px;color:#0f172a" onclick="window.closeSidePanel();window.__openDealPanel()">📊 Deal</button>' +
+        '<button type="button" style="width:100%;text-align:left;padding:12px 14px;margin-bottom:8px;border-radius:10px;border:1px solid #e8e6e1;background:#fff;cursor:pointer;font-size:14px;color:#0f172a" onclick="window.closeSidePanel();window.__openTaskPanel()">✓ Task</button>' +
+        '<button type="button" style="width:100%;text-align:left;padding:12px 14px;border-radius:10px;border:1px solid #e8e6e1;background:#fff;cursor:pointer;font-size:14px;color:#0f172a" onclick="window.closeSidePanel();window.__openLeadPanel()">🎯 Lead</button>',
+        '<button type="button" class="ghost" onclick="window.closeSidePanel()">Cancel</button>'
+      );
+    };
+    toggleCreate.__sp = true;
+  }
+
+  // --- INTEGRATION PROMPTS (contextual, HubSpot-style) ---
+  style.textContent += `
+    .integration-prompt {
+      margin: 12px 0; padding: 14px 16px; border-radius: 12px;
+      background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+      border: 1px solid #fde68a;
+      display: flex; align-items: center; gap: 12px;
+    }
+    [data-theme="dark"] .integration-prompt {
+      background: linear-gradient(135deg, #422006 0%, #78350f 100%);
+      border-color: #92400e;
+    }
+    .integration-prompt .prompt-ico { font-size: 20px; flex-shrink: 0; }
+    .integration-prompt .prompt-text { flex: 1; font-size: 13px; color: #475569; line-height: 1.4; }
+    [data-theme="dark"] .integration-prompt .prompt-text { color: #fcd34d; }
+    .integration-prompt .prompt-text b { color: #0f172a; }
+    [data-theme="dark"] .integration-prompt .prompt-text b { color: #fef3c7; }
+    .integration-prompt button {
+      font-size: 12px; padding: 6px 14px; border-radius: 8px;
+      background: #f59e0b; color: #fff; border: 0; font-weight: 600;
+      cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    }
+    .integration-prompt button:hover { background: #d97706; }
+    .integration-prompt .dismiss { background: transparent; color: #94a3b8; padding: 4px; border: 0; font-size: 16px; cursor: pointer; }
+  `;
+
+  // Show integration prompts on relevant pages
+  var origDrawHome2 = (typeof drawHome === 'function' && !drawHome.__ip) ? drawHome : null;
+  if (origDrawHome2) {
+    drawHome = function () {
+      origDrawHome2();
+      setTimeout(function () {
+        if (localStorage.getItem('afri.prompt.gmail')) return;
+        var view = document.getElementById('view');
+        if (!view) return;
+        var prompt = document.createElement('div');
+        prompt.className = 'integration-prompt';
+        prompt.innerHTML =
+          '<div class="prompt-ico">📅</div>' +
+          '<div class="prompt-text"><b>Connect your calendar</b><br>See your meetings and tasks on your Google or Outlook calendar.</div>' +
+          '<button onclick="go(\'settings\')">Connect</button>' +
+          '<button class="dismiss" onclick="this.parentElement.remove();localStorage.setItem(\'afri.prompt.gmail\',\'1\')">×</button>';
+        view.insertBefore(prompt, view.firstChild);
+      }, 100);
+    };
+    drawHome.__ip = true;
+  }
+
+  // --- LIST VIEW POLISH (proper column alignment) ---
+  style.textContent += `
+    .sheet table { border-collapse: collapse; width: 100%; }
+    .sheet th { font-size: 11px !important; font-weight: 600 !important; text-transform: uppercase; letter-spacing: 0.04em; color: #94a3b8 !important; padding: 10px 14px !important; background: #f8fafc; }
+    [data-theme="dark"] .sheet th { background: #0f172a !important; color: #64748b !important; }
+    .sheet td { padding: 12px 14px !important; font-size: 13px; vertical-align: middle; }
+    .sheet tr:hover td { background: #f8fafc; }
+    [data-theme="dark"] .sheet tr:hover td { background: #182234; }
+    .sheet .linkish { color: #0d9488; font-weight: 500; cursor: pointer; }
+    .sheet .linkish:hover { text-decoration: underline; }
+  `;
+
+  // --- CALENDAR MOBILE LAYOUT ---
+  style.textContent += `
+    @media (max-width: 680px) {
+      .cal-grid { grid-template-columns: 1fr !important; }
+      .cal-day { min-height: 60px; padding: 6px; }
+      .cal-event { font-size: 10px; padding: 2px 4px; }
+    }
+  `;
+
 })();
 
