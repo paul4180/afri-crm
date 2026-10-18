@@ -4460,5 +4460,37 @@
     }
   `;
 
+
+  style.textContent += `
+  /* === MOBILE OPTIMIZATIONS === */
+  @media (max-width: 880px) {
+    .actdash { grid-template-columns: 1fr !important; }
+    .actgrid { grid-template-columns: 1fr !important; }
+    .pulse { grid-template-columns: repeat(2, 1fr) !important; }
+    .split { grid-template-columns: 1fr !important; }
+    .pipe { grid-template-columns: 1fr !important; }
+    .leadboard { scroll-snap-type: x mandatory; }
+    .leadcol { min-width: 85vw !important; scroll-snap-align: center; }
+    .dealcard { padding: 10px; }
+    .deal-amount { font-size: 18px !important; }
+    .contact-card { padding: 14px; }
+    .task-card { padding: 12px; }
+    .cmdk-card { width: 100% !important; }
+    .wizard-card { width: 100% !important; border-radius: 16px; }
+    .csv-card { width: 100% !important; }
+    .side-panel { width: 100% !important; }
+    .shortcuts-card { width: 100% !important; }
+    .gate-grid { grid-template-columns: 1fr !important; }
+    .gate .panel { padding: 20px; }
+    .board-head h1 { font-size: 20px !important; }
+    .board-head .hello { font-size: 12px !important; }
+    .dealboard .col { max-height: none !important; }
+    .filters select, .filters input { width: auto; }
+    .reports { grid-template-columns: repeat(2, 1fr) !important; }
+    .report > div { font-size: 20px !important; }
+    .forecast-bar-row { grid-template-columns: 80px 1fr 60px !important; font-size: 12px !important; }
+    .forecast-bar-row .bar-track { height: 18px !important; }
+  }
+`;
 })();
 
