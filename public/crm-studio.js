@@ -4159,27 +4159,9 @@
     else { window.closeSidePanel(); refresh(); }
   };
 
-  // Setup progress banner at bottom of sidebar
-  var origDraw = (typeof draw === 'function') ? draw : null;
-  if (origDraw && !origDraw.__banner) {
-    draw = function () {
-      var result = origDraw.apply(this, arguments);
-      setTimeout(function () {
-        var nav = document.getElementById('nav');
-        if (!nav || document.getElementById('setupBanner')) return;
-        var banner = document.createElement('div');
-        banner.id = 'setupBanner';
-        banner.className = 'setup-banner';
-        var setupDone = workspace && Number(workspace.done);
-        banner.innerHTML = setupDone
-          ? '<b>Workspace ready</b><p>Scoring adapts to your answers. Add contacts to see it work.</p><button onclick="go(\'settings\')">Edit setup</button>'
-          : '<b>Finish setup</b><p>Tell Afri how you sell so the pipeline and scores match your business.</p><button onclick="go(\'settings\')">Continue</button>';
-        nav.appendChild(banner);
-      }, 100);
-      return result;
-    };
-    draw.__banner = true;
-  }
+  // Setup progress banner removed — paintSetupCard() in crm.html already
+  // renders a setup card at the bottom of the sidebar. Having both caused
+  // a duplicate (white card + green card saying the same thing).
 
 
   // ============================================================
