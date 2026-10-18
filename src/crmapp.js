@@ -2070,18 +2070,19 @@ export function registerCrm(app, prisma) {
     ensurePipeline(workspaceId);
     ensureSequences(workspaceId);
     ensureWorkflows(workspaceId);
-    const tags = ['VIP', 'Wholesale', 'Lagos', 'Abuja', 'Repeat buyer'];
-    for (let i = 0; i < tags.length; i++) {
-      db.prepare('INSERT INTO tags (id, tenantId, name, color) VALUES (?,?,?,?)').run(crypto.randomUUID(), workspaceId, tags[i], ['#dc2626','#7c3aed','#2563eb','#059669','#d97706'][i]);
+    var tags = ['VIP', 'Wholesale', 'Lagos', 'Abuja', 'Repeat buyer'];
+    var colors = ['#dc2626', '#7c3aed', '#2563eb', '#059669', '#d97706'];
+    for (var i = 0; i < tags.length; i++) {
+      db.prepare('INSERT INTO tags (id, tenantId, name, color) VALUES (?,?,?,?)').run(crypto.randomUUID(), workspaceId, tags[i], colors[i]);
     }
-    const companies = [
+    var companies = [
       ['Zenith Foods Ltd','Food & Beverage','CUSTOMER','Lagos','contact@zenithfoods.ng','01-234-5678'],
       ['Lekki Tech Hub','Technology','PROSPECT','Lagos','hello@lekkitech.ng','01-876-5432'],
       ['Atlantic Logistics','Transportation','CUSTOMER','Port Harcourt','info@atlanticlog.ng','084-123-4567'],
       ['Savannah Trading Co','Trading','PROSPECT','Abuja','sales@savannahtc.ng','09-345-6789'],
       ['Naija Builds Ltd','Construction','PARTNER','Abuja','projects@naijabuilds.ng','09-987-6543'],
     ];
-    const companyIds = companies.map(function(c) {
+    var companyIds = companies.map(function(c) {
       var id = crypto.randomUUID();
       db.prepare('INSERT INTO companies (id, tenantId, name, industry, type, city, email, phone, country, ownerId, source, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, c[0], c[1], c[2], c[3], c[4], c[5], 'Nigeria', ownerId, 'Referral', new Date(Date.now() - Math.random() * 30 * 86400000).toISOString());
       return id;
@@ -2098,7 +2099,7 @@ export function registerCrm(app, prisma) {
     ];
     var contactIds = contacts.map(function(c) {
       var id = crypto.randomUUID();
-      db.prepare('INSERT INTO contacts (id, tenantId, firstName, lastName, title, companyId, email, phone, city, country, ownerId, source, status, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, c[0], c[1], c[2], c[3], c[4], c[5], 'Lagos', 'Nigeria', ownerId, 'Referral', 'ACTIVE', new Date(Date.now() - Math.random() * 20 * 86400000).toISOString());
+      db.prepare('INSERT INTO contacts (id, tenantId, firstName, lastName, title, companyId, email, phone, city, country, ownerId, source, status, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, c[0], c[1], c[2], c[3], c[4], c[5], 'Lagos', 'Nigeria', ownerId, 'Referral', 'ACTIVE', new Date(Date.now() - Math.random() * 20 * 86400000).toISOString());
       return id;
     });
     var stages = db.prepare('SELECT id, code FROM stages WHERE tenantId = ? ORDER BY position').all(workspaceId);
@@ -2112,7 +2113,7 @@ export function registerCrm(app, prisma) {
     ];
     deals.forEach(function(d) {
       var id = crypto.randomUUID();
-      db.prepare('INSERT INTO deals (id, tenantId, name, companyId, contactId, amount, stage, probability, closeDate, type, source, ownerId, nextStep, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, d[0], d[1], d[2], d[3], findStage(d[4]), d[5], d[6], 'NEW', 'Referral', ownerId, d[4] === 'CLOSED_WON' ? 'Send onboarding' : 'Schedule follow-up', new Date(Date.now() - Math.random() * 15 * 86400000).toISOString());
+      db.prepare('INSERT INTO deals (id, tenantId, name, companyId, contactId, amount, stage, probability, closeDate, type, source, ownerId, nextStep, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, d[0], d[1], d[2], d[3], findStage(d[4]), d[5], d[6], 'NEW', 'Referral', ownerId, d[4] === 'CLOSED_WON' ? 'Send onboarding' : 'Schedule follow-up', new Date(Date.now() - Math.random() * 15 * 86400000).toISOString());
     });
     var today = new Date().toISOString().slice(0,10);
     var tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0,10);
