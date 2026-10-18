@@ -3846,5 +3846,97 @@
     draw();
   };
 
+
+  style.textContent += `
+  /* ============================================================
+     RECORD DETAIL VIEW — modernized contact/deal/company detail
+     Applies brand design system to the existing drawRecord
+     CSS-only (no JS changes, can't break)
+     ============================================================ */
+  .reports {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin: 0 0 20px;
+  }
+  @media (max-width: 880px) { .reports { grid-template-columns: repeat(2, 1fr); } }
+  .report {
+    background: linear-gradient(135deg, #fff 0%, #faf9f7 100%) !important;
+    border: 1px solid #e8e6e1 !important;
+    border-radius: 12px !important;
+    padding: 16px 18px !important;
+    text-align: center;
+    box-shadow: 0 1px 2px rgba(15,23,42,0.03);
+  }
+  [data-theme="dark"] .report {
+    background: linear-gradient(135deg, #1e293b 0%, #182234 100%) !important;
+    border-color: #334155 !important;
+  }
+  .report h2 {
+    font-size: 11px !important; font-weight: 600 !important;
+    color: #64748b !important; text-transform: uppercase;
+    letter-spacing: 0.05em; margin: 0 0 8px !important;
+  }
+  [data-theme="dark"] .report h2 { color: #94a3b8 !important; }
+  .report > div {
+    font-size: 28px !important; font-weight: 700 !important;
+    color: #0f172a !important; letter-spacing: -0.02em;
+  }
+  [data-theme="dark"] .report > div { color: #f8fafc !important; }
+  .record {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  @media (max-width: 880px) { .record { grid-template-columns: 1fr; } }
+  .stack { display: grid; gap: 16px; }
+  .time {
+    padding: 8px 0 8px 16px;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 13px;
+    color: #475569;
+    position: relative;
+    line-height: 1.5;
+  }
+  [data-theme="dark"] .time { border-bottom-color: #334155; color: #cbd5e1; }
+  .time::before {
+    content: ""; position: absolute; left: 0; top: 12px;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #14b8a6;
+  }
+  .time:last-child { border-bottom: 0; }
+  .score {
+    display: inline-block;
+    background: #f0fdfa; color: #0d9488;
+    padding: 2px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 700;
+  }
+  [data-theme="dark"] .score { background: #042f2e; color: #5eead4; }
+  .card h2 {
+    font-size: 12px !important; font-weight: 600 !important;
+    color: #475569 !important; margin: 0 0 12px !important;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  [data-theme="dark"] .card h2 { color: #94a3b8 !important; }
+  .record label {
+    font-size: 12px !important; font-weight: 500;
+    color: #475569;
+  }
+  .record input, .record select, .record textarea {
+    font-size: 14px;
+  }
+  .record .card {
+    padding: 18px;
+  }
+  .record .pipe {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  }
+  /* The "What happened" timeline section */
+  .record .card:last-child .time {
+    font-size: 13px;
+  }
+  /* Make the h1 title in record view more prominent */
+  .record + h1, .board-head + h1 {
+    font-size: 24px !important;
+    letter-spacing: -0.02em;
+    margin: 0 0 16px !important;
+  }
+`;
 })();
 
