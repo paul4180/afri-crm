@@ -1878,7 +1878,8 @@
       navItem('products', 'Catalog', svg('<path d="M4 7h16v12H4z"/><path d="M4 11h16"/>')) +
       navItem('flow', 'Workflow', svg('<circle cx="6" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="M8 7h6a4 4 0 0 1 4 4v5"/>')) +
       navItem('teams', 'Access', svg('<path d="M12 3 4 7v5c0 5 3.5 7.5 8 9 4.5-1.5 8-4 8-9V7z"/>')) +
-      navItem('audit', 'Organization', svg('<circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>'))
+      navItem('audit', 'Organization', svg('<circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>')) +
+      navItem('settings', 'Settings', svg('<circle cx="12" cy="12" r="3"/><path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>'))
     );
     document.querySelectorAll('#nav button').forEach((el) => el.classList.toggle('on', el.dataset.page === page));
   };
@@ -3442,6 +3443,129 @@
     };
     queueDraw.__debounced = true;
   }
+
+
+  // ============================================================
+  // PHASE 5: SETTINGS PAGE + USER MANAGEMENT
+  // ============================================================
+  style.textContent += `
+    .settings-layout { display: grid; grid-template-columns: 200px 1fr; gap: 20px; }
+    @media (max-width: 680px) { .settings-layout { grid-template-columns: 1fr; } }
+    .settings-nav { display: flex; flex-direction: column; gap: 2px; }
+    .settings-nav button { display: block; width: 100%; text-align: left; padding: 10px 14px; border: 0; background: transparent; color: #64748b; font-size: 13px; font-weight: 500; border-radius: 8px; cursor: pointer; transition: background 0.08s, color 0.08s; }
+    .settings-nav button:hover { background: #f1f0ec; color: #0f172a; }
+    .settings-nav button.on { background: #f1f0ec; color: #0f172a; font-weight: 600; }
+    .settings-content { min-height: 400px; }
+    .settings-section { margin-bottom: 20px; }
+    .settings-section h3 { font-size: 14px; font-weight: 600; color: #475569; margin: 0 0 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .settings-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+    @media (max-width: 680px) { .settings-row { grid-template-columns: 1fr; } }
+    .settings-row label { display: grid; gap: 4px; font-size: 13px; font-weight: 500; color: #475569; }
+    .user-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+    .user-row:last-child { border-bottom: 0; }
+    .user-row .avatar { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #fff; flex-shrink: 0; }
+    .user-row .info { flex: 1; min-width: 0; }
+    .user-row .info b { font-size: 14px; color: #0f172a; display: block; }
+    .user-row .info span { font-size: 12px; color: #64748b; }
+    .user-row .role-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; }
+    .user-row .role-badge.OWNER { background: #fef3c7; color: #92400e; }
+    .user-row .role-badge.ADMIN { background: #dbeafe; color: #1e40af; }
+    .user-row .role-badge.MANAGER { background: #e0e7ff; color: #3730a3; }
+    .user-row .role-badge.SALES { background: #d1fae5; color: #065f46; }
+    .user-row .role-badge.VIEWER { background: #f1f5f9; color: #475569; }
+    .user-row .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .user-row .status-dot.active { background: #22c55e; }
+    .user-row .status-dot.inactive { background: #cbd5e1; }
+    .temp-password { background: #f0fdfa; border: 1px dashed #99f6e4; border-radius: 8px; padding: 12px 14px; margin: 10px 0; }
+    .temp-password b { color: #0d9488; font-size: 16px; letter-spacing: 0.05em; }
+    .session-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+    .integration-row { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid #f1f5f9; }
+    .integration-row .ico { width: 36px; height: 36px; border-radius: 10px; background: #f1f0ec; display: grid; place-items: center; font-size: 18px; flex-shrink: 0; }
+    .integration-row .info b { font-size: 14px; color: #0f172a; }
+    .integration-row .info span { font-size: 12px; color: #64748b; display: block; }
+    .integration-row .status-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; }
+    .integration-row .status-badge.connected { background: #dcfce7; color: #166534; }
+    .integration-row .status-badge.disconnected { background: #f1f5f9; color: #64748b; }
+  `;
+  if (!window.__settingsTab) window.__settingsTab = 'workspace';
+  window.drawSettings = function () {
+    const tab = window.__settingsTab || 'workspace';
+    const tabs = [{id:'workspace',label:'Workspace'},{id:'team',label:'Team'},{id:'sessions',label:'Sessions'},{id:'integrations',label:'Integrations'},{id:'preferences',label:'Preferences'}];
+    const navHtml = tabs.map(function(t) { return '<button class="' + (tab === t.id ? 'on' : '') + '" onclick="window.__settingsTab=\''+t.id+'\';drawSettings()">'+t.label+'</button>'; }).join('');
+    document.getElementById('view').innerHTML = '<div class="board-head"><h1>Settings</h1></div><div class="settings-layout"><nav class="settings-nav">'+navHtml+'</nav><div class="settings-content" id="settingsContent">Loading...</div></div>';
+    if (tab === 'workspace') window.__settingsWorkspace();
+    else if (tab === 'team') window.__settingsTeam();
+    else if (tab === 'sessions') window.__settingsSessions();
+    else if (tab === 'integrations') window.__settingsIntegrations();
+    else if (tab === 'preferences') window.__settingsPreferences();
+  };
+  window.__settingsWorkspace = async function () {
+    const el = document.getElementById('settingsContent');
+    const data = await api('/crm/api/setup');
+    if (!data || data.error) { el.innerHTML = '<p class="hello">Could not load.</p>'; return; }
+    el.innerHTML = '<div class="settings-section"><h3>Business details</h3><div class="settings-row"><label>Business name<input id="setName" value="'+esc(data.name||'')+'"></label><label>Industry<select id="setIndustry">'+['Services','Retail','Manufacturing','Agriculture','Other'].map(function(i){return '<option '+(data.industry===i?'selected':'')+'>'+i+'</option>';}).join('')+'</select></label></div><div class="settings-row"><label>How do you sell?<select id="setChannel">'+['Phone & WhatsApp','Email','In-person','Mixed'].map(function(c){return '<option '+(data.channel===c?'selected':'')+'>'+c+'</option>';}).join('')+'</select></label><label>Whats the goal?<select id="setGoal">'+['Close deals','Customer support','Job delivery'].map(function(g){return '<option '+(data.goal===g?'selected':'')+'>'+g+'</option>';}).join('')+'</select></label></div></div><button type="button" onclick="window.__saveWorkspace()">Save changes</button><p class="hello" id="workspaceStatus" style="margin-top:12px"></p>';
+  };
+  window.__saveWorkspace = async function () {
+    const body = { name: document.getElementById('setName').value.trim(), industry: document.getElementById('setIndustry').value, channel: document.getElementById('setChannel').value, goal: document.getElementById('setGoal').value, done: 1 };
+    const res = await api('/crm/api/setup', { method: 'POST', body: JSON.stringify(body) });
+    var s = document.getElementById('workspaceStatus');
+    if (s) s.textContent = res && !res.error ? 'Saved.' : (res && res.error) || 'Could not save.';
+    if (res && !res.error) Object.assign(workspace, res);
+  };
+  window.__settingsTeam = async function () {
+    const el = document.getElementById('settingsContent');
+    const accounts = await api('/crm/api/accounts');
+    var list = (Array.isArray(accounts) ? accounts : []).map(function(a) {
+      var grad = avatarGradient(a.fullName || a.email || '?');
+      var init = (a.fullName || a.email || '?').slice(0, 2).toUpperCase();
+      var active = Number(a.active) !== 0;
+      var isOwner = a.role === 'OWNER';
+      return '<div class="user-row"><div class="avatar" style="background:'+grad+'">'+esc(init)+'</div><div class="info"><b>'+esc(a.fullName||a.email)+'</b><span>'+esc(a.email)+'</span></div><span class="role-badge '+a.role+'">'+esc(a.role)+'</span><span class="status-dot '+(active?'active':'inactive')+'"></span>'+(isOwner?'':'<select onchange="window.__changeRole(\''+a.id+'\', this.value)"><option value="ADMIN" '+(a.role==='ADMIN'?'selected':'')+'>Admin</option><option value="MANAGER" '+(a.role==='MANAGER'?'selected':'')+'>Manager</option><option value="SALES" '+(a.role==='SALES'?'selected':'')+'>Sales</option><option value="VIEWER" '+(a.role==='VIEWER'?'selected':'')+'>Viewer</option></select><button type="button" class="ghost" onclick="window.__toggleActive(\''+a.id+'\', '+(active?'false':'true')+')">'+(active?'Deactivate':'Activate')+'</button>')+'</div>';
+    }).join('') || '<p class="hello">No team members. Invite below.</p>';
+    el.innerHTML = '<div class="settings-section"><h3>Team members</h3>'+list+'</div><div class="settings-section"><h3>Invite a team member</h3><div class="settings-row"><label>Full name<input id="inviteName" placeholder="Ada Yusuf"></label><label>Email<input id="inviteEmail" type="email" placeholder="ada@company.com"></label></div><div class="settings-row"><label>Role<select id="inviteRole"><option value="ADMIN">Admin</option><option value="MANAGER">Manager</option><option value="SALES" selected>Sales</option><option value="VIEWER">Viewer</option></select></label></div><button type="button" onclick="window.__inviteUser()">Send invite</button><div id="inviteResult"></div></div>';
+  };
+  window.__inviteUser = async function () {
+    var email = document.getElementById('inviteEmail').value.trim();
+    var fullName = document.getElementById('inviteName').value.trim();
+    var role = document.getElementById('inviteRole').value;
+    if (!email) { toast('Enter an email'); return; }
+    var res = await api('/crm/api/accounts/invite', { method: 'POST', body: JSON.stringify({ email: email, fullName: fullName, role: role }) });
+    var el = document.getElementById('inviteResult');
+    if (res && !res.error) { el.innerHTML = '<div class="temp-password"><b>'+esc(res.tempPassword)+'</b><p>Share with '+esc(email)+'. They sign in at this URL and can change it later.</p></div>'; toast('Invited'); window.__settingsTeam(); }
+    else el.innerHTML = '<p class="hello" style="color:#b91c1c">'+esc(res&&res.error||'Could not invite')+'</p>';
+  };
+  window.__changeRole = async function (id, role) {
+    var res = await api('/crm/api/accounts/' + id, { method: 'PATCH', body: JSON.stringify({ role: role }) });
+    toast(res && !res.error ? 'Role updated' : (res && res.error) || 'Error');
+  };
+  window.__toggleActive = async function (id, active) {
+    var res = await api('/crm/api/account/active', { method: 'POST', body: JSON.stringify({ id: id, active: active === 'true' || active === true }) });
+    toast(res && !res.error ? 'Updated' : (res && res.error) || 'Error');
+    window.__settingsTeam();
+  };
+  window.__settingsSessions = async function () {
+    var el = document.getElementById('settingsContent');
+    var sessions = await api('/crm/api/sessions');
+    var list = (Array.isArray(sessions) ? sessions : []).map(function(s) { var a = !s.revokedAt; return '<div class="session-row"><span class="status-dot '+(a?'active':'inactive')+'"></span><div style="flex:1;color:#64748b"><b>'+esc(s.ip||'Unknown')+'</b> &middot; '+esc(s.agent?s.agent.slice(0,60):'Unknown')+' &middot; '+when(s.createdAt)+(s.revokedAt?' &middot; Revoked':'')+'</div>'+(a?'<button type="button" class="ghost" onclick="window.__revokeSession(\''+s.id+'\')">Revoke</button>':'')+'</div>'; }).join('') || '<p class="hello">No sessions.</p>';
+    el.innerHTML = '<div class="settings-section"><h3>Active sessions</h3>'+list+'</div>';
+  };
+  window.__revokeSession = async function (id) { await api('/crm/api/sessions/' + id + '/revoke', { method: 'POST' }); toast('Revoked'); window.__settingsSessions(); };
+  window.__settingsIntegrations = async function () {
+    var el = document.getElementById('settingsContent');
+    var data = await api('/crm/api/tools');
+    var rows = [{n:'Gmail',i:'\u2709',s:data&&data.googleReady},{n:'Google Calendar',i:'\uD83D\uDCC5',s:data&&data.googleReady},{n:'Outlook',i:'\uD83D\uDCE7',s:data&&data.microsoftReady},{n:'WhatsApp',i:'\uD83D\uDCAC',s:data&&data.whatsappReady},{n:'Email (Resend)',i:'\uD83D\uDCE8',s:data&&data.emailReady}].map(function(r){return '<div class="integration-row"><div class="ico">'+r.i+'</div><div class="info"><b>'+r.n+'</b><span>'+(r.s?'Connected':'Not configured')+'</span></div><span class="status-badge '+(r.s?'connected':'disconnected')+'">'+(r.s?'On':'Off')+'</span></div>';}).join('');
+    el.innerHTML = '<div class="settings-section"><h3>Connected services</h3>'+rows+'</div><p class="hello">Connect Gmail/Calendar/Outlook from the Integrations page in the sidebar. Email and WhatsApp need API keys on Railway.</p>';
+  };
+  window.__settingsPreferences = function () {
+    var el = document.getElementById('settingsContent');
+    var theme = document.documentElement.getAttribute('data-theme') || 'light';
+    el.innerHTML = '<div class="settings-section"><h3>Appearance</h3><div class="settings-row"><label>Theme<select onchange="window.__setTheme(this.value)"><option value="light" '+(theme==='light'?'selected':'')+'>Light</option><option value="dark" '+(theme==='dark'?'selected':'')+'>Dark</option><option value="auto" '+(!localStorage.getItem('afri.theme')?'selected':'')+'>Auto</option></select></label></div></div><div class="settings-section"><h3>Notifications</h3><p class="hello">Per-user notification preferences coming soon.</p></div>';
+  };
+  window.__setTheme = function (val) {
+    if (val === 'auto') { localStorage.removeItem('afri.theme'); document.documentElement.removeAttribute('data-theme'); if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.setAttribute('data-theme', 'dark'); }
+    else { document.documentElement.setAttribute('data-theme', val); localStorage.setItem('afri.theme', val); }
+    toast('Theme updated');
+  };
 
 })();
 
