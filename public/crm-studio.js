@@ -2001,7 +2001,7 @@
     const meetLines = meetings.map((row) => `<div class="rowline"><div><b>${esc(row.subject)}</b><div class="meta">${esc(row.dueAt || 'No time')}</div></div><button type="button" class="ghost" onclick="go('calendar')">Open</button></div>`).join('') || empty('📅', 'No meeting on the calendar.', 'Add one', "go('calendar')");
     const story = (bag.activities || []).slice(0, 8).map((row) => `<article class="titem"><b>${esc(row.type || 'Note')}</b><div>${esc(row.subject)}</div><div class="meta">${when(row.createdAt)} · ${esc(ownerName(row.ownerId) || '')}</div></article>`).join('') || empty('—', 'Nothing logged yet. A call, a task, or a meeting shows here.', null, null);
 
-    document.getElementById('view').innerHTML = `<div class="board-head"><div><h1>Today</h1><p class="hello">${hourHello()} · ${dateStr} · ${openDeals.length} open deal${openDeals.length === 1 ? '' : 's'}${tasksDue ? ' · ' + tasksDue + ' task' + (tasksDue === 1 ? '' : 's') + ' due' : ''}</p></div><span><button type="button" class="ghost" onclick="go('guide')">Start guide</button> <button type="button" class="ghost" onclick="refresh()">Refresh</button></span></div>
+    document.getElementById('view').innerHTML = `<div class="board-head"><div><h1>Today</h1><p class="hello">${hourHello()} · ${dateStr} · ${openDeals.length} open deal${openDeals.length === 1 ? '' : 's'}${tasksDue ? ' · ' + tasksDue + ' task' + (tasksDue === 1 ? '' : 's') + ' due' : ''}</p></div><span><button type="button" class="ghost" onclick="go('guide')">Start guide</button> <button type="button" class="ghost" onclick="window.__loadDemoClient()" style="background:#f0fdfa;color:#0d9488;border-color:#99f6e4">Demo data</button> <button type="button" class="ghost" onclick="refresh()">Refresh</button></span></div>
       <div class="today-stats">
         <div class="today-stat"><b>${openDeals.length}</b><span>Open deals</span></div>
         <div class="today-stat"><b>${money(pipelineValue)}</b><span>Pipeline</span></div>
@@ -3755,6 +3755,95 @@
     var res = await api('/crm/api/setup/demo', { method: 'POST', body: JSON.stringify({}) });
     if (res && !res.error) { toast('Demo data loaded — refresh to see it'); setTimeout(function() { refresh(); }, 500); }
     else toast((res && res.error) || 'Could not load demo data');
+  };
+
+
+  // ============================================================
+  // CLIENT-SIDE DEMO DATA — fills bag with sample data so the
+  // CRM looks alive immediately. No API calls, no SQL. Pure JS.
+  // Click "Demo" button on Home page to load.
+  // ============================================================
+  window.__loadDemoClient = function () {
+    var now = Date.now();
+    var d = function(daysAgo) { return new Date(now - daysAgo * 86400000).toISOString(); };
+    var future = function(daysAhead) { return new Date(now + daysAhead * 86400000).toISOString().slice(0, 10); };
+    var past = function(daysAgo) { return new Date(now - daysAgo * 86400000).toISOString().slice(0, 10); };
+
+    var people = [
+      { id: 'p1', fullName: 'Ada Okafor', email: 'ada@zenithfoods.ng' },
+      { id: 'p2', fullName: 'Bola Adeyemi', email: 'bola@lekkitech.ng' },
+      { id: 'p3', fullName: 'Chidi Nwosu', email: 'chidi@atlanticlog.ng' },
+      { id: 'p4', fullName: 'Fatima Bello', email: 'fatima@savannahtc.ng' },
+      { id: 'p5', fullName: 'Emeka Obi', email: 'emeka@naijabuilds.ng' },
+      { id: 'p6', fullName: 'Grace Eze', email: 'grace@lekkitech.ng' },
+      { id: 'p7', fullName: 'Tunde Adesanya', email: 'tunde@zenithfoods.ng' },
+      { id: 'p8', fullName: 'Zainab Yusuf', email: 'zainab@savannahtc.ng' },
+    ];
+
+    var companies = [
+      { id: 'c1', name: 'Zenith Foods Ltd', industry: 'Food & Beverage', type: 'CUSTOMER', city: 'Lagos', email: 'contact@zenithfoods.ng', phone: '01-234-5678', ownerId: 'p1', source: 'Referral', createdAt: d(25) },
+      { id: 'c2', name: 'Lekki Tech Hub', industry: 'Technology', type: 'PROSPECT', city: 'Lagos', email: 'hello@lekkitech.ng', phone: '01-876-5432', ownerId: 'p2', source: 'Walk-in', createdAt: d(18) },
+      { id: 'c3', name: 'Atlantic Logistics', industry: 'Transportation', type: 'CUSTOMER', city: 'Port Harcourt', email: 'info@atlanticlog.ng', phone: '084-123-4567', ownerId: 'p3', source: 'Referral', createdAt: d(12) },
+      { id: 'c4', name: 'Savannah Trading Co', industry: 'Trading', type: 'PROSPECT', city: 'Abuja', email: 'sales@savannahtc.ng', phone: '09-345-6789', ownerId: 'p4', source: 'Form', createdAt: d(8) },
+      { id: 'c5', name: 'Naija Builds Ltd', industry: 'Construction', type: 'PARTNER', city: 'Abuja', email: 'projects@naijabuilds.ng', phone: '09-987-6543', ownerId: 'p5', source: 'Partner', createdAt: d(5) },
+    ];
+
+    var contacts = [
+      { id: 'ct1', firstName: 'Ada', lastName: 'Okafor', title: 'Operations Manager', companyId: 'c1', email: 'ada@zenithfoods.ng', phone: '0803-555-0101', city: 'Lagos', country: 'Nigeria', ownerId: 'p1', source: 'Referral', status: 'ACTIVE', createdAt: d(20) },
+      { id: 'ct2', firstName: 'Bola', lastName: 'Adeyemi', title: 'CEO', companyId: 'c2', email: 'bola@lekkitech.ng', phone: '0805-555-0202', city: 'Lagos', country: 'Nigeria', ownerId: 'p2', source: 'Walk-in', status: 'ACTIVE', createdAt: d(15) },
+      { id: 'ct3', firstName: 'Chidi', lastName: 'Nwosu', title: 'Sales Director', companyId: 'c3', email: 'chidi@atlanticlog.ng', phone: '0807-555-0303', city: 'Port Harcourt', country: 'Nigeria', ownerId: 'p3', source: 'Referral', status: 'ACTIVE', createdAt: d(10) },
+      { id: 'ct4', firstName: 'Fatima', lastName: 'Bello', title: 'General Manager', companyId: 'c4', email: 'fatima@savannahtc.ng', phone: '0809-555-0404', city: 'Abuja', country: 'Nigeria', ownerId: 'p4', source: 'Form', status: 'ACTIVE', createdAt: d(7) },
+      { id: 'ct5', firstName: 'Emeka', lastName: 'Obi', title: 'Project Director', companyId: 'c5', email: 'emeka@naijabuilds.ng', phone: '0811-555-0505', city: 'Abuja', country: 'Nigeria', ownerId: 'p5', source: 'Partner', status: 'ACTIVE', createdAt: d(4) },
+      { id: 'ct6', firstName: 'Grace', lastName: 'Eze', title: 'Marketing Lead', companyId: 'c2', email: 'grace@lekkitech.ng', phone: '0813-555-0606', city: 'Lagos', country: 'Nigeria', ownerId: 'p6', source: 'Walk-in', status: 'ACTIVE', createdAt: d(3) },
+      { id: 'ct7', firstName: 'Tunde', lastName: 'Adesanya', title: 'Procurement', companyId: 'c1', email: 'tunde@zenithfoods.ng', phone: '0815-555-0707', city: 'Lagos', country: 'Nigeria', ownerId: 'p7', source: 'Referral', status: 'ACTIVE', createdAt: d(2) },
+      { id: 'ct8', firstName: 'Zainab', lastName: 'Yusuf', title: 'Founder', companyId: 'c4', email: 'zainab@savannahtc.ng', phone: '0817-555-0808', city: 'Abuja', country: 'Nigeria', ownerId: 'p8', source: 'Form', status: 'ACTIVE', createdAt: d(1) },
+    ];
+
+    var deals = [
+      { id: 'd1', name: 'Software implementation for Zenith', companyId: 'c1', contactId: 'ct1', amount: 2500000, stage: 'PROPOSAL_SENT', probability: 60, closeDate: future(28), type: 'NEW', source: 'Referral', ownerId: 'p1', nextStep: 'Send contract', createdAt: d(10) },
+      { id: 'd2', name: 'Annual support contract', companyId: 'c2', contactId: 'ct2', amount: 1200000, stage: 'NEGOTIATION', probability: 80, closeDate: future(12), type: 'NEW', source: 'Walk-in', ownerId: 'p2', nextStep: 'Finalize terms', createdAt: d(8) },
+      { id: 'd3', name: 'Hardware upgrade package', companyId: 'c3', contactId: 'ct3', amount: 800000, stage: 'NEEDS_ASSESSMENT', probability: 40, closeDate: future(44), type: 'NEW', source: 'Referral', ownerId: 'p3', nextStep: 'Schedule demo', createdAt: d(5) },
+      { id: 'd4', name: 'Consulting retainer', companyId: 'c4', contactId: 'ct4', amount: 3000000, stage: 'PROSPECTING', probability: 10, closeDate: future(58), type: 'NEW', source: 'Form', ownerId: 'p4', nextStep: 'Initial call', createdAt: d(3) },
+      { id: 'd5', name: 'Training program', companyId: 'c5', contactId: 'ct5', amount: 450000, stage: 'CLOSED_WON', probability: 100, closeDate: past(28), type: 'NEW', source: 'Partner', ownerId: 'p5', nextStep: 'Onboarding complete', createdAt: d(30) },
+    ];
+
+    var activities = [
+      { id: 'a1', type: 'CALL', subject: 'Call Ada about the software proposal', relatedType: 'deal', relatedId: 'd1', dueAt: past(1), status: 'PLANNED', priority: 'HIGH', ownerId: 'p1', notes: '', createdAt: d(3) },
+      { id: 'a2', type: 'TASK', subject: 'Send updated quote to Bola', relatedType: 'contact', relatedId: 'ct2', dueAt: past(0), status: 'PLANNED', priority: 'HIGH', ownerId: 'p2', notes: '', createdAt: d(2) },
+      { id: 'a3', type: 'MEETING', subject: 'Demo session with Atlantic Logistics', relatedType: 'deal', relatedId: 'd3', dueAt: future(1), status: 'PLANNED', priority: 'NORMAL', ownerId: 'p3', notes: '', createdAt: d(1) },
+      { id: 'a4', type: 'TASK', subject: 'Follow up on Savannah Trading retainer', relatedType: 'deal', relatedId: 'd4', dueAt: future(7), status: 'PLANNED', priority: 'NORMAL', ownerId: 'p4', notes: '', createdAt: d(1) },
+      { id: 'a5', type: 'CALL', subject: 'Check in with Emeka on training', relatedType: 'deal', relatedId: 'd5', dueAt: past(1), status: 'PLANNED', priority: 'NORMAL', ownerId: 'p5', notes: '', createdAt: d(2) },
+      { id: 'a6', type: 'TASK', subject: 'Update pricing sheet for Q4', relatedType: null, relatedId: null, dueAt: past(0), status: 'PLANNED', priority: 'NORMAL', ownerId: 'p1', notes: '', createdAt: d(1) },
+      { id: 'a7', type: 'EMAIL', subject: 'Send contract to Zenith Foods', relatedType: 'deal', relatedId: 'd1', dueAt: past(0), status: 'PLANNED', priority: 'HIGH', ownerId: 'p1', notes: '', createdAt: d(1) },
+      { id: 'a8', type: 'CALL', subject: 'Welcome call to Zainab', relatedType: 'contact', relatedId: 'ct8', dueAt: future(1), status: 'PLANNED', priority: 'NORMAL', ownerId: 'p8', notes: '', createdAt: d(1) },
+    ];
+
+    var tags = [
+      { id: 't1', name: 'VIP', color: '#dc2626' },
+      { id: 't2', name: 'Wholesale', color: '#7c3aed' },
+      { id: 't3', name: 'Lagos', color: '#2563eb' },
+      { id: 't4', name: 'Abuja', color: '#059669' },
+      { id: 't5', name: 'Repeat buyer', color: '#d97706' },
+    ];
+
+    var leads = [
+      { id: 'l1', firstName: 'Kemi', lastName: 'Adeola', companyName: 'Blue Ocean Ltd', email: 'kemi@blueocean.ng', phone: '0821-555-0901', source: 'Web form', status: 'NEW', rating: 'WARM', ownerId: 'p1', createdAt: d(2) },
+      { id: 'l2', firstName: 'David', lastName: 'Eze', companyName: 'Greenfield Farms', email: 'david@greenfield.ng', phone: '0823-555-0902', source: 'Referral', status: 'WORKING', rating: 'HOT', ownerId: 'p2', createdAt: d(4) },
+      { id: 'l3', firstName: 'Aisha', lastName: 'Mohammed', companyName: 'Sahara Imports', email: 'aisha@saharaimports.ng', phone: '0825-555-0903', source: 'Phone', status: 'QUALIFIED', rating: 'WARM', ownerId: 'p3', createdAt: d(6) },
+      { id: 'l4', firstName: 'Samuel', lastName: 'Okon', companyName: 'Delta Foods', email: 'samuel@deltafoods.ng', phone: '0827-555-0904', source: 'Walk-in', status: 'NEW', rating: 'COLD', ownerId: 'p4', createdAt: d(1) },
+    ];
+
+    // Populate bag
+    bag.people = people;
+    bag.companies = companies;
+    bag.contacts = contacts;
+    bag.deals = deals;
+    bag.activities = activities;
+    bag.tags = tags;
+    bag.leads = leads;
+
+    toast('Demo data loaded — every page now has content');
+    draw();
   };
 
 })();
