@@ -904,7 +904,7 @@ function draw() {
     orders: drawOrders, forms: () => drawKind('form', 'Forms'), events: () => drawKind('event', 'Events'),
     articles: () => drawKind('article', 'Knowledge'), surveys: () => drawKind('survey', 'Surveys'),
     pages: () => drawSite('page', 'Pages', false), landing: () => drawSite('page', 'Landing pages', true), blog: () => drawSite('post', 'Blog', false),
-    sequences: drawSequences, forecast: drawForecast, feed: drawFeed, calls: () => drawActivity('CALL', 'Calls'),
+    sequences: drawSequences, forecast: drawForecast, feed: drawFeed, settings: () => { if (typeof window.drawSettings === "function") window.drawSettings(); }, calls: () => drawActivity('CALL', 'Calls'),
     meetings: () => drawActivity('MEETING', 'Meetings'), calendar: drawCalendar, segments: drawSegments,
     intent: drawIntent, quality: drawQuality, import: drawImport, model: drawModel, prospect: drawProspect, dev: drawDev, hold: drawHold,
     pipeline: drawPipeline, teams: drawTeams, tags: drawTags, users: drawUsers, workflows: drawAutomation, automation: drawAutomation, comm: drawComm, record: drawRecord, audit: drawAudit, backups: drawBackups, guide: drawGuide,

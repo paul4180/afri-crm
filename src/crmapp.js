@@ -1987,6 +1987,52 @@ export function registerCrm(app, prisma) {
     writeAudit(user.tenantId, user.sub, req.body?.active ? 'activate' : 'deactivate', 'account', id, '');
     return { ok: true };
   });
+
+  // ============================================================
+  // Phase 5: CRM user management — list, invite, update role
+  // ============================================================
+
+  // GET /crm/api/accounts — list all CRM accounts in this workspace
+  app.get('/crm/api/accounts', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    const rows = db.prepare('SELECT id, email, fullName, role, active, createdAt, failed, lockedUntil FROM crm_accounts WHERE workspaceId = ? ORDER BY createdAt').all(user.tenantId);
+    return rows;
+  });
+
+  // POST /crm/api/accounts/invite — invite a new user (creates account with temp password)
+  app.post('/crm/api/accounts/invite', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only an owner or an admin can invite users.' });
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const fullName = String(req.body?.fullName || '').trim();
+    const role = String(req.body?.role || 'SALES').toUpperCase();
+    if (!email) return reply.code(400).send({ error: 'Email is required.' });
+    if (!['ADMIN', 'MANAGER', 'SALES', 'VIEWER'].includes(role)) return reply.code(400).send({ error: 'Role must be Admin, Manager, Sales, or Viewer.' });
+    if (db.prepare('SELECT id FROM crm_accounts WHERE email = ?').get(email)) return reply.code(409).send({ error: 'That email already has a CRM account.' });
+    const tempPassword = crypto.randomBytes(4).toString('hex');
+    const hash = await bcrypt.hash(tempPassword, 10);
+    const id = crypto.randomUUID();
+    db.prepare('INSERT INTO crm_accounts (id, workspaceId, email, passwordHash, fullName, role, active) VALUES (?,?,?,?,?,?,?,1)').run(id, user.tenantId, email, hash, fullName, role);
+    seedAccess(user.tenantId);
+    writeAudit(user.tenantId, user.sub, 'invite', 'account', id, email + ' as ' + role);
+    publishEvent(user.tenantId, 'account.created', { id, email, role });
+    return reply.code(201).send({ id, email, fullName, role, tempPassword });
+  });
+
+  // PATCH /crm/api/accounts/:id — update role
+  app.patch('/crm/api/accounts/:id', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only an owner or an admin can change roles.' });
+    const account = db.prepare('SELECT id, role, email FROM crm_accounts WHERE id = ? AND workspaceId = ?').get(req.params.id, user.tenantId);
+    if (!account) return reply.code(404).send({ error: 'Account not found.' });
+    if (account.role === 'OWNER') return reply.code(403).send({ error: 'The owner role cannot be changed.' });
+    const newRole = String(req.body?.role || '').toUpperCase();
+    if (!['ADMIN', 'MANAGER', 'SALES', 'VIEWER'].includes(newRole)) return reply.code(400).send({ error: 'Invalid role.' });
+    db.prepare('UPDATE crm_accounts SET role = ? WHERE id = ?').run(newRole, req.params.id);
+    writeAudit(user.tenantId, user.sub, 'role', 'account', req.params.id, account.role + ' -> ' + newRole);
+    return { ok: true };
+  });
+
   app.post('/crm/api/notifications/snooze', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     const minutes = Math.min(24 * 60, Math.max(15, Number(req.body?.minutes || 60)));
