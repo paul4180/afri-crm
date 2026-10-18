@@ -345,7 +345,7 @@ function ensurePipeline(tenantId) {
   let pipeline = db.prepare('SELECT * FROM pipelines WHERE tenantId = ? AND isDefault = 1').get(tenantId);
   if (!pipeline) {
     const id = crypto.randomUUID();
-    db.prepare('INSERT INTO pipelines (id, tenantId, name, isDefault) VALUES (?,?,?,1)').run(id, tenantId, 'Sales');
+    db.prepare('INSERT INTO pipelines (id, tenantId, name, isDefault) VALUES (?,?,?,?)').run(id, tenantId, 'Sales');
     pipeline = { id, tenantId, name: 'Sales', isDefault: 1 };
     const put = db.prepare('INSERT INTO stages (id, tenantId, pipelineId, code, name, color, probability, position, closed) VALUES (?,?,?,?,?,?,?,?,?)');
     DEFAULT_STAGES.forEach((row, index) => put.run(crypto.randomUUID(), tenantId, id, row[0], row[1], row[2], row[3], index, row[4]));
@@ -412,7 +412,7 @@ const DEFAULT_SEQUENCES = [
 function ensureSequences(tenantId) {
   const count = db.prepare('SELECT COUNT(*) AS n FROM sequences WHERE tenantId = ?').get(tenantId).n;
   if (count) return;
-  const put = db.prepare('INSERT INTO sequences (id, tenantId, name, stage, taskSubject, days, active) VALUES (?,?,?,?,?,?,1)');
+  const put = db.prepare('INSERT INTO sequences (id, tenantId, name, stage, taskSubject, days, active) VALUES (?,?,?,?,?,?,?)');
   for (const [name, stage, task, days] of DEFAULT_SEQUENCES) put.run(crypto.randomUUID(), tenantId, name, stage, task, days);
 }
 
@@ -438,7 +438,7 @@ const DEFAULT_WORKFLOWS = [
 
 function ensureWorkflows(tenantId) {
   const names = new Set(db.prepare('SELECT name FROM workflows WHERE tenantId = ?').all(tenantId).map((row) => row.name));
-  const put = db.prepare('INSERT INTO workflows (id, tenantId, name, trigger, taskSubject, days, active) VALUES (?,?,?,?,?,?,1)');
+  const put = db.prepare('INSERT INTO workflows (id, tenantId, name, trigger, taskSubject, days, active) VALUES (?,?,?,?,?,?,?)');
   for (const [name, trigger, task, days] of DEFAULT_WORKFLOWS) {
     if (!names.has(name)) put.run(crypto.randomUUID(), tenantId, name, trigger, task, days);
   }
@@ -1409,7 +1409,7 @@ export function registerCrm(app, prisma) {
   app.post('/crm/api/guide', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     const off = req.body?.off ? 1 : 0;
-    db.prepare('INSERT INTO workspace (tenantId, done, guideOff) VALUES (?, 0, ?) ON CONFLICT(tenantId) DO UPDATE SET guideOff = excluded.guideOff').run(user.tenantId, off);
+    db.prepare('INSERT INTO workspace (tenantId, done, guideOff) VALUES (?,?,?) ON CONFLICT(tenantId) DO UPDATE SET guideOff = excluded.guideOff').run(user.tenantId, off);
     return { off: Boolean(off) };
   });
 
@@ -1513,7 +1513,7 @@ export function registerCrm(app, prisma) {
     if (!email.includes('@') || !fullName || password.length < 8) return reply.code(400).send({ error: 'Enter a name, an email, and a password of 8 characters' });
     if (db.prepare('SELECT id FROM crm_accounts WHERE email = ?').get(email)) return reply.code(409).send({ error: 'That email already has an Afri CRM account.' });
     const id = crypto.randomUUID();
-    db.prepare('INSERT INTO crm_accounts (id, workspaceId, email, passwordHash, fullName, role, active) VALUES (?,?,?,?,?,?,1)').run(id, user.tenantId, email, await bcrypt.hash(password, 10), fullName, role);
+    db.prepare('INSERT INTO crm_accounts (id, workspaceId, email, passwordHash, fullName, role, active) VALUES (?,?,?,?,?,?,?)').run(id, user.tenantId, email, await bcrypt.hash(password, 10), fullName, role);
     writeAudit(user.tenantId, user.sub, 'created', 'users', id, fullName + ' · ' + role);
     return reply.code(201).send({ id, fullName, email, role, active: 1 });
   });
@@ -1534,7 +1534,7 @@ export function registerCrm(app, prisma) {
     if (action !== 'webhook' && !taskSubject) return reply.code(400).send({ error: 'Say what the task or the note says' });
     if (action === 'webhook' && !/^https:\/\//.test(target)) return reply.code(400).send({ error: 'The other system needs an https address' });
     const id = crypto.randomUUID();
-    db.prepare('INSERT INTO workflows (id, tenantId, name, trigger, taskSubject, days, active, action, target) VALUES (?,?,?,?,?,?,1,?,?)')
+    db.prepare('INSERT INTO workflows (id, tenantId, name, trigger, taskSubject, days, active, action, target) VALUES (?,?,?,?,?,?,?,?,?)')
       .run(id, user.tenantId, name, trigger, taskSubject || 'Notify', Number(req.body?.days || 1), action, target || null);
     return db.prepare('SELECT * FROM workflows WHERE id = ?').get(id);
   });
@@ -1578,7 +1578,7 @@ export function registerCrm(app, prisma) {
     const days = Math.min(30, Math.max(0, Number(req.body?.days || 1)));
     if (!name || !stage || !taskSubject) return reply.code(400).send({ error: 'Name it, pick a stage, and say the task' });
     const id = crypto.randomUUID();
-    db.prepare('INSERT INTO sequences (id, tenantId, name, stage, taskSubject, days, active) VALUES (?,?,?,?,?,?,1)').run(id, user.tenantId, name, stage, taskSubject, days);
+    db.prepare('INSERT INTO sequences (id, tenantId, name, stage, taskSubject, days, active) VALUES (?,?,?,?,?,?,?)').run(id, user.tenantId, name, stage, taskSubject, days);
     return db.prepare('SELECT * FROM sequences WHERE id = ?').get(id);
   });
   app.patch('/crm/api/sequences/:id', async (req, reply) => {
@@ -1720,7 +1720,7 @@ export function registerCrm(app, prisma) {
     const code = name.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40) || 'STAGE';
     const last = db.prepare('SELECT MAX(position) AS n FROM stages WHERE tenantId = ? AND pipelineId = ? AND closed = 0').get(user.tenantId, pipeline.id);
     const id = crypto.randomUUID();
-    db.prepare('INSERT INTO stages (id, tenantId, pipelineId, code, name, color, probability, position, closed) VALUES (?,?,?,?,?,?,?,?,0)')
+    db.prepare('INSERT INTO stages (id, tenantId, pipelineId, code, name, color, probability, position, closed) VALUES (?,?,?,?,?,?,?,?,?)')
       .run(id, user.tenantId, pipeline.id, code + '_' + id.slice(0, 4).toUpperCase(), name, String(req.body?.color || '#2563eb'), Number(req.body?.probability || 50), (last?.n ?? -1) + 1);
     writeAudit(user.tenantId, user.sub, 'created', 'stages', id, name);
     return stagesFor(user.tenantId);
@@ -2083,7 +2083,7 @@ export function registerCrm(app, prisma) {
     ];
     const companyIds = companies.map(function(c) {
       var id = crypto.randomUUID();
-      db.prepare('INSERT INTO companies (id, tenantId, name, industry, type, city, email, phone, country, ownerId, source, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, c[0], c[1], c[2], c[3], c[4], c[5], 'Nigeria', ownerId, 'Referral', new Date(Date.now() - Math.random() * 30 * 86400000).toISOString());
+      db.prepare('INSERT INTO companies (id, tenantId, name, industry, type, city, email, phone, country, ownerId, source, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, c[0], c[1], c[2], c[3], c[4], c[5], 'Nigeria', ownerId, 'Referral', new Date(Date.now() - Math.random() * 30 * 86400000).toISOString());
       return id;
     });
     var contacts = [
@@ -2098,7 +2098,7 @@ export function registerCrm(app, prisma) {
     ];
     var contactIds = contacts.map(function(c) {
       var id = crypto.randomUUID();
-      db.prepare('INSERT INTO contacts (id, tenantId, firstName, lastName, title, companyId, email, phone, city, country, ownerId, source, status, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, c[0], c[1], c[2], c[3], c[4], c[5], 'Lagos', 'Nigeria', ownerId, 'Referral', 'ACTIVE', new Date(Date.now() - Math.random() * 20 * 86400000).toISOString());
+      db.prepare('INSERT INTO contacts (id, tenantId, firstName, lastName, title, companyId, email, phone, city, country, ownerId, source, status, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, c[0], c[1], c[2], c[3], c[4], c[5], 'Lagos', 'Nigeria', ownerId, 'Referral', 'ACTIVE', new Date(Date.now() - Math.random() * 20 * 86400000).toISOString());
       return id;
     });
     var stages = db.prepare('SELECT id, code FROM stages WHERE tenantId = ? ORDER BY position').all(workspaceId);
@@ -2112,7 +2112,7 @@ export function registerCrm(app, prisma) {
     ];
     deals.forEach(function(d) {
       var id = crypto.randomUUID();
-      db.prepare('INSERT INTO deals (id, tenantId, name, companyId, contactId, amount, stage, probability, closeDate, type, source, ownerId, nextStep, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, d[0], d[1], d[2], d[3], findStage(d[4]), d[5], d[6], 'NEW', 'Referral', ownerId, d[4] === 'CLOSED_WON' ? 'Send onboarding' : 'Schedule follow-up', new Date(Date.now() - Math.random() * 15 * 86400000).toISOString());
+      db.prepare('INSERT INTO deals (id, tenantId, name, companyId, contactId, amount, stage, probability, closeDate, type, source, ownerId, nextStep, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, d[0], d[1], d[2], d[3], findStage(d[4]), d[5], d[6], 'NEW', 'Referral', ownerId, d[4] === 'CLOSED_WON' ? 'Send onboarding' : 'Schedule follow-up', new Date(Date.now() - Math.random() * 15 * 86400000).toISOString());
     });
     var today = new Date().toISOString().slice(0,10);
     var tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0,10);
@@ -2130,7 +2130,7 @@ export function registerCrm(app, prisma) {
     ];
     tasks.forEach(function(t) {
       var id = crypto.randomUUID();
-      db.prepare('INSERT INTO activities (id, tenantId, type, subject, relatedType, relatedId, dueAt, status, priority, ownerId, notes, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, t[0], t[1], t[3] || null, t[2] || null, t[4], t[5], t[6], ownerId, '', new Date(Date.now() - Math.random() * 5 * 86400000).toISOString());
+      db.prepare('INSERT INTO activities (id, tenantId, type, subject, relatedType, relatedId, dueAt, status, priority, ownerId, notes, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, t[0], t[1], t[3] || null, t[2] || null, t[4], t[5], t[6], ownerId, '', new Date(Date.now() - Math.random() * 5 * 86400000).toISOString());
     });
     var notes = [
       [contactIds[0], 'contact', 'Ada mentioned they are evaluating 3 vendors. We are the frontrunner because of local support.'],
