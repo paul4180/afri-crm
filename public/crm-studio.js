@@ -3517,7 +3517,7 @@
     const el = document.getElementById('settingsContent');
     const data = await api('/crm/api/setup');
     if (!data || data.error) { el.innerHTML = '<p class="hello">Could not load.</p>'; return; }
-    el.innerHTML = '<div class="settings-section"><h3>Business details</h3><div class="settings-row"><label>Business name<input id="setName" value="'+esc(data.name||'')+'"></label><label>Industry<select id="setIndustry">'+['Services','Retail','Manufacturing','Agriculture','Other'].map(function(i){return '<option '+(data.industry===i?'selected':'')+'>'+i+'</option>';}).join('')+'</select></label></div><div class="settings-row"><label>How do you sell?<select id="setChannel">'+['Phone & WhatsApp','Email','In-person','Mixed'].map(function(c){return '<option '+(data.channel===c?'selected':'')+'>'+c+'</option>';}).join('')+'</select></label><label>Whats the goal?<select id="setGoal">'+['Close deals','Customer support','Job delivery'].map(function(g){return '<option '+(data.goal===g?'selected':'')+'>'+g+'</option>';}).join('')+'</select></label></div></div><button type="button" onclick="window.__saveWorkspace()">Save changes</button><p class="hello" id="workspaceStatus" style="margin-top:12px"></p>';
+    el.innerHTML = '<div class="settings-section"><h3>Business details</h3><div class="settings-row"><label>Business name<input id="setName" value="'+esc(data.name||'')+'"></label><label>Industry<select id="setIndustry">'+['Services','Retail','Manufacturing','Agriculture','Other'].map(function(i){return '<option '+(data.industry===i?'selected':'')+'>'+i+'</option>';}).join('')+'</select></label></div><div class="settings-row"><label>How do you sell?<select id="setChannel">'+['Phone & WhatsApp','Email','In-person','Mixed'].map(function(c){return '<option '+(data.channel===c?'selected':'')+'>'+c+'</option>';}).join('')+'</select></label><label>Whats the goal?<select id="setGoal">'+['Close deals','Customer support','Job delivery'].map(function(g){return '<option '+(data.goal===g?'selected':'')+'>'+g+'</option>';}).join('')+'</select></label></div></div><button type="button" onclick="window.__saveWorkspace()">Save changes</button> <button type="button" class="ghost" onclick="window.__loadDemo()">Load demo data</button><p class="hello" id="workspaceStatus" style="margin-top:12px"></p>';
   };
   window.__saveWorkspace = async function () {
     const body = { name: document.getElementById('setName').value.trim(), industry: document.getElementById('setIndustry').value, channel: document.getElementById('setChannel').value, goal: document.getElementById('setGoal').value, done: 1 };
@@ -3750,5 +3750,12 @@
   header .search input { width: 100% !important; }
   header .tools { margin-left: auto; }
 `;
+
+  window.__loadDemo = async function () {
+    var res = await api('/crm/api/setup/demo', { method: 'POST', body: JSON.stringify({}) });
+    if (res && !res.error) { toast('Demo data loaded — refresh to see it'); setTimeout(function() { refresh(); }, 500); }
+    else toast((res && res.error) || 'Could not load demo data');
+  };
+
 })();
 

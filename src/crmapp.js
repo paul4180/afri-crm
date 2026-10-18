@@ -961,6 +961,7 @@ export function registerCrm(app, prisma) {
     seedAccess(workspaceId);
     writeAudit(workspaceId, accountId, 'signup', 'account', accountId, email);
     publishEvent(workspaceId, 'account.created', { id: accountId });
+    seedDemo(workspaceId, accountId);
     const accessToken = openSession(app, { id: accountId, workspaceId, role: 'OWNER' }, req);
     return reply.code(201).send({ accessToken, slug, fullName, email });
   });
@@ -2055,4 +2056,91 @@ export function registerCrm(app, prisma) {
     const subHtml = subs.map((row) => `<li>${htmlEscape(row.name)} · NGN ${Number(row.amount || 0).toLocaleString('en-NG')}</li>`).join('') || '<li>No subscription on this company.</li>';
     return reply.type('text/html').send(publicShell(portal.name, `<p style="font-family:sans-serif;font-size:12px">${htmlEscape(tenant?.name || 'Afri')}</p><h1>${htmlEscape(portal.name)}</h1><h2>Quotes</h2><ul>${quoteHtml}</ul><h2>Pay</h2><ul>${linkHtml}</ul><h2>Subscriptions</h2><ul>${subHtml}</ul>`));
   });
+  // POST /crm/api/setup/demo — load demo data for existing workspaces
+  app.post('/crm/api/setup/demo', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only an owner or admin can load demo data.' });
+    seedDemo(user.tenantId, user.sub);
+    writeAudit(user.tenantId, user.sub, 'demo', 'workspace', user.tenantId, 'Demo data loaded');
+    return { ok: true, message: 'Demo data loaded' };
+  });
+
+  function seedDemo(workspaceId, ownerId) {
+    if (db.prepare('SELECT COUNT(*) AS n FROM companies WHERE tenantId = ?').get(workspaceId).n > 0) return;
+    ensurePipeline(workspaceId);
+    ensureSequences(workspaceId);
+    ensureWorkflows(workspaceId);
+    const tags = ['VIP', 'Wholesale', 'Lagos', 'Abuja', 'Repeat buyer'];
+    for (let i = 0; i < tags.length; i++) {
+      db.prepare('INSERT INTO tags (id, tenantId, name, color) VALUES (?,?,?,?)').run(crypto.randomUUID(), workspaceId, tags[i], ['#dc2626','#7c3aed','#2563eb','#059669','#d97706'][i]);
+    }
+    const companies = [
+      ['Zenith Foods Ltd','Food & Beverage','CUSTOMER','Lagos','contact@zenithfoods.ng','01-234-5678'],
+      ['Lekki Tech Hub','Technology','PROSPECT','Lagos','hello@lekkitech.ng','01-876-5432'],
+      ['Atlantic Logistics','Transportation','CUSTOMER','Port Harcourt','info@atlanticlog.ng','084-123-4567'],
+      ['Savannah Trading Co','Trading','PROSPECT','Abuja','sales@savannahtc.ng','09-345-6789'],
+      ['Naija Builds Ltd','Construction','PARTNER','Abuja','projects@naijabuilds.ng','09-987-6543'],
+    ];
+    const companyIds = companies.map(function(c) {
+      var id = crypto.randomUUID();
+      db.prepare('INSERT INTO companies (id, tenantId, name, industry, type, city, email, phone, country, ownerId, source, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, c[0], c[1], c[2], c[3], c[4], c[5], 'Nigeria', ownerId, 'Referral', new Date(Date.now() - Math.random() * 30 * 86400000).toISOString());
+      return id;
+    });
+    var contacts = [
+      ['Ada','Okafor','Operations Manager',companyIds[0],'ada@zenithfoods.ng','0803-555-0101'],
+      ['Bola','Adeyemi','CEO',companyIds[1],'bola@lekkitech.ng','0805-555-0202'],
+      ['Chidi','Nwosu','Sales Director',companyIds[2],'chidi@atlanticlog.ng','0807-555-0303'],
+      ['Fatima','Bello','General Manager',companyIds[3],'fatima@savannahtc.ng','0809-555-0404'],
+      ['Emeka','Obi','Project Director',companyIds[4],'emeka@naijabuilds.ng','0811-555-0505'],
+      ['Grace','Eze','Marketing Lead',companyIds[1],'grace@lekkitech.ng','0813-555-0606'],
+      ['Tunde','Adesanya','Procurement',companyIds[0],'tunde@zenithfoods.ng','0815-555-0707'],
+      ['Zainab','Yusuf','Founder',companyIds[3],'zainab@savannahtc.ng','0817-555-0808'],
+    ];
+    var contactIds = contacts.map(function(c) {
+      var id = crypto.randomUUID();
+      db.prepare('INSERT INTO contacts (id, tenantId, firstName, lastName, title, companyId, email, phone, city, country, ownerId, source, status, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, c[0], c[1], c[2], c[3], c[4], c[5], 'Lagos', 'Nigeria', ownerId, 'Referral', 'ACTIVE', new Date(Date.now() - Math.random() * 20 * 86400000).toISOString());
+      return id;
+    });
+    var stages = db.prepare('SELECT id, code FROM stages WHERE tenantId = ? ORDER BY position').all(workspaceId);
+    var findStage = function(code) { return (stages.find(function(s) { return s.code === code; }) || stages[0]).id; };
+    var deals = [
+      ['Software implementation for Zenith', companyIds[0], contactIds[0], 2500000, 'PROPOSAL_SENT', 60, '2026-11-15'],
+      ['Annual support contract', companyIds[1], contactIds[1], 1200000, 'NEGOTIATION', 80, '2026-10-30'],
+      ['Hardware upgrade package', companyIds[2], contactIds[2], 800000, 'NEEDS_ASSESSMENT', 40, '2026-12-01'],
+      ['Consulting retainer', companyIds[3], contactIds[3], 3000000, 'PROSPECTING', 10, '2026-12-15'],
+      ['Training program (won)', companyIds[4], contactIds[4], 450000, 'CLOSED_WON', 100, '2026-09-20'],
+    ];
+    deals.forEach(function(d) {
+      var id = crypto.randomUUID();
+      db.prepare('INSERT INTO deals (id, tenantId, name, companyId, contactId, amount, stage, probability, closeDate, type, source, ownerId, nextStep, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, d[0], d[1], d[2], d[3], findStage(d[4]), d[5], d[6], 'NEW', 'Referral', ownerId, d[4] === 'CLOSED_WON' ? 'Send onboarding' : 'Schedule follow-up', new Date(Date.now() - Math.random() * 15 * 86400000).toISOString());
+    });
+    var today = new Date().toISOString().slice(0,10);
+    var tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0,10);
+    var nextWeek = new Date(Date.now() + 7*86400000).toISOString().slice(0,10);
+    var yesterday = new Date(Date.now() - 86400000).toISOString().slice(0,10);
+    var tasks = [
+      ['CALL','Call Ada about the software proposal', contactIds[0], 'deal', yesterday, 'PLANNED', 'HIGH'],
+      ['TASK','Send updated quote to Bola', contactIds[1], 'contact', today, 'PLANNED', 'HIGH'],
+      ['MEETING','Demo session with Atlantic Logistics', contactIds[2], 'deal', tomorrow, 'PLANNED', 'NORMAL'],
+      ['TASK','Follow up on Savannah Trading retainer', contactIds[3], 'deal', nextWeek, 'PLANNED', 'NORMAL'],
+      ['CALL','Check in with Emeka on training', contactIds[4], 'deal', yesterday, 'PLANNED', 'NORMAL'],
+      ['TASK','Update pricing sheet for Q4', null, null, today, 'PLANNED', 'NORMAL'],
+      ['EMAIL','Send contract to Zenith Foods', contactIds[0], 'deal', today, 'PLANNED', 'HIGH'],
+      ['CALL','Welcome call to Zainab', contactIds[7], 'contact', tomorrow, 'PLANNED', 'NORMAL'],
+    ];
+    tasks.forEach(function(t) {
+      var id = crypto.randomUUID();
+      db.prepare('INSERT INTO activities (id, tenantId, type, subject, relatedType, relatedId, dueAt, status, priority, ownerId, notes, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, t[0], t[1], t[3] || null, t[2] || null, t[4], t[5], t[6], ownerId, '', new Date(Date.now() - Math.random() * 5 * 86400000).toISOString());
+    });
+    var notes = [
+      [contactIds[0], 'contact', 'Ada mentioned they are evaluating 3 vendors. We are the frontrunner because of local support.'],
+      [contactIds[1], 'contact', 'Bola wants a pilot program for 5 users before committing to the annual contract.'],
+      [contactIds[3], 'contact', 'Savannah Trading is expanding to 3 new branches. They need multi-branch inventory management.'],
+    ];
+    notes.forEach(function(n) {
+      db.prepare('INSERT INTO notes (id, tenantId, relatedType, relatedId, body, createdAt) VALUES (?,?,?,?,?,?)').run(crypto.randomUUID(), workspaceId, n[1], n[0], n[2], new Date().toISOString());
+    });
+    db.prepare('INSERT OR REPLACE INTO workspace (tenantId, size, industry, goal, channel, done) VALUES (?,?,?,?,?,?)').run(workspaceId, '11-50', 'Services', 'Close deals', 'Phone & WhatsApp', 1);
+  }
+
 }
