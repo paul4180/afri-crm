@@ -205,7 +205,6 @@ button.ghost:hover{background:var(--input);color:var(--text)}
 <div class="shade" id="shade" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:50" onclick="closeLauncher()"></div>
 <div class="launcher" id="launcher" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(600px,90vw);max-height:70vh;background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.2);z-index:51;overflow:auto"></div>
 
-<script src="/crm-studio.js"></script>
 <script>
 // === Core globals ===
 let token = localStorage.getItem('crmToken') || '';
@@ -328,10 +327,11 @@ function queueDraw(){clearTimeout(__searchTimer);__searchTimer=setTimeout(()=>{c
 // === Notifications ===
 let __bellTimer;
 function setBell(n){const e=document.getElementById('bellCount');if(e){e.dataset.n=n;e.textContent=n>0?String(n):'';}}
-function listenNotes(){if(typeof EventSource!=='undefined'){try{const es=new EventSource('/crm/api/notifications/stream');es.onmessage=()=>{}}catch(e){}}}
+function listenNotes(){/* notifications stream disabled in standalone mode */}
 
 // === Startup ===
 if(token){boot();}else{document.getElementById('gate').style.display='grid';}
 </script>
+<script src="/crm-studio.js"></script>
 </body>
 </html>
