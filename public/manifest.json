@@ -1,0 +1,10 @@
+{
+  "name": "Afri CRM",
+  "short_name": "Afri CRM",
+  "description": "The CRM that knows your sales. Built for African sales teams.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#0d9488",
+  "icons": [{"src":"/favicon.svg","sizes":"any","type":"image/svg+xml"}]
+}
