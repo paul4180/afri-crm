@@ -585,6 +585,7 @@ function paintNav() {
       <div class="navlabel">Platform</div>
       ${navItem('dashboard', 'Dashboard', chart)}
       ${navItem('automation', 'Automation', svg('<path d="M13 2 3 14h8l-1 8 10-12h-8z"/>'))}
+      ${navItem('integrations', 'Integrations', svg('<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>'))}
       ${navItem('guide', 'Start guide', flag)}
     </div>
     <div class="navfoot"><div class="navend"><button type="button" id="moreBtn" onclick="toggleLauncher()"><span class="ico">${svg('<circle cx="6" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="18" cy="12" r="1"/>')}</span><span>More</span><span class="chev">›</span></button><button type="button" class="fold" onclick="toggleRail()" title="${rail ? 'Expand the side' : 'Collapse the side'}">${rail ? '›' : '‹'}</button></div><div id="setupCard"></div></div>`;
