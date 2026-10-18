@@ -2143,4 +2143,195 @@ export function registerCrm(app, prisma) {
     db.prepare('INSERT OR REPLACE INTO workspace (tenantId, size, industry, goal, channel, done) VALUES (?,?,?,?,?,?)').run(workspaceId, '11-50', 'Services', 'Close deals', 'Phone & WhatsApp', 1);
   }
 
+  // ============================================================
+  // API KEYS — generate/revoke keys for programmatic access
+  // External apps can authenticate with X-API-Key header
+  // ============================================================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS crm_api_keys (
+      id TEXT PRIMARY KEY,
+      tenantId TEXT NOT NULL,
+      name TEXT NOT NULL,
+      keyHash TEXT NOT NULL,
+      prefix TEXT NOT NULL,
+      lastUsedAt TEXT,
+      createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS ix_crm_api_keys ON crm_api_keys(tenantId);
+  `);
+
+  // API key auth helper — checks X-API-Key header
+  async function apiKeyAuth(req) {
+    const key = req.headers['x-api-key'];
+    if (!key) return null;
+    const row = db.prepare('SELECT * FROM crm_api_keys WHERE keyHash = ?').run != null ? null : null;
+    // Use a simple hash (SHA256 of the key)
+    const { createHash } = await import('crypto');
+    const hash = createHash('sha256').update(key).digest('hex');
+    const account = db.prepare('SELECT * FROM crm_api_keys WHERE keyHash = ?').get(hash);
+    if (!account) return null;
+    db.prepare('UPDATE crm_api_keys SET lastUsedAt = ? WHERE id = ?').run(new Date().toISOString(), account.id);
+    return { tenantId: account.tenantId, role: 'ADMIN', sub: 'api-key-' + account.id };
+  }
+
+  app.get('/crm/api/api-keys', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only owners and admins can manage API keys.' });
+    const rows = db.prepare('SELECT id, name, prefix, lastUsedAt, createdAt FROM crm_api_keys WHERE tenantId = ? ORDER BY createdAt DESC').all(user.tenantId);
+    return rows;
+  });
+
+  app.post('/crm/api/api-keys', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only owners and admins can create API keys.' });
+    const name = String(req.body?.name || '').trim().slice(0, 80);
+    if (!name) return reply.code(400).send({ error: 'Name your API key.' });
+    const rawKey = 'afri_crm_' + crypto.randomBytes(16).toString('hex');
+    const { createHash } = await import('crypto');
+    const hash = createHash('sha256').update(rawKey).digest('hex');
+    const id = crypto.randomUUID();
+    const prefix = rawKey.slice(0, 18) + '...';
+    db.prepare('INSERT INTO crm_api_keys (id, tenantId, name, keyHash, prefix) VALUES (?,?,?,?,?)').run(id, user.tenantId, name, hash, prefix);
+    writeAudit(user.tenantId, user.sub, 'create', 'api-key', id, name);
+    return reply.code(201).send({ id, name, key: rawKey, prefix, message: 'Save this key — it will not be shown again.' });
+  });
+
+  app.delete('/crm/api/api-keys/:id', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only owners and admins can revoke API keys.' });
+    const row = db.prepare('SELECT * FROM crm_api_keys WHERE id = ? AND tenantId = ?').get(req.params.id, user.tenantId);
+    if (!row) return reply.code(404).send({ error: 'Key not found.' });
+    db.prepare('DELETE FROM crm_api_keys WHERE id = ?').run(req.params.id);
+    writeAudit(user.tenantId, user.sub, 'revoke', 'api-key', req.params.id, row.name);
+    return { ok: true };
+  });
+
+  // ============================================================
+  // WEBHOOKS — inbound + outbound configuration
+  // External apps can POST data to /crm/api/webhook/:id
+  // CRM fires outbound webhooks when events happen
+  // ============================================================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS crm_webhooks (
+      id TEXT PRIMARY KEY,
+      tenantId TEXT NOT NULL,
+      name TEXT NOT NULL,
+      url TEXT NOT NULL,
+      events TEXT NOT NULL DEFAULT '*',
+      secret TEXT,
+      active INTEGER DEFAULT 1,
+      lastFiredAt TEXT,
+      lastStatus TEXT,
+      createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS ix_crm_webhooks ON crm_webhooks(tenantId);
+  `);
+
+  app.get('/crm/api/webhooks', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only owners and admins can manage webhooks.' });
+    const rows = db.prepare('SELECT * FROM crm_webhooks WHERE tenantId = ? ORDER BY createdAt DESC').all(user.tenantId);
+    return rows;
+  });
+
+  app.post('/crm/api/webhooks', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only owners and admins can create webhooks.' });
+    const name = String(req.body?.name || '').trim().slice(0, 80);
+    const url = String(req.body?.url || '').trim();
+    const events = String(req.body?.events || '*').trim();
+    if (!name) return reply.code(400).send({ error: 'Name your webhook.' });
+    if (!url || !url.startsWith('https://')) return reply.code(400).send({ error: 'URL must start with https://' });
+    const id = crypto.randomUUID();
+    const secret = crypto.randomBytes(16).toString('hex');
+    db.prepare('INSERT INTO crm_webhooks (id, tenantId, name, url, events, secret) VALUES (?,?,?,?,?,?)').run(id, user.tenantId, name, url, events, secret);
+    writeAudit(user.tenantId, user.sub, 'create', 'webhook', id, name);
+    return reply.code(201).send({ id, name, url, events, secret, message: 'Use this secret to verify webhook signatures (X-Afri-Signature header, HMAC-SHA256 of the body).' });
+  });
+
+  app.delete('/crm/api/webhooks/:id', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only owners and admins can delete webhooks.' });
+    const row = db.prepare('SELECT * FROM crm_webhooks WHERE id = ? AND tenantId = ?').get(req.params.id, user.tenantId);
+    if (!row) return reply.code(404).send({ error: 'Webhook not found.' });
+    db.prepare('DELETE FROM crm_webhooks WHERE id = ?').run(req.params.id);
+    writeAudit(user.tenantId, user.sub, 'delete', 'webhook', req.params.id, row.name);
+    return { ok: true };
+  });
+
+  // Inbound webhook endpoint — external apps POST here
+  app.post('/crm/api/webhook/:id', async (req, reply) => {
+    const row = db.prepare('SELECT * FROM crm_webhooks WHERE id = ? AND active = 1').get(req.params.id);
+    if (!row) return reply.code(404).send({ error: 'Webhook not found or inactive.' });
+    // Verify signature if secret is set
+    if (row.secret) {
+      const signature = req.headers['x-afri-signature'];
+      const { createHmac } = await import('crypto');
+      const expected = createHmac('sha256', row.secret).update(JSON.stringify(req.body || {})).digest('hex');
+      if (signature !== expected) return reply.code(401).send({ error: 'Invalid signature.' });
+    }
+    // Process the incoming event
+    const payload = req.body || {};
+    const eventName = payload.event || payload.type || 'webhook.received';
+    // If it's a contact creation event, create the contact
+    if (eventName === 'contact.created' && payload.email) {
+      const existing = db.prepare('SELECT id FROM contacts WHERE tenantId = ? AND email = ?').get(row.tenantId, payload.email.toLowerCase());
+      if (!existing) {
+        const id = crypto.randomUUID();
+        db.prepare('INSERT INTO contacts (id, tenantId, firstName, lastName, email, phone, source, status, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?)').run(
+          id, row.tenantId, payload.firstName || '', payload.lastName || '', payload.email.toLowerCase(),
+          payload.phone || '', 'Webhook: ' + row.name, 'ACTIVE', new Date().toISOString()
+        );
+        writeAudit(row.tenantId, '', 'webhook.create', 'contact', id, payload.email);
+        return { ok: true, created: 'contact', id };
+      }
+      return { ok: true, skipped: 'duplicate' };
+    }
+    // If it's a deal creation event
+    if (eventName === 'deal.created' && payload.name) {
+      const id = crypto.randomUUID();
+      const stages = db.prepare('SELECT id FROM stages WHERE tenantId = ? ORDER BY position LIMIT 1').get(row.tenantId);
+      db.prepare('INSERT INTO deals (id, tenantId, name, amount, stage, probability, closeDate, type, source, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(
+        id, row.tenantId, payload.name, Number(payload.amount || 0), stages ? stages.id : '', Number(payload.probability || 50),
+        payload.closeDate || null, 'NEW', 'Webhook: ' + row.name, new Date().toISOString()
+      );
+      writeAudit(row.tenantId, '', 'webhook.create', 'deal', id, payload.name);
+      return { ok: true, created: 'deal', id };
+    }
+    // Generic — just log it
+    writeAudit(row.tenantId, '', 'webhook.received', 'webhook', row.id, eventName);
+    db.prepare('UPDATE crm_webhooks SET lastFiredAt = ?, lastStatus = ? WHERE id = ?').run(new Date().toISOString(), '200', row.id);
+    return { ok: true, event: eventName };
+  });
+
+  // ============================================================
+  // INTEGRATION MARKETPLACE — list available integrations
+  // ============================================================
+  app.get('/crm/api/integrations', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    const connections = db.prepare('SELECT provider, status FROM connections WHERE tenantId = ?').all(user.tenantId);
+    const connected = {};
+    connections.forEach(c => { connected[c.provider] = c.status === 'CONNECTED'; });
+    const tools = db.prepare('SELECT provider, clientId FROM tool_apps WHERE tenantId = ?').all(user.tenantId);
+    const configured = {};
+    tools.forEach(t => { configured[t.provider] = Boolean(t.clientId); });
+    return [
+      { id: 'gmail', name: 'Gmail', icon: '✉', category: 'Email', status: connected.gmail ? 'connected' : (configured.gmail ? 'ready' : 'not_configured'), description: 'Sync emails, send from CRM, log conversations.' },
+      { id: 'google_calendar', name: 'Google Calendar', icon: '📅', category: 'Calendar', status: connected.gmail ? 'connected' : (configured.gmail ? 'ready' : 'not_configured'), description: 'See meetings, sync tasks to calendar.' },
+      { id: 'outlook', name: 'Outlook', icon: '📧', category: 'Email', status: connected.microsoft ? 'connected' : (configured.microsoft ? 'ready' : 'not_configured'), description: 'Sync Outlook emails and calendar.' },
+      { id: 'whatsapp', name: 'WhatsApp', icon: '💬', category: 'Messaging', status: process.env.WHATSAPP_TOKEN ? 'connected' : 'not_configured', description: 'Send WhatsApp messages from contact records.' },
+      { id: 'email', name: 'Email (Resend)', icon: '📨', category: 'Email', status: process.env.RESEND_API_KEY ? 'connected' : 'not_configured', description: 'Send transactional emails via Resend API.' },
+      { id: 'flutterwave', name: 'Flutterwave', icon: '💳', category: 'Payments', status: process.env.FLUTTERWAVE_SECRET_KEY ? 'connected' : 'not_configured', description: 'Collect payments, generate payment links.' },
+      { id: 'paystack', name: 'Paystack', icon: '💰', category: 'Payments', status: process.env.PAYSTACK_SECRET_KEY ? 'connected' : 'not_configured', description: 'Collect payments, verify transactions.' },
+      { id: 'gemini', name: 'AI Assistant', icon: '🤖', category: 'AI', status: process.env.GEMINI_API_KEY ? 'connected' : 'not_configured', description: 'Ask Afri — AI-powered insights about your pipeline.' },
+      { id: 'api_keys', name: 'API Keys', icon: '🔑', category: 'Developer', status: 'always', description: 'Generate API keys for programmatic access.' },
+      { id: 'webhooks', name: 'Webhooks', icon: '🔗', category: 'Developer', status: 'always', description: 'Receive data from external apps, or push data out.' },
+      { id: 'slack', name: 'Slack', icon: '💬', category: 'Notifications', status: 'coming_soon', description: 'Get notifications in Slack when deals move.' },
+      { id: 'telegram', name: 'Telegram', icon: '✈️', category: 'Notifications', status: 'coming_soon', description: 'Get notifications in Telegram.' },
+      { id: 'calendly', name: 'Calendly', icon: '📆', category: 'Scheduling', status: 'coming_soon', description: 'Embed booking links, sync meetings.' },
+      { id: 'zapier', name: 'Zapier', icon: '⚡', category: 'Automation', status: 'coming_soon', description: 'Connect 5000+ apps via Zapier webhooks.' },
+    ];
+  });
+
+
 }

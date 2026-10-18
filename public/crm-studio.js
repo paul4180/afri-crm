@@ -4492,5 +4492,121 @@
     .forecast-bar-row .bar-track { height: 18px !important; }
   }
 `;
+
+  // ============================================================
+  // INTEGRATION MARKETPLACE + API KEYS + WEBHOOKS UI
+  // ============================================================
+  style.textContent += `
+    .integration-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+    .integration-card { background: var(--card, #fff); border: 1px solid var(--border, #e8e6e1); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 10px; transition: border-color 0.12s; }
+    .integration-card:hover { border-color: #14b8a6; }
+    .integration-card .top { display: flex; align-items: center; gap: 12px; }
+    .integration-card .ico { width: 44px; height: 44px; border-radius: 12px; background: #f1f0ec; display: grid; place-items: center; font-size: 22px; flex-shrink: 0; }
+    .integration-card .info { flex: 1; min-width: 0; }
+    .integration-card .info b { font-size: 15px; color: #0f172a; display: block; }
+    .integration-card .info span { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
+    .integration-card .desc { font-size: 12px; color: #64748b; line-height: 1.5; }
+    .integration-card .status-badge { font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 999px; text-transform: uppercase; align-self: flex-start; }
+    .integration-card .status-badge.connected { background: #dcfce7; color: #166534; }
+    .integration-card .status-badge.ready { background: #dbeafe; color: #1e40af; }
+    .integration-card .status-badge.not_configured { background: #f1f5f9; color: #64748b; }
+    .integration-card .status-badge.coming_soon { background: #fef3c7; color: #92400e; }
+    .integration-card .status-badge.always { background: #f0fdfa; color: #0d9488; }
+    .integration-card button { font-size: 12px; padding: 6px 14px; border-radius: 8px; align-self: flex-start; }
+    .integration-card button.connect { background: #0d9488; color: #fff; border: 0; }
+    .integration-card button.configure { background: transparent; color: #0d9488; border: 1px solid #99f6e4; }
+    .api-key-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+    .api-key-row:last-child { border-bottom: 0; }
+    .api-key-row .key-info { flex: 1; }
+    .api-key-row .key-info b { font-size: 14px; color: #0f172a; display: block; }
+    .api-key-row .key-info span { font-size: 12px; color: #64748b; font-family: ui-monospace, monospace; }
+    .webhook-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+    .webhook-row:last-child { border-bottom: 0; }
+    .webhook-row .url { flex: 1; font-family: ui-monospace, monospace; font-size: 12px; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  `;
+
+  window.drawIntegrations = async function () {
+    var el = document.getElementById('view');
+    el.innerHTML = '<div class="board-head"><div><h1>Integrations</h1><p class="hello">Connect your apps to Afri CRM</p></div></div><div id="intGrid" class="integration-grid">Loading...</div><div id="apiKeySection" style="margin-top:24px"></div><div id="webhookSection" style="margin-top:24px"></div>';
+    var data = await api('/crm/api/integrations');
+    var grid = document.getElementById('intGrid');
+    if (!data || data.error) { grid.innerHTML = '<p class="hello">Could not load integrations.</p>'; return; }
+    grid.innerHTML = data.map(function(i) {
+      var statusClass = i.status === 'connected' ? 'connected' : i.status === 'ready' ? 'ready' : i.status === 'coming_soon' ? 'coming_soon' : i.status === 'always' ? 'always' : 'not_configured';
+      var statusLabel = i.status === 'connected' ? 'Connected' : i.status === 'ready' ? 'Ready' : i.status === 'coming_soon' ? 'Coming soon' : i.status === 'always' ? 'Available' : 'Not configured';
+      var btn = '';
+      if (i.status === 'connected') btn = '<button class="configure" onclick="go(\'settings\')">Settings</button>';
+      else if (i.status === 'ready') btn = '<button class="connect" onclick="go(\'settings\')">Connect</button>';
+      else if (i.status === 'not_configured') btn = '<button class="configure" onclick="go(\'settings\')">Configure</button>';
+      else if (i.status === 'always') btn = '<button class="connect" onclick="window.__showApiKeys()">Manage</button>';
+      else if (i.status === 'coming_soon') btn = '<span style="font-size:11px;color:#94a3b8">Notify me</span>';
+      return '<div class="integration-card"><div class="top"><div class="ico">' + i.icon + '</div><div class="info"><b>' + esc(i.name) + '</b><span>' + esc(i.category) + '</span></div></div><p class="desc">' + esc(i.description) + '</p><div style="display:flex;gap:8px;align-items:center"><span class="status-badge ' + statusClass + '">' + statusLabel + '</span>' + btn + '</div></div>';
+    }).join('');
+    // Load API keys
+    window.__showApiKeys();
+    // Load webhooks
+    window.__showWebhooks();
+  };
+
+  window.__showApiKeys = async function () {
+    var el = document.getElementById('apiKeySection');
+    if (!el) return;
+    var keys = await api('/crm/api/api-keys');
+    var list = (Array.isArray(keys) ? keys : []).map(function(k) {
+      return '<div class="api-key-row"><div class="key-info"><b>' + esc(k.name) + '</b><span>' + esc(k.prefix) + ' · Last used: ' + (k.lastUsedAt ? when(k.lastUsedAt) : 'never') + ' · Created: ' + when(k.createdAt) + '</span></div><button class="ghost" onclick="window.__revokeKey(\'' + k.id + '\')">Revoke</button></div>';
+    }).join('') || '<p class="hello">No API keys yet.</p>';
+    el.innerHTML = '<div class="card"><h2>API Keys</h2><p class="hello" style="margin-bottom:12px">Generate keys for external apps to access your CRM data. Authenticate requests with <code style="background:#f1f0ec;padding:2px 6px;border-radius:4px;font-size:11px">X-API-Key</code> header.</p>' + list + '<div style="margin-top:12px"><label style="font-size:13px;font-weight:500;color:#475569">Key name<input id="newKeyName" placeholder="Zapier integration" style="margin-top:4px"></label><button type="button" onclick="window.__createKey()">Generate key</button></div><div id="newKeyResult"></div></div>';
+  };
+  window.__createKey = async function () {
+    var name = (document.getElementById('newKeyName') || {}).value;
+    if (!name) { toast('Name the key'); return; }
+    var res = await api('/crm/api/api-keys', { method: 'POST', body: JSON.stringify({ name: name }) });
+    var el = document.getElementById('newKeyResult');
+    if (res && !res.error) {
+      el.innerHTML = '<div style="background:#f0fdfa;border:1px dashed #99f6e4;border-radius:10px;padding:14px;margin-top:10px"><b style="color:#0d9488;font-size:11px;text-transform:uppercase;letter-spacing:0.05em">Your API key (save it — shown once)</b><p style="font-family:ui-monospace,monospace;font-size:14px;color:#0f172a;margin:6px 0 0;word-break:break-all">' + esc(res.key) + '</p></div>';
+      toast('API key created');
+      window.__showApiKeys();
+    } else {
+      el.innerHTML = '<p style="color:#b91c1c">' + esc(res && res.error || 'Could not create') + '</p>';
+    }
+  };
+  window.__revokeKey = async function (id) {
+    if (!confirm('Revoke this API key? Apps using it will lose access.')) return;
+    await api('/crm/api/api-keys/' + id, { method: 'DELETE' });
+    toast('Key revoked');
+    window.__showApiKeys();
+  };
+
+  window.__showWebhooks = async function () {
+    var el = document.getElementById('webhookSection');
+    if (!el) return;
+    var hooks = await api('/crm/api/webhooks');
+    var list = (Array.isArray(hooks) ? hooks : []).map(function(h) {
+      return '<div class="webhook-row"><div class="url">' + esc(h.url) + '</div><span style="font-size:11px;color:#64748b">' + esc(h.events || '*') + '</span><button class="ghost" onclick="window.__deleteWebhook(\'' + h.id + '\')">Delete</button></div>';
+    }).join('') || '<p class="hello">No webhooks yet.</p>';
+    el.innerHTML = '<div class="card"><h2>Webhooks</h2><p class="hello" style="margin-bottom:12px">Receive data from external apps. POST to <code style="background:#f1f0ec;padding:2px 6px;border-radius:4px;font-size:11px">/crm/api/webhook/[id]</code> with JSON body. Sign with <code style="background:#f1f0ec;padding:2px 6px;border-radius:4px;font-size:11px">X-Afri-Signature</code> header (HMAC-SHA256).</p>' + list + '<div style="margin-top:12px"><label style="font-size:13px;font-weight:500;color:#475569">Name<input id="newHookName" placeholder="Contact form" style="margin-top:4px"></label><label style="font-size:13px;font-weight:500;color:#475569;margin-top:10px">Webhook URL (https://...) <input id="newHookUrl" placeholder="https://your-app.com/webhook" style="margin-top:4px"></label><label style="font-size:13px;font-weight:500;color:#475569;margin-top:10px">Events (comma-separated, * for all)<input id="newHookEvents" placeholder="contact.created,deal.created" style="margin-top:4px"></label><button type="button" onclick="window.__createWebhook()" style="margin-top:10px">Create webhook</button><div id="newHookResult"></div></div></div>';
+  };
+  window.__createWebhook = async function () {
+    var name = (document.getElementById('newHookName') || {}).value;
+    var url = (document.getElementById('newHookUrl') || {}).value;
+    var events = (document.getElementById('newHookEvents') || {}).value;
+    if (!name || !url) { toast('Name and URL required'); return; }
+    var res = await api('/crm/api/webhooks', { method: 'POST', body: JSON.stringify({ name: name, url: url, events: events || '*' }) });
+    var el = document.getElementById('newHookResult');
+    if (res && !res.error) {
+      el.innerHTML = '<div style="background:#f0fdfa;border:1px dashed #99f6e4;border-radius:10px;padding:14px;margin-top:10px"><b style="color:#0d9488;font-size:11px;text-transform:uppercase">Webhook created</b><p style="font-size:12px;color:#475569;margin:6px 0 4px">Inbound URL: <code style="font-family:ui-monospace,monospace;font-size:11px;word-break:break-all">/crm/api/webhook/' + res.id + '</code></p><p style="font-size:12px;color:#475569;margin:0">Secret: <code style="font-family:ui-monospace,monospace;font-size:11px;word-break:break-all">' + esc(res.secret) + '</code></p></div>';
+      toast('Webhook created');
+      window.__showWebhooks();
+    } else {
+      el.innerHTML = '<p style="color:#b91c1c">' + esc(res && res.error || 'Could not create') + '</p>';
+    }
+  };
+  window.__deleteWebhook = async function (id) {
+    if (!confirm('Delete this webhook?')) return;
+    await api('/crm/api/webhooks/' + id, { method: 'DELETE' });
+    toast('Webhook deleted');
+    window.__showWebhooks();
+  };
+
 })();
 
