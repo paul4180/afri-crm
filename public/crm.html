@@ -176,13 +176,35 @@ button.ghost:hover{background:var(--input);color:var(--text)}
         <button class="iconbtn" title="Search (⌘K)" onclick="if(typeof openCommandPalette==='function')openCommandPalette()"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button>
         <button class="iconbtn theme-toggle" title="Toggle dark mode" onclick="if(typeof toggleTheme==='function')toggleTheme()"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg></button>
       </div>
-      <div class="menu"><button class="acct" id="who" onclick="toggleMenu()"><span class="av" id="whoMark">A</span><span id="whoName">Account</span></button><div class="drop" id="menu" style="display:none"></div></div>
+      <div class="menu"><button class="iconbtn" id="bell" onclick="toggleBell()" aria-label="Alerts"><svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><b id="bellCount"></b></button><div class="drop alerts" id="bellList" style="display:none;position:absolute;top:40px;right:0;width:min(340px,90vw);max-height:400px;overflow:auto;background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:60"></div></div>
+      <div class="menu"><button class="acct" id="who" onclick="toggleMenu()"><span class="av" id="whoMark">A</span><span id="whoName">Account</span></button><div class="drop" id="menu" style="display:none;position:absolute;top:40px;right:0;width:200px;background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:60;padding:8px"></div></div>
     </header>
     <main id="view"></main>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- Hidden containers the draw functions in crm-studio.js populate -->
+<div class="drawer dealbox" id="form" hidden onclick="if(event.target.id==='form')this.hidden=true"></div>
+<div class="drawer dealbox" id="dealForm" hidden onclick="if(event.target.id==='dealForm')this.hidden=true"></div>
+<div class="drawer dealbox" id="leadForm" hidden></div>
+<div class="drawer dealbox" id="taskForm" hidden onclick="if(event.target.id==='taskForm')this.hidden=true"></div>
+<div id="setupBody"></div>
+<div id="searchhits" style="display:none;position:fixed;top:60px;left:50%;transform:translateX(-50%);width:min(500px,90vw);max-height:400px;overflow:auto;background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:50"></div>
+<div class="helper" id="helper" style="position:fixed;bottom:20px;right:20px;z-index:40">
+  <div class="card" id="helperCard" hidden style="position:absolute;bottom:60px;right:0;width:min(360px,90vw);background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.15)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>Afri</b><button class="ghost" onclick="toggleHelper()">Close</button></div>
+    <p class="hello" id="helperHi"></p>
+    <label>Question<textarea id="helperQ" style="height:70px" placeholder="What is still unpaid?"></textarea></label>
+    <button type="button" onclick="askHelper()">Ask</button>
+    <p class="hello" id="helperA"></p>
+  </div>
+  <button class="ask" onclick="toggleHelper()" style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#14b8a6,#0d9488);color:#fff;border:0;font-weight:700;cursor:pointer;box-shadow:0 8px 20px rgba(13,148,136,.3)">Ask</button>
+</div>
+<div class="shade" id="shade" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:50" onclick="closeLauncher()"></div>
+<div class="launcher" id="launcher" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(600px,90vw);max-height:70vh;background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.2);z-index:51;overflow:auto"></div>
+
 <script src="/crm-studio.js"></script>
 <script>
 // === Core globals ===
@@ -222,7 +244,12 @@ document.getElementById('signupForm').addEventListener('submit',async e=>{e.prev
 function go(id,form){openForm=form||'';page=id;closeLauncher();document.querySelectorAll('#nav button[data-page]').forEach(el=>el.classList.toggle('on',el.dataset.page===id));draw();}
 function toggleMenu(){const e=document.getElementById('menu');e.style.display=e.style.display==='block'?'none':'block';}
 function toggleCreate(){if(typeof window.__openQuickCreate==='function'){window.__openQuickCreate();return;}const m=document.getElementById('createMenu');m.style.display=m.style.display==='block'?'none':'block';}
-function closeLauncher(){const l=document.getElementById('launcher');if(l)l.style.display='none';}
+function closeLauncher(){const l=document.getElementById('launcher');if(l)l.style.display='none';const s=document.getElementById('shade');if(s)s.style.display='none';}
+function toggleBell(){const e=document.getElementById('bellList');if(!e)return;const m=document.getElementById('menu');if(m)m.style.display='none';const c=document.getElementById('createMenu');if(c)c.style.display='none';e.style.display=e.style.display==='block'?'none':'block';if(typeof loadBell==='function')loadBell();}
+function toggleHelper(){const c=document.getElementById('helperCard');if(!c)return;c.hidden=!c.hidden;if(!c.hidden&&document.getElementById('helperHi'))document.getElementById('helperHi').textContent='Hi '+((me.fullName||'there').split(' ')[0])+'. Ask about the pipeline, a person, or what is unpaid.';}
+async function askHelper(){const q=(document.getElementById('helperQ')||{}).value;if(!q)return;const b=document.getElementById('helperA');if(b)b.textContent='Looking…';const r=await api('/crm/api/agent',{method:'POST',body:JSON.stringify({question:q})});if(b)b.textContent=(r&&(r.answer||r.error))||'No answer';}
+function paintSetupCard(){/* setup banner handled by crm-studio.js */}
+function openSetup(){if(document.getElementById('setup')){document.getElementById('app').style.display='none';document.getElementById('setup').style.display='grid';}if(typeof drawSetup==='function')drawSetup();}
 
 // === Boot ===
 async function boot(){
