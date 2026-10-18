@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="theme-color" content="#0d9488">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="dark">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover">
+<meta name="theme-color" content="#0d9488">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="dark">
 <title>Afri CRM</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="/manifest.json">
@@ -406,105 +406,6 @@
   .dealactions { display: flex; gap: 8px; flex-wrap: wrap; padding: 14px 18px; border-top: 1px solid var(--line); }
   .dealactions button { border-radius: 12px; }
   @media (max-width: 900px) { .app { grid-template-columns: 1fr; } #nav { height: auto; position: relative; } .guidecards { grid-template-columns: 1fr; } }
-
-/* === MOBILE RESPONSIVE === */
-@media (max-width: 880px) {
-  .app { grid-template-columns: 1fr !important; }
-  aside {
-    position: fixed; top: 0; left: 0; bottom: 0; width: 260px !important;
-    z-index: 80; transform: translateX(-100%); transition: transform .25s ease;
-    box-shadow: 4px 0 24px rgba(0,0,0,.15);
-  }
-  aside.open { transform: translateX(0); }
-  .nav-overlay {
-    position: fixed; inset: 0; z-index: 79; background: rgba(0,0,0,.4);
-    opacity: 0; pointer-events: none; transition: opacity .2s;
-  }
-  .nav-overlay.open { opacity: 1; pointer-events: auto; }
-  header { padding: 0 12px !important; }
-  header .search { max-width: none; }
-  header .search input { width: 100%; }
-  header .iconbtn { width: 40px; height: 40px; }
-  header .iconbtn svg { width: 20px; height: 20px; }
-  header .acct { padding: 4px 8px 4px 4px; }
-  header .acct #whoName { display: none; }
-  main { padding: 16px 12px !important; padding-bottom: 80px !important; }
-  .board-head h1 { font-size: 20px !important; }
-  .reports { grid-template-columns: repeat(2, 1fr) !important; gap: 8px; }
-  .report { padding: 12px !important; }
-  .report > div { font-size: 22px !important; }
-  .record { grid-template-columns: 1fr !important; }
-  .field-row { grid-template-columns: 1fr !important; }
-  .side-panel { width: 100% !important; }
-  .dealboard { scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
-  .dealboard .col { min-width: 85vw !important; scroll-snap-align: center; }
-  .contact-grid { grid-template-columns: 1fr !important; }
-  .task-grid { grid-template-columns: 1fr !important; }
-  .today-stats { grid-template-columns: repeat(2, 1fr) !important; }
-  .forecast-stats { grid-template-columns: repeat(2, 1fr) !important; }
-  .forecast-charts { grid-template-columns: 1fr !important; }
-  .settings-layout { grid-template-columns: 1fr !important; }
-  .settings-nav { flex-direction: row; overflow-x: auto; gap: 4px; }
-  .settings-nav button { white-space: nowrap; }
-  .gate-grid { grid-template-columns: 1fr !important; gap: 20px; }
-  .gate-hero h1 { font-size: 28px !important; }
-  .gate-hero .tagline { font-size: 14px !important; margin-bottom: 16px; }
-  .gate-hero .perks { display: none; }
-  .gate-forms { margin: 0 auto; }
-  .gate .panel { padding: 24px 20px; border-radius: 16px; }
-  .sheet table, .sheet tbody, .sheet tr, .sheet td { display: block; width: auto !important; }
-  .sheet thead { display: none; }
-  .sheet tr { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 8px; }
-  .sheet td { padding: 4px 0 !important; border: 0 !important; }
-  .sheet td:before { content: attr(data-label); display: block; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; margin-bottom: 2px; }
-  .filters { gap: 6px; }
-  .filters select, .filters input { font-size: 12px; padding: 6px 8px; }
-  .tabs button { padding: 6px 10px; font-size: 12px; }
-  .helper { bottom: 16px; right: 16px; }
-  .helper .ask { width: 52px; height: 52px; }
-  .board-head { gap: 8px; }
-  .board-head span { display: flex; gap: 6px; flex-wrap: wrap; }
-  .board-head button { font-size: 12px; padding: 6px 10px; }
-}
-/* Safe area for iPhone notch */
-@supports (padding: max(env(safe-area-inset-top))) {
-  header { padding-top: max(12px, env(safe-area-inset-top)); height: auto; min-height: 56px; }
-  .helper { bottom: max(16px, env(safe-area-inset-bottom)); }
-  main { padding-bottom: max(80px, env(safe-area-inset-bottom)); }
-}
-/* Touch targets — minimum 44px */
-@media (pointer: coarse) {
-  button, .iconbtn, .tabs button, aside button { min-height: 44px; }
-  input, select, textarea { min-height: 44px; font-size: 16px; }
-}
-/* Bottom nav for mobile (replaces hamburger) */
-.mobile-nav {
-  display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 70;
-  background: var(--card); border-top: 1px solid var(--border);
-  padding: 8px max(8px, env(safe-area-inset-bottom));
-  justify-content: space-around;
-}
-@media (max-width: 880px) {
-  .mobile-nav { display: flex; }
-  .mobile-nav button {
-    background: none; border: 0; display: flex; flex-direction: column;
-    align-items: center; gap: 2px; padding: 6px 10px; border-radius: 10px;
-    color: var(--muted); font-size: 10px; font-weight: 500;
-  }
-  .mobile-nav button.on { color: var(--accent); }
-  .mobile-nav button svg { width: 22px; height: 22px; }
-}
-/* Hamburger button */
-.hamburger {
-  display: none; width: 40px; height: 40px; border: 0; border-radius: 10px;
-  background: transparent; color: var(--muted); cursor: pointer;
-  align-items: center; justify-content: center;
-}
-@media (max-width: 880px) {
-  .hamburger { display: flex; }
-}
-.hamburger svg { width: 22px; height: 22px; }
-
 </style>
 </head>
 <body>
@@ -567,7 +468,7 @@
 <div class="app" id="app">
   <aside id="nav"></aside>
   <div class="work">
-    <button class="hamburger" onclick="toggleNav()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+    <header>
       <label class="search"><input id="q" placeholder="Search records..." oninput="queueDraw()"><kbd class="shortcut" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none">&#8984;K</kbd></label>
       <div class="tools">
         <button class="iconbtn" type="button" title="Ask the records" onclick="go('agent')"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/></svg></button>
