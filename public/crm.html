@@ -897,12 +897,30 @@ function go(id, form) {
   page = id;
   closeLauncher();
   document.querySelectorAll('#nav button').forEach((el) => el.classList.toggle('on', el.dataset.page === id));
+  // Push browser history so the Back button works
+  try { history.pushState({ page: id, form: openForm }, '', '#' + id); } catch(e) {}
   const view = document.getElementById('view');
   view.classList.remove('rise');
   void view.offsetWidth;
   view.classList.add('rise');
   draw();
 }
+// Browser back/forward button support
+window.addEventListener('popstate', function(event) {
+  var state = event.state;
+  if (state && state.page) {
+    page = state.page;
+    openForm = state.form || '';
+    document.querySelectorAll('#nav button').forEach(function(el) { el.classList.toggle('on', el.dataset.page === page); });
+    draw();
+  } else {
+    // No state — go to home
+    page = 'home';
+    draw();
+  }
+});
+// Set initial history state on page load
+try { history.replaceState({ page: page, form: '' }, '', '#' + page); } catch(e) {}
 function draw() {
   const pages = {
     home: drawHome, deals: drawDeals, opportunities: drawOpportunities, contacts: () => drawPeople('contacts'), companies: () => drawPeople('companies'), analytics: () => { if (typeof window.drawSalesAnalytics === 'function') window.drawSalesAnalytics(); },
@@ -2188,6 +2206,7 @@ async function connectTool(provider) {
 async function openRecord(type, id) {
   focus = { type, id };
   page = 'record';
+  try { history.pushState({ page: 'record', focus: focus }, '', '#record'); } catch(e) {}
   draw();
 }
 function fieldBox(key, label, value, kind) {
