@@ -5371,96 +5371,467 @@
   };
 
   // ============================================================
-  // MOBILE PHASE 1 — Mobile shell + bottom tab bar
-  // Auto-detects mobile viewport, renders a completely different
-  // navigation shell (bottom tab bar, compact top bar, FAB) instead
-  // of the desktop sidebar. The pages render the same content but
-  // with mobile-optimized CSS.
+  // MOBILE PHASE 1 v2 — Completely rebuilt mobile shell
+  // Detects mobile EARLY (in crm.html <head>, before paintNav runs)
+  // and renders an entirely separate mobile UI:
+  //   - Top bar with search + logo + bell
+  //   - Bottom tab bar (Home / Contacts / Deals / Tasks / Profile)
+  //   - Floating Action Button (FAB) → bottom-sheet quick add
+  //   - Mobile-specific home page (cards stacked, 2x2 stats, today's
+  //     meetings, quick actions row)
+  // Designed for: instant switching (no delays), beautiful visuals
+  // (glass-morphism, custom SVG icons, smooth animations), large
+  // touch targets, dark mode support, safe-area-inset for iPhone.
+  // Does NOT modify or break any desktop code paths.
   // ============================================================
-  function isMobileViewport() {
-    return window.matchMedia && window.matchMedia('(max-width: 880px)').matches;
-  }
-  function isTouchDevice() {
-    return ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-  }
-  // We treat "mobile" as: small viewport OR touch device on small screen
-  function shouldUseMobileShell() {
-    if (!isMobileViewport()) return false;
-    // On tablets with wide viewport we still want desktop; mobile shell
-    // is for narrow viewports.
-    return true;
-  }
 
-  // Inject the mobile shell once DOM is ready
+  // Mobile shell CSS — applied only when <html data-shell="mobile">
+  style.textContent += `
+    /* ===== MOBILE SHELL TOKENS (v2 design system) ===== */
+    :root {
+      --m-bg: #f6f7f9;
+      --m-surface: #ffffff;
+      --m-surface-elevated: rgba(255,255,255,0.96);
+      --m-text: #0f172a;
+      --m-text-muted: #64748b;
+      --m-text-subtle: #94a3b8;
+      --m-border: #e8eaed;
+      --m-border-strong: #cbd5e1;
+      --m-accent: #0d9488;
+      --m-accent-light: #2dd4bf;
+      --m-accent-dark: #0f766e;
+      --m-accent-tint: rgba(13,148,136,0.08);
+      --m-accent-tint-strong: rgba(13,148,136,0.16);
+      --m-shadow: 0 2px 8px rgba(15,23,42,0.04);
+      --m-shadow-md: 0 8px 24px rgba(15,23,42,0.08);
+      --m-shadow-lg: 0 20px 50px rgba(15,23,42,0.15);
+      --m-shadow-fab: 0 8px 20px rgba(13,148,136,0.35), 0 0 0 6px rgba(13,148,136,0.08);
+      --m-radius-sm: 10px;
+      --m-radius: 14px;
+      --m-radius-lg: 20px;
+      --m-radius-xl: 24px;
+      --m-topbar-h: 56px;
+      --m-tabbar-h: 64px;
+    }
+    [data-theme="dark"] {
+      --m-bg: #0a0e1a;
+      --m-surface: #0f172a;
+      --m-surface-elevated: rgba(15,23,42,0.94);
+      --m-text: #f1f5f9;
+      --m-text-muted: #94a3b8;
+      --m-text-subtle: #64748b;
+      --m-border: #1e293b;
+      --m-border-strong: #334155;
+      --m-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      --m-shadow-md: 0 8px 24px rgba(0,0,0,0.3);
+      --m-shadow-lg: 0 20px 50px rgba(0,0,0,0.4);
+    }
+
+    /* ===== MOBILE LAYOUT — hide desktop chrome ===== */
+    [data-shell="mobile"] body {
+      background: var(--m-bg) !important;
+      padding: var(--m-topbar-h) 0 var(--m-tabbar-h) 0 !important;
+      margin: 0 !important;
+      min-height: 100vh;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+    [data-shell="mobile"] #nav,
+    [data-shell="mobile"] aside,
+    [data-shell="mobile"] .app > header:not(.m-topbar),
+    [data-shell="mobile"] header:not(.m-topbar):not(.mobile-promo-card),
+    [data-shell="mobile"] #moreBtn,
+    [data-shell="mobile"] .helper,
+    [data-shell="mobile"] .ask-fab,
+    [data-shell="mobile"] .nav-mobile-btn,
+    [data-shell="mobile"] .navfoot,
+    [data-shell="mobile"] #setupCard { display: none !important; }
+
+    [data-shell="mobile"] .app,
+    [data-shell="mobile"] .app.rail {
+      display: block !important;
+      grid-template-columns: none !important;
+      padding: 0 !important;
+    }
+    [data-shell="mobile"] #view {
+      padding: 12px 14px 12px !important;
+      max-width: 100% !important;
+      margin: 0 !important;
+      min-height: calc(100vh - var(--m-topbar-h) - var(--m-tabbar-h) - 24px);
+    }
+
+    /* ===== MOBILE TOP BAR ===== */
+    .m-topbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 90;
+      height: var(--m-topbar-h);
+      padding: 0 14px;
+      padding-top: env(safe-area-inset-top, 0);
+      background: var(--m-surface-elevated);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-bottom: 0.5px solid var(--m-border);
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      box-sizing: border-box;
+    }
+    .m-icon-btn {
+      width: 40px; height: 40px; border-radius: var(--m-radius-sm);
+      background: transparent; border: 0;
+      color: var(--m-text);
+      display: grid; place-items: center; cursor: pointer;
+      transition: background 0.15s, transform 0.1s; position: relative;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .m-icon-btn:active { background: var(--m-accent-tint); transform: scale(0.92); }
+    .m-bell-count {
+      position: absolute; top: 6px; right: 6px;
+      min-width: 16px; height: 16px; padding: 0 4px;
+      border-radius: 99px; background: #ef4444; color: #fff;
+      font-size: 10px; font-weight: 700; display: grid; place-items: center;
+      border: 2px solid var(--m-surface-elevated);
+      line-height: 1;
+    }
+    .m-brand {
+      display: flex; align-items: center; gap: 8px;
+      font-family: 'Fraunces', serif;
+      font-size: 19px; font-weight: 700; color: var(--m-text);
+      cursor: pointer; letter-spacing: -0.01em;
+    }
+    .m-brand b { color: var(--m-accent); }
+    .m-brand img { display: block; }
+
+    /* ===== MOBILE BOTTOM TAB BAR ===== */
+    .m-tabbar {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 90;
+      height: var(--m-tabbar-h);
+      padding: 6px 8px;
+      padding-bottom: max(6px, env(safe-area-inset-bottom, 0));
+      background: var(--m-surface-elevated);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-top: 0.5px solid var(--m-border);
+      display: flex; align-items: stretch; justify-content: space-around;
+      box-sizing: border-box;
+    }
+    .m-tab {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+      background: transparent; border: 0;
+      color: var(--m-text-subtle);
+      font-size: 10px; font-weight: 600; cursor: pointer; padding: 4px;
+      transition: color 0.18s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+      position: relative;
+    }
+    .m-tab:active { transform: scale(0.92); }
+    .m-tab svg { display: block; transition: transform 0.18s; }
+    .m-tab.on { color: var(--m-accent); }
+    .m-tab.on svg { transform: translateY(-1px); }
+    .m-tab.on::before {
+      content: ''; position: absolute; top: -6px; left: 50%; transform: translateX(-50%);
+      width: 24px; height: 3px; background: var(--m-accent);
+      border-radius: 99px;
+    }
+    .m-tab span { line-height: 1; }
+
+    /* ===== MOBILE FAB (Floating Action Button) ===== */
+    .m-fab {
+      position: fixed; bottom: calc(var(--m-tabbar-h) + 14px); right: 16px; z-index: 88;
+      width: 56px; height: 56px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--m-accent) 0%, var(--m-accent-dark) 100%);
+      color: #fff; border: 0; cursor: pointer;
+      display: grid; place-items: center;
+      box-shadow: var(--m-shadow-fab);
+      transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .m-fab:active { transform: scale(0.88); }
+    .m-fab:hover { transform: translateY(-2px) rotate(90deg); }
+
+    /* ===== MOBILE HOME PAGE (Phase 1) ===== */
+    .m-home { display: flex; flex-direction: column; gap: 14px; padding-bottom: 12px; }
+    .m-greeting {
+      padding: 18px 4px 8px;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .m-greeting .hello {
+      font-family: 'Fraunces', serif;
+      font-size: 28px; font-weight: 700; color: var(--m-text);
+      letter-spacing: -0.025em; line-height: 1.15;
+    }
+    .m-greeting .hello b { color: var(--m-accent); }
+    .m-greeting .date {
+      font-size: 13px; color: var(--m-text-muted);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .m-greeting .date .dot { width: 4px; height: 4px; background: var(--m-text-subtle); border-radius: 50%; }
+
+    /* Today's meetings card (large, beautiful) */
+    .m-meetings {
+      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 60%, #0f766e 100%);
+      color: #fff;
+      border-radius: var(--m-radius-lg);
+      padding: 18px 18px 16px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--m-shadow-md);
+    }
+    .m-meetings::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(circle at 80% 20%, rgba(45,212,191,0.18), transparent 40%), radial-gradient(circle at 20% 80%, rgba(167,139,250,0.15), transparent 40%);
+      pointer-events: none;
+    }
+    .m-meetings > * { position: relative; z-index: 1; }
+    .m-meetings .label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--m-accent-light); margin-bottom: 8px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .m-meetings .label::before { content: ''; width: 5px; height: 5px; background: var(--m-accent-light); border-radius: 50%; box-shadow: 0 0 8px var(--m-accent-light); }
+    .m-meetings h3 {
+      font-family: 'Fraunces', serif; font-size: 20px; font-weight: 700; margin: 0 0 14px;
+      letter-spacing: -0.015em; line-height: 1.2;
+    }
+    .m-meetings .empty {
+      color: rgba(255,255,255,0.7); font-size: 13px; line-height: 1.5; margin: 0;
+    }
+    .m-meeting-row {
+      display: flex; align-items: center; gap: 12px; padding: 10px 0;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .m-meeting-row:first-of-type { border-top: 0; padding-top: 0; }
+    .m-meeting-time {
+      font-family: 'Fraunces', serif; font-size: 13px; font-weight: 700;
+      color: var(--m-accent-light); min-width: 50px;
+    }
+    .m-meeting-title { font-size: 13.5px; font-weight: 600; color: #fff; line-height: 1.3; flex: 1; }
+
+    /* 2x2 stat grid */
+    .m-stats-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    }
+    .m-stat-card {
+      background: var(--m-surface);
+      border: 0.5px solid var(--m-border);
+      border-radius: var(--m-radius);
+      padding: 16px 14px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--m-shadow);
+      transition: transform 0.18s ease;
+    }
+    .m-stat-card:active { transform: scale(0.96); }
+    .m-stat-card::before {
+      content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 3px;
+      background: var(--m-accent);
+      border-radius: var(--m-radius) var(--m-radius) 0 0;
+    }
+    .m-stat-card.violet::before { background: #8b5cf6; }
+    .m-stat-card.amber::before { background: #f59e0b; }
+    .m-stat-card.rose::before { background: #ec4899; }
+    .m-stat-card .label {
+      font-size: 11px; font-weight: 600; color: var(--m-text-muted);
+      text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px;
+    }
+    .m-stat-card .value {
+      font-family: 'Fraunces', serif;
+      font-size: 26px; font-weight: 800; color: var(--m-text);
+      letter-spacing: -0.025em; line-height: 1;
+    }
+    .m-stat-card .unit { font-size: 14px; color: var(--m-text-muted); margin-left: 2px; font-family: 'Inter', sans-serif; font-weight: 600; }
+    .m-stat-card .sub {
+      font-size: 11px; color: var(--m-text-subtle); margin-top: 4px;
+    }
+
+    /* Quick actions row */
+    .m-quick-actions {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    }
+    .m-quick-action {
+      background: var(--m-surface);
+      border: 0.5px solid var(--m-border);
+      border-radius: var(--m-radius);
+      padding: 14px 6px;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      cursor: pointer;
+      transition: transform 0.12s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .m-quick-action:active { transform: scale(0.93); }
+    .m-quick-action .ico {
+      width: 40px; height: 40px; border-radius: 12px;
+      display: grid; place-items: center;
+    }
+    .m-quick-action .ico.teal { background: linear-gradient(135deg, #ccfbf1, #5eead4); color: var(--m-accent-dark); }
+    .m-quick-action .ico.violet { background: linear-gradient(135deg, #ede9fe, #c4b5fd); color: #5b21b6; }
+    .m-quick-action .ico.amber { background: linear-gradient(135deg, #fef3c7, #fcd34d); color: #92400e; }
+    .m-quick-action .ico.rose { background: linear-gradient(135deg, #fce7f3, #fbcfe8); color: #9f1239; }
+    .m-quick-action span { font-size: 11px; font-weight: 600; color: var(--m-text); }
+
+    /* Recent activity card */
+    .m-card {
+      background: var(--m-surface);
+      border: 0.5px solid var(--m-border);
+      border-radius: var(--m-radius);
+      box-shadow: var(--m-shadow);
+      overflow: hidden;
+    }
+    .m-card-head {
+      padding: 14px 16px 10px;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .m-card-head h3 {
+      font-family: 'Fraunces', serif;
+      font-size: 16px; font-weight: 700; color: var(--m-text);
+      margin: 0; letter-spacing: -0.01em;
+    }
+    .m-card-head a {
+      font-size: 12px; font-weight: 600; color: var(--m-accent);
+    }
+    .m-card-body { padding: 0 16px 14px; }
+    .m-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 0;
+      border-top: 0.5px solid var(--m-border);
+    }
+    .m-row:first-child { border-top: 0; }
+    .m-row .avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: linear-gradient(135deg, #ccfbf1, #99f6e4); color: var(--m-accent-dark);
+      display: grid; place-items: center;
+      font-size: 13px; font-weight: 700; flex-shrink: 0;
+    }
+    .m-row .avatar.violet { background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #5b21b6; }
+    .m-row .avatar.amber { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; }
+    .m-row .avatar.rose { background: linear-gradient(135deg, #fce7f3, #fbcfe8); color: #9f1239; }
+    .m-row .info { flex: 1; min-width: 0; }
+    .m-row .info b { display: block; font-size: 13px; font-weight: 700; color: var(--m-text); margin-bottom: 1px; line-height: 1.25; }
+    .m-row .info span { display: block; font-size: 11.5px; color: var(--m-text-muted); line-height: 1.3; }
+    .m-row .time { font-size: 11px; color: var(--m-text-subtle); flex-shrink: 0; }
+
+    /* ===== MOBILE QUICK-ADD BOTTOM SHEET ===== */
+    .m-quick-sheet { position: fixed; inset: 0; z-index: 200; pointer-events: none; }
+    .m-quick-sheet.on { pointer-events: auto; }
+    .m-quick-backdrop { position: absolute; inset: 0; background: rgba(15,23,42,0.5); opacity: 0; transition: opacity 0.25s; }
+    .m-quick-sheet.on .m-quick-backdrop { opacity: 1; }
+    .m-quick-card {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: var(--m-surface);
+      border-radius: var(--m-radius-xl) var(--m-radius-xl) 0 0;
+      padding: 8px 16px max(20px, env(safe-area-inset-bottom, 0));
+      box-shadow: 0 -10px 40px rgba(15,23,42,0.15);
+      transform: translateY(100%);
+      transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .m-quick-sheet.on .m-quick-card { transform: translateY(0); }
+    .m-quick-handle {
+      width: 36px; height: 4px; background: var(--m-border-strong);
+      border-radius: 99px; margin: 8px auto 16px;
+    }
+    .m-quick-card h3 {
+      font-family: 'Fraunces', serif;
+      font-size: 18px; font-weight: 700; color: var(--m-text);
+      margin: 0 0 18px; text-align: center; letter-spacing: -0.015em;
+    }
+    .m-quick-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;
+    }
+    .m-quick-grid button {
+      background: transparent; border: 0; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      font-size: 11.5px; font-weight: 600; color: var(--m-text-muted); padding: 6px 2px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .m-quick-ico {
+      width: 56px; height: 56px; border-radius: 16px;
+      display: grid; place-items: center;
+      transition: transform 0.15s;
+    }
+    .m-quick-grid button:active .m-quick-ico { transform: scale(0.88); }
+    .m-quick-ico.teal { background: linear-gradient(135deg, #ccfbf1, #5eead4); color: var(--m-accent-dark); }
+    .m-quick-ico.violet { background: linear-gradient(135deg, #ede9fe, #c4b5fd); color: #5b21b6; }
+    .m-quick-ico.amber { background: linear-gradient(135deg, #fef3c7, #fcd34d); color: #92400e; }
+    .m-quick-ico.rose { background: linear-gradient(135deg, #fce7f3, #fbcfe8); color: #9f1239; }
+    .m-quick-cancel {
+      display: block; width: 100%; padding: 13px; border-radius: var(--m-radius);
+      background: var(--m-bg); border: 0;
+      color: var(--m-text-muted); font-size: 15px; font-weight: 700; cursor: pointer;
+      font-family: inherit;
+    }
+  `;
+
+  // Mobile shell injection — runs once on DOMContentLoaded
   function injectMobileShell() {
-    if (!shouldUseMobileShell()) return;
-    if (document.getElementById('mobileShell')) return; // already injected
-    document.documentElement.setAttribute('data-shell', 'mobile');
+    if (!window.__afriMobile) return;
+    if (document.getElementById('mobileTopbar')) return; // already injected
 
-    // Build the mobile top bar (compact, sticky, white blur)
+    // TOP BAR
     var topbar = document.createElement('header');
     topbar.id = 'mobileTopbar';
     topbar.className = 'm-topbar';
     topbar.innerHTML =
       '<button class="m-icon-btn" onclick="window.__toggleMobileSearch()" aria-label="Search">'
-      + '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>'
+      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>'
       + '</button>'
       + '<div class="m-brand" onclick="go(\'home\')">'
       + '<img src="/logo.svg" alt="Afri OS" width="22" height="22">'
       + '<span>Afri <b>OS</b></span>'
       + '</div>'
       + '<button class="m-icon-btn" id="mBell" onclick="window.__toggleMobileBell()" aria-label="Notifications">'
-      + '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>'
+      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>'
       + '<span class="m-bell-count" id="mBellCount" style="display:none">0</span>'
       + '</button>';
     document.body.appendChild(topbar);
 
-    // Build the bottom tab bar (native-app style)
+    // BOTTOM TAB BAR
     var tabbar = document.createElement('nav');
     tabbar.id = 'mobileTabbar';
     tabbar.className = 'm-tabbar';
     tabbar.innerHTML =
       '<button class="m-tab" data-tab="home" onclick="go(\'home\')">'
-      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>'
+      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8M5 10v10a1 1 0 0 0 1 1h3v-6h6v6h3a1 1 0 0 0 1-1V10"/></svg>'
       + '<span>Home</span>'
       + '</button>'
       + '<button class="m-tab" data-tab="contacts" onclick="go(\'contacts\')">'
-      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M3 22c0-5 4-7 6-7s6 2 6 7"/><circle cx="17" cy="9" r="3"/></svg>'
+      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11l-3 3-2-2"/></svg>'
       + '<span>Contacts</span>'
       + '</button>'
       + '<button class="m-tab" data-tab="deals" onclick="go(\'deals\')">'
-      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M7 7h4l2 5-2 5H7M13 7h4l2 5-2 5h-4"/></svg>'
+      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13h7l-3-3M4 13l7 7-3 3M4 13h16"/></svg>'
       + '<span>Deals</span>'
       + '</button>'
       + '<button class="m-tab" data-tab="tasks" onclick="go(\'tasks\')">'
-      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 11l2 2 4-4"/></svg>'
+      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>'
       + '<span>Tasks</span>'
       + '</button>'
       + '<button class="m-tab" data-tab="profile" onclick="go(\'settings\')">'
-      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M5 21c0-4 3-6 7-6s7 2 7 6"/></svg>'
+      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4 4-6 8-6s8 2 8 6"/></svg>'
       + '<span>Profile</span>'
       + '</button>';
     document.body.appendChild(tabbar);
 
-    // Build the FAB (floating action button) — quick add
+    // FAB
     var fab = document.createElement('button');
     fab.id = 'mobileFab';
     fab.className = 'm-fab';
-    fab.innerHTML =
-      '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>';
+    fab.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>';
     fab.onclick = window.__openMobileQuickAdd;
     document.body.appendChild(fab);
 
-    // Sync tab active state on navigation
+    // Sync active tab on navigation
     window.__syncMobileTabs = function () {
       var p = window.page || 'home';
-      var map = { home: 'home', contacts: 'contacts', companies: 'contacts', deals: 'deals', opportunities: 'deals', tasks: 'tasks', activities: 'tasks', settings: 'profile', integrations: 'profile', calendar: 'home', feed: 'home', forecast: 'home', dashboard: 'home' };
+      var map = {
+        home: 'home', contacts: 'contacts', companies: 'contacts',
+        deals: 'deals', opportunities: 'deals',
+        tasks: 'tasks', activities: 'tasks',
+        settings: 'profile', integrations: 'profile',
+        calendar: 'home', feed: 'home', forecast: 'home', dashboard: 'home'
+      };
       var tab = map[p] || 'home';
       document.querySelectorAll('.m-tab').forEach(function (t) {
         t.classList.toggle('on', t.dataset.tab === tab);
       });
     };
-    // Override go() to also sync tabs (without breaking the original)
+    // Wrap go() so tabs sync after navigation
     var origGo = window.go;
     if (typeof origGo === 'function' && !origGo.__mobileWrapped) {
       window.go = function (p) {
@@ -5470,10 +5841,126 @@
       };
       window.go.__mobileWrapped = true;
     }
-    setTimeout(window.__syncMobileTabs, 200);
+    setTimeout(window.__syncMobileTabs, 100);
+
+    // Render mobile home (will be re-rendered on go('home'))
+    setTimeout(function () {
+      if (window.__afriMobile && (window.page === 'home' || !window.page)) {
+        window.__drawMobileHome();
+      }
+    }, 200);
   }
 
-  // Mobile quick-add sheet (slides up from bottom — bottom-sheet pattern)
+  // Mobile home page — completely separate from desktop home
+  window.__drawMobileHome = async function () {
+    if (!window.__afriMobile) return;
+    var view = document.getElementById('view');
+    if (!view) return;
+
+    var name = (me && me.fullName) ? me.fullName.split(' ')[0] : 'there';
+    var hour = new Date().getHours();
+    var greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+    // Fetch today's data (calendar events + inbox)
+    var day = null;
+    try { day = await api('/crm/api/day'); } catch (e) { day = null; }
+    var meetings = (day && day.events) ? day.events.slice(0, 3) : [];
+
+    // Fetch home stats
+    var stats = bag && bag.home ? bag.home : {};
+    var openDeals = stats.open || 0;
+    var pipelineVal = stats.pipeline || 0;
+    var tasksDue = stats.tasks || 0;
+    var hotLeads = stats.hot || 0;
+
+    // Recent contacts (top 3 from bag)
+    var recentContacts = (bag.contacts || []).slice(0, 3);
+
+    view.innerHTML =
+      '<div class="m-home">'
+      // Greeting
+      + '<div class="m-greeting">'
+      + '  <div class="hello">' + greeting + ', <b>' + esc(name) + '</b></div>'
+      + '  <div class="date">' + new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) + '</div>'
+      + '</div>'
+
+      // Today's meetings card
+      + '<div class="m-meetings">'
+      + '  <div class="label">Today\'s meetings</div>'
+      + (meetings.length > 0
+          ? meetings.map(function (m) {
+              var time = m.when ? new Date(m.when).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+              return '<div class="m-meeting-row"><div class="m-meeting-time">' + esc(time) + '</div><div class="m-meeting-title">' + esc(m.title || 'Busy') + '</div></div>';
+            }).join('')
+          : '<p class="empty">No meetings scheduled for today. Connect your calendar to see meetings here.</p>')
+      + '</div>'
+
+      // 2x2 stat grid
+      + '<div class="m-stats-grid">'
+      + '  <div class="m-stat-card" onclick="go(\'deals\')">'
+      + '    <div class="label">Open deals</div>'
+      + '    <div class="value">' + openDeals + '</div>'
+      + '    <div class="sub">Active pipeline</div>'
+      + '  </div>'
+      + '  <div class="m-stat-card violet" onclick="go(\'deals\')">'
+      + '    <div class="label">Pipeline</div>'
+      + '    <div class="value">₦' + (pipelineVal / 1000000).toFixed(1) + '<span class="unit">M</span></div>'
+      + '    <div class="sub">Total value</div>'
+      + '  </div>'
+      + '  <div class="m-stat-card amber" onclick="go(\'tasks\')">'
+      + '    <div class="label">Tasks due</div>'
+      + '    <div class="value">' + tasksDue + '</div>'
+      + '    <div class="sub">Today + overdue</div>'
+      + '  </div>'
+      + '  <div class="m-stat-card rose" onclick="go(\'contacts\')">'
+      + '    <div class="label">Hot leads</div>'
+      + '    <div class="value">' + hotLeads + '</div>'
+      + '    <div class="sub">Score 70+</div>'
+      + '  </div>'
+      + '</div>'
+
+      // Quick actions row
+      + '<div class="m-quick-actions">'
+      + '  <button class="m-quick-action" onclick="window.__openMobileQuickAdd()">'
+      + '    <div class="ico teal"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></div>'
+      + '    <span>Add</span>'
+      + '  </button>'
+      + '  <button class="m-quick-action" onclick="go(\'contacts\')">'
+      + '    <div class="ico violet"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M3 22c0-5 4-7 6-7s6 2 6 7"/><circle cx="17" cy="9" r="3"/></svg></div>'
+      + '    <span>Contacts</span>'
+      + '  </button>'
+      + '  <button class="m-quick-action" onclick="go(\'deals\')">'
+      + '    <div class="ico amber"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M7 7h4l2 5-2 5H7M13 7h4l2 5-2 5h-4"/></svg></div>'
+      + '    <span>Deals</span>'
+      + '  </button>'
+      + '  <button class="m-quick-action" onclick="window.__openScanCard && window.__openScanCard()">'
+      + '    <div class="ico rose"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></div>'
+      + '    <span>Scan</span>'
+      + '  </button>'
+      + '</div>'
+
+      // Recent contacts
+      + (recentContacts.length > 0
+          ? '<div class="m-card">'
+            + '<div class="m-card-head"><h3>Recent contacts</h3><a onclick="go(\'contacts\')">All →</a></div>'
+            + '<div class="m-card-body">'
+            + recentContacts.map(function (c, i) {
+                var colors = ['teal', 'violet', 'amber', 'rose'];
+                var colorClass = colors[i % colors.length];
+                var initials = ((c.firstName || '').charAt(0) + (c.lastName || '').charAt(0)).toUpperCase() || '?';
+                return '<div class="m-row" onclick="go(\'contacts\')">'
+
+                  + '<div class="avatar ' + colorClass + '">' + esc(initials) + '</div>'
+                  + '<div class="info"><b>' + esc(((c.firstName || '') + ' ' + (c.lastName || '')).trim() || c.name || 'Unknown') + '</b>'
+                  + '<span>' + esc(c.email || c.phone || 'No contact') + '</span></div>'
+                  + '</div>';
+              }).join('')
+            + '</div></div>'
+          : '')
+      + '</div>';
+  };
+
+  // Quick-add bottom sheet
   window.__openMobileQuickAdd = function () {
     var sheet = document.getElementById('mobileQuickSheet');
     if (sheet) { sheet.classList.add('on'); return; }
@@ -5487,38 +5974,38 @@
       + '  <h3>Quick add</h3>'
       + '  <div class="m-quick-grid">'
       + '    <button onclick="window.__closeMobileQuickAdd(); if (typeof window.openSidePanel === \'function\') window.openSidePanel(\'new-contact\'); else go(\'contacts\');">'
-      + '      <div class="m-quick-ico teal"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M3 22c0-5 4-7 6-7s6 2 6 7"/><circle cx="17" cy="9" r="3"/></svg></div>'
+      + '      <div class="m-quick-ico teal"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M3 22c0-5 4-7 6-7s6 2 6 7"/><circle cx="17" cy="9" r="3"/></svg></div>'
       + '      <span>Contact</span>'
       + '    </button>'
       + '    <button onclick="window.__closeMobileQuickAdd(); if (typeof window.openSidePanel === \'function\') window.openSidePanel(\'new-deal\'); else go(\'deals\');">'
-      + '      <div class="m-quick-ico violet"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M7 7h4l2 5-2 5H7M13 7h4l2 5-2 5h-4"/></svg></div>'
+      + '      <div class="m-quick-ico violet"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M7 7h4l2 5-2 5H7M13 7h4l2 5-2 5h-4"/></svg></div>'
       + '      <span>Deal</span>'
       + '    </button>'
       + '    <button onclick="window.__closeMobileQuickAdd(); if (typeof window.openSidePanel === \'function\') window.openSidePanel(\'new-task\'); else go(\'tasks\');">'
-      + '      <div class="m-quick-ico amber"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 11l2 2 4-4"/></svg></div>'
+      + '      <div class="m-quick-ico amber"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 11l2 2 4-4"/></svg></div>'
       + '      <span>Task</span>'
       + '    </button>'
       + '    <button onclick="window.__closeMobileQuickAdd(); if (typeof window.__openScanCard === \'function\') window.__openScanCard();">'
-      + '      <div class="m-quick-ico rose"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></div>'
+      + '      <div class="m-quick-ico rose"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></div>'
       + '      <span>Scan card</span>'
       + '    </button>'
       + '  </div>'
       + '  <button class="m-quick-cancel" onclick="window.__closeMobileQuickAdd()">Cancel</button>'
       + '</div>';
     document.body.appendChild(sheet);
+    // Slight delay for the transition to work
     setTimeout(function () { sheet.classList.add('on'); }, 10);
   };
   window.__closeMobileQuickAdd = function () {
     var s = document.getElementById('mobileQuickSheet');
     if (s) {
       s.classList.remove('on');
-      setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 250);
+      setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 300);
     }
   };
 
-  // Mobile search + bell toggles (placeholder for Phase 2/6)
+  // Mobile search + bell toggles
   window.__toggleMobileSearch = function () {
-    // For Phase 1, route to home with focus on existing search input
     if (typeof go === 'function') go('home');
     setTimeout(function () {
       var q = document.getElementById('q');
@@ -5535,188 +6022,27 @@
     }
   };
 
-  // Mobile shell CSS
-  style.textContent += `
-    /* ===== MOBILE SHELL (Phase 1) ===== */
-    /* Only applied when <html data-shell="mobile"> */
-    [data-shell="mobile"] body { padding-bottom: 64px !important; padding-top: 56px !important; }
-
-    /* Hide the desktop sidebar + header on mobile */
-    [data-shell="mobile"] #nav,
-    [data-shell="mobile"] aside,
-    [data-shell="mobile"] .app > header,
-    [data-shell="mobile"] header:not(.m-topbar) { display: none !important; }
-
-    /* Adjust the main app grid to full-width single column */
-    [data-shell="mobile"] .app,
-    [data-shell="mobile"] .app.rail { grid-template-columns: 1fr !important; }
-
-    /* Top bar — compact, sticky, white blur */
-    .m-topbar {
-      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-      height: 56px; padding: 0 12px;
-      background: rgba(255, 255, 255, 0.92);
-      backdrop-filter: blur(20px) saturate(180%);
-      border-bottom: 1px solid #e2e8f0;
-      display: flex; align-items: center; justify-content: space-between; gap: 8px;
-      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-    }
-    [data-theme="dark"] .m-topbar { background: rgba(15, 23, 42, 0.92); border-bottom-color: #1e293b; }
-    .m-icon-btn {
-      width: 38px; height: 38px; border-radius: 10px;
-      background: transparent; border: 0; color: #0f172a;
-      display: grid; place-items: center; cursor: pointer;
-      transition: background 0.15s; position: relative;
-    }
-    [data-theme="dark"] .m-icon-btn { color: #e2e8f0; }
-    .m-icon-btn:active { background: #f1f5f9; transform: scale(0.95); }
-    [data-theme="dark"] .m-icon-btn:active { background: #1e293b; }
-    .m-bell-count {
-      position: absolute; top: 4px; right: 4px;
-      min-width: 16px; height: 16px; padding: 0 4px;
-      border-radius: 99px; background: #ef4444; color: #fff;
-      font-size: 10px; font-weight: 700; display: grid; place-items: center;
-      border: 2px solid #fff;
-    }
-    [data-theme="dark"] .m-bell-count { border-color: #0f172a; }
-    .m-brand {
-      display: flex; align-items: center; gap: 8px;
-      font-family: 'Fraunces', serif; font-size: 18px; font-weight: 700;
-      color: #0f172a; cursor: pointer;
-    }
-    .m-brand b { color: #0d9488; font-weight: 700; }
-    [data-theme="dark"] .m-brand { color: #fff; }
-    .m-brand img { display: block; }
-
-    /* Bottom tab bar — native-app style */
-    .m-tabbar {
-      position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
-      height: 64px;
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(20px) saturate(180%);
-      border-top: 1px solid #e2e8f0;
-      display: flex; align-items: stretch; justify-content: space-around;
-      padding: 0 4px;
-      box-shadow: 0 -2px 12px rgba(15, 23, 42, 0.05);
-      padding-bottom: env(safe-area-inset-bottom, 0);
-    }
-    [data-theme="dark"] .m-tabbar { background: rgba(15, 23, 42, 0.95); border-top-color: #1e293b; }
-    .m-tab {
-      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-      background: transparent; border: 0; color: #94a3b8; font-size: 10px; font-weight: 600; cursor: pointer;
-      transition: color 0.15s, transform 0.1s; padding: 4px;
-    }
-    [data-theme="dark"] .m-tab { color: #64748b; }
-    .m-tab:active { transform: scale(0.92); }
-    .m-tab.on { color: #0d9488; }
-    [data-theme="dark"] .m-tab.on { color: #2dd4bf; }
-    .m-tab svg { display: block; }
-    .m-tab span { line-height: 1; }
-
-    /* FAB — floating action button, teal gradient */
-    .m-fab {
-      position: fixed; bottom: 80px; right: 16px; z-index: 99;
-      width: 56px; height: 56px; border-radius: 50%;
-      background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
-      color: #fff; border: 0; cursor: pointer;
-      display: grid; place-items: center;
-      box-shadow: 0 8px 24px rgba(13, 148, 136, 0.4), 0 0 0 4px rgba(13, 148, 136, 0.08);
-      transition: transform 0.15s, box-shadow 0.15s;
-    }
-    .m-fab:active { transform: scale(0.92); }
-    .m-fab:hover { transform: translateY(-2px) scale(1.04); box-shadow: 0 12px 28px rgba(13, 148, 136, 0.5), 0 0 0 6px rgba(13, 148, 136, 0.1); }
-
-    /* Mobile quick-add bottom sheet */
-    .m-quick-sheet { position: fixed; inset: 0; z-index: 200; pointer-events: none; }
-    .m-quick-sheet.on { pointer-events: auto; }
-    .m-quick-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.6); opacity: 0; transition: opacity 0.25s; }
-    .m-quick-sheet.on .m-quick-backdrop { opacity: 1; }
-    .m-quick-card {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      background: #fff; border-radius: 24px 24px 0 0;
-      padding: 12px 20px 24px; padding-bottom: max(24px, env(safe-area-inset-bottom, 0));
-      box-shadow: 0 -20px 50px rgba(15, 23, 42, 0.2);
-      transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-    }
-    [data-theme="dark"] .m-quick-card { background: #0f172a; }
-    .m-quick-sheet.on .m-quick-card { transform: translateY(0); }
-    .m-quick-handle { width: 40px; height: 4px; background: #cbd5e1; border-radius: 99px; margin: 0 auto 16px; }
-    [data-theme="dark"] .m-quick-handle { background: #334155; }
-    .m-quick-card h3 { font-family: 'Fraunces', serif; font-size: 18px; font-weight: 700; color: #0f172a; margin: 0 0 16px; text-align: center; }
-    [data-theme="dark"] .m-quick-card h3 { color: #fff; }
-    .m-quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
-    .m-quick-grid button {
-      background: transparent; border: 0; cursor: pointer;
-      display: flex; flex-direction: column; align-items: center; gap: 8px;
-      font-size: 12px; font-weight: 600; color: #475569; padding: 8px 4px;
-    }
-    [data-theme="dark"] .m-quick-grid button { color: #94a3b8; }
-    .m-quick-ico {
-      width: 52px; height: 52px; border-radius: 16px;
-      display: grid; place-items: center;
-      transition: transform 0.15s;
-    }
-    .m-quick-grid button:active .m-quick-ico { transform: scale(0.9); }
-    .m-quick-ico.teal { background: linear-gradient(135deg, #ccfbf1, #5eead4); color: #0f766e; }
-    .m-quick-ico.violet { background: linear-gradient(135deg, #ede9fe, #c4b5fd); color: #5b21b6; }
-    .m-quick-ico.amber { background: linear-gradient(135deg, #fef3c7, #fcd34d); color: #92400e; }
-    .m-quick-ico.rose { background: linear-gradient(135deg, #fce7f3, #fbcfe8); color: #9f1239; }
-    .m-quick-cancel {
-      display: block; width: 100%; padding: 14px; border-radius: 12px;
-      background: #f1f5f9; border: 0; color: #475569; font-size: 15px; font-weight: 700; cursor: pointer;
-      font-family: inherit;
-    }
-    [data-theme="dark"] .m-quick-cancel { background: #1e293b; color: #e2e8f0; }
-
-    /* Hide desktop elements that don't make sense on mobile */
-    [data-shell="mobile"] .nav-mobile-btn,
-    [data-shell="mobile"] .helper,
-    [data-shell="mobile"] .ask-fab,
-    [data-shell="mobile"] #moreBtn,
-    [data-shell="mobile"] .navfoot { display: none !important; }
-
-    /* Make the existing content area scroll nicely on mobile */
-    [data-shell="mobile"] #view,
-    [data-shell="mobile"] .view {
-      padding: 12px !important;
-    }
-
-    /* On very small screens (<400px), reduce padding more */
-    @media (max-width: 400px) {
-      [data-shell="mobile"] #view,
-      [data-shell="mobile"] .view { padding: 8px !important; }
-      .m-fab { width: 52px; height: 52px; bottom: 76px; right: 12px; }
-      .m-fab svg { width: 22px; height: 22px; }
-    }
-  `;
-
-  // Auto-inject on first paint + on resize (in case user rotates device or
-  // resizes window across the breakpoint)
-  function syncMobileShell() {
-    if (shouldUseMobileShell()) {
-      injectMobileShell();
-    } else {
-      // Remove mobile shell if user went back to desktop
-      var shell = document.getElementById('mobileShell');
-      if (shell) shell.remove();
-      var topbar = document.getElementById('mobileTopbar');
-      if (topbar) topbar.remove();
-      var tabbar = document.getElementById('mobileTabbar');
-      if (tabbar) tabbar.remove();
-      var fab = document.getElementById('mobileFab');
-      if (fab) fab.remove();
-      document.documentElement.removeAttribute('data-shell');
-    }
+  // Override drawHome for mobile — completely separate rendering path
+  var origDrawHome = window.drawHome;
+  if (typeof origDrawHome === 'function' && !origDrawHome.__mobileWrapped) {
+    window.drawHome = function () {
+      if (window.__afriMobile) {
+        return window.__drawMobileHome();
+      }
+      return origDrawHome.apply(this, arguments);
+    };
+    window.drawHome.__mobileWrapped = true;
   }
 
-  // Wait for boot to complete, then check
-  setTimeout(syncMobileShell, 1500);
-  // Also re-check on viewport changes (orientation, resize across breakpoint)
-  var resizeTimer = null;
-  window.addEventListener('resize', function () {
-    if (resizeTimer) clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(syncMobileShell, 200);
-  });
+  // Inject mobile shell as early as possible — no setTimeout delays
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectMobileShell);
+  } else {
+    // DOM already loaded, inject immediately
+    injectMobileShell();
+  }
+  // Also inject after boot() runs (in case DOM was already ready but SPA hadn't loaded yet)
+  setTimeout(injectMobileShell, 300);
 
 })();
 

@@ -19,6 +19,20 @@
     if (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) t = 'dark';
     if (t) document.documentElement.setAttribute('data-theme', t);
   })();
+  // Mobile detection — runs BEFORE paintNav() and any other rendering
+  // Sets a global flag and adds data-shell="mobile" to <html> so CSS can
+  // hide desktop-only elements immediately (no flash-of-desktop).
+  (function() {
+    var ua = (navigator.userAgent || '').toLowerCase();
+    var isUAMobile = /mobile|android|iphone|ipod|windows phone|blackberry|opera mini|iemobile/i.test(ua);
+    var isIpad = /ipad/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 0);
+    var isSmallViewport = window.matchMedia && window.matchMedia('(max-width: 820px)').matches;
+    var isMobile = isUAMobile || (isSmallViewport && ('ontouchstart' in window || navigator.maxTouchPoints > 0)) || (isIpad && isSmallViewport);
+    if (isMobile) {
+      window.__afriMobile = true;
+      document.documentElement.setAttribute('data-shell', 'mobile');
+    }
+  })();
 </script>
 <style>
   :root { --side:#1e293b; --ink:#1e293b; --muted:#64748b; --line:#e2e8f0; --bg:#f4f7fb; --accent:#0f766e; }
