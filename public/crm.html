@@ -2682,6 +2682,10 @@ document.getElementById('email').value = localStorage.getItem('crmEmail') || '';
   const ssoToken = params.get('t');
   const ssoStatus = params.get('sso');  // 'in', 'new', 'failed'
   const ssoReason = params.get('reason');
+  const ssoCal = params.get('cal');  // '1' if calendar auto-connected, '0' if denied
+  // Set calendar flag BEFORE history.replaceState strips URL params
+  if (ssoCal === '1') window.__ssoCalendarConnected = true;
+  if (ssoStatus === 'new') window.__ssoIsNew = true;
   if (ssoToken && ssoStatus !== 'failed') {
     token = ssoToken;
     localStorage.setItem('crmToken', token);
