@@ -5045,5 +5045,330 @@
     window.__showWebhooks();
   };
 
+  // ============================================================
+  // MOBILE APP PROMO — HubSpot-style popup with QR code
+  // Appears on desktop after 30s, or via "Get mobile app" button
+  // in the top nav. Dismissable with "Remind me later" (7-day snooze)
+  // ============================================================
+  style.textContent += `
+    .mobile-promo-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; padding: 20px; animation: mobile-fade 0.25s ease-out; }
+    .mobile-promo-overlay.on { display: flex; }
+    @keyframes mobile-fade { from { opacity: 0; } to { opacity: 1; } }
+    .mobile-promo-card { position: relative; background: #fff; border-radius: 24px; max-width: 880px; width: 100%; overflow: hidden; box-shadow: 0 40px 100px rgba(15, 23, 42, 0.4), 0 12px 32px rgba(15, 23, 42, 0.2); display: grid; grid-template-columns: 1.2fr 1fr; animation: mobile-pop 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); }
+    @keyframes mobile-pop { from { transform: scale(0.95) translateY(20px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
+    @media (max-width: 720px) { .mobile-promo-card { grid-template-columns: 1fr; max-height: 90vh; overflow: auto; } }
+    .mobile-promo-left { padding: 40px 36px; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f766e 100%); color: #fff; position: relative; overflow: hidden; }
+    .mobile-promo-left::before { content: ''; position: absolute; inset: -50%; background: radial-gradient(circle at 30% 30%, rgba(45, 212, 191, 0.18) 0%, transparent 8%), radial-gradient(circle at 70% 60%, rgba(167, 139, 250, 0.15) 0%, transparent 10%); animation: mobile-drift 25s linear infinite; pointer-events: none; }
+    @keyframes mobile-drift { 0% { transform: rotate(0deg) scale(1); } 50% { transform: rotate(180deg) scale(1.15); } 100% { transform: rotate(360deg) scale(1); } }
+    .mobile-promo-left > * { position: relative; z-index: 1; }
+    .mobile-promo-eyebrow { display: inline-flex; align-items: center; gap: 8px; background: rgba(45, 212, 191, 0.12); border: 1px solid rgba(45, 212, 191, 0.3); padding: 6px 12px; border-radius: 99px; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #2dd4bf; margin-bottom: 20px; }
+    .mobile-promo-eyebrow::before { content: ''; width: 6px; height: 6px; background: #2dd4bf; border-radius: 50%; box-shadow: 0 0 8px #2dd4bf; }
+    .mobile-promo-left h2 { font-family: 'Fraunces', serif; font-size: 30px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.15; margin-bottom: 16px; }
+    .mobile-promo-left h2 .grad { background: linear-gradient(135deg, #2dd4bf 0%, #5eead4 50%, #2dd4bf 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .mobile-promo-left p.sub { color: rgba(226, 232, 240, 0.85); font-size: 15px; line-height: 1.55; margin-bottom: 28px; }
+    .mobile-promo-features { display: flex; flex-direction: column; gap: 14px; margin-bottom: 28px; }
+    .mobile-promo-feature { display: flex; align-items: flex-start; gap: 12px; }
+    .mobile-promo-feature .ico { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex-shrink: 0; background: rgba(45, 212, 191, 0.12); color: #2dd4bf; border: 1px solid rgba(45, 212, 191, 0.2); }
+    .mobile-promo-feature .info b { display: block; font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 2px; }
+    .mobile-promo-feature .info span { font-size: 12.5px; color: rgba(226, 232, 240, 0.7); line-height: 1.45; }
+    .mobile-promo-rating { display: flex; align-items: center; gap: 10px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+    .mobile-promo-stars { color: #fbbf24; font-size: 14px; letter-spacing: 2px; }
+    .mobile-promo-rating .rating-text { font-size: 12px; color: rgba(226, 232, 240, 0.7); }
+    .mobile-promo-rating .rating-text b { color: #fff; font-weight: 700; }
+    .mobile-promo-right { padding: 40px 36px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 16px; }
+    .mobile-promo-qr-wrap { padding: 16px; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08); }
+    .mobile-promo-qr-wrap img { display: block; width: 180px; height: 180px; border-radius: 8px; }
+    .mobile-promo-qr-caption { font-size: 13px; color: #64748b; line-height: 1.5; max-width: 240px; }
+    .mobile-promo-qr-caption b { color: #0f172a; }
+    .mobile-promo-badges { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+    .mobile-promo-badge { display: flex; align-items: center; gap: 8px; background: #0f172a; color: #fff; padding: 8px 14px; border-radius: 10px; text-decoration: none; transition: transform 0.15s, background 0.15s; }
+    .mobile-promo-badge:hover { transform: translateY(-1px); background: #1e293b; }
+    .mobile-promo-badge svg { width: 18px; height: 18px; flex-shrink: 0; }
+    .mobile-promo-badge .badge-text { display: flex; flex-direction: column; line-height: 1.1; }
+    .mobile-promo-badge .badge-text small { font-size: 9px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.05em; }
+    .mobile-promo-badge .badge-text b { font-size: 13px; font-weight: 700; }
+    .mobile-promo-close { position: absolute; top: 16px; right: 16px; width: 32px; height: 32px; border-radius: 50%; background: rgba(255, 255, 255, 0.1); border: 0; color: #fff; font-size: 18px; cursor: pointer; display: grid; place-items: center; transition: background 0.15s; z-index: 10; }
+    .mobile-promo-close:hover { background: rgba(255, 255, 255, 0.2); }
+    .mobile-promo-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .mobile-promo-dismiss { background: transparent; border: 1px solid #e2e8f0; color: #64748b; padding: 8px 16px; border-radius: 99px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+    .mobile-promo-dismiss:hover { background: #f8fafc; color: #0f172a; }
+
+    /* Top-nav Get Mobile App button */
+    .nav-mobile-btn { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 8px; background: linear-gradient(135deg, #0d9488, #0f766e); color: #fff; font-size: 12px; font-weight: 700; border: 0; cursor: pointer; box-shadow: 0 2px 8px rgba(13, 148, 136, 0.25); transition: transform 0.15s, box-shadow 0.15s; }
+    .nav-mobile-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(13, 148, 136, 0.4); }
+    .nav-mobile-btn svg { width: 14px; height: 14px; }
+    @media (max-width: 720px) { .nav-mobile-btn .nav-mobile-label { display: none; } .nav-mobile-btn { padding: 7px 10px; } }
+
+    /* Business card scanner UI */
+    .scan-card-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; padding: 20px; }
+    .scan-card-overlay.on { display: flex; }
+    .scan-card-modal { background: #fff; border-radius: 20px; max-width: 480px; width: 100%; overflow: hidden; box-shadow: 0 30px 80px rgba(15, 23, 42, 0.4); }
+    .scan-card-head { padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f1f5f9; }
+    .scan-card-head h3 { font-family: 'Fraunces', serif; font-size: 19px; font-weight: 700; color: #0f172a; margin: 0; }
+    .scan-card-head button { background: transparent; border: 0; font-size: 24px; color: #94a3b8; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+    .scan-card-head button:hover { background: #f1f5f9; color: #0f172a; }
+    .scan-card-body { padding: 24px; }
+    .scan-card-video-wrap { position: relative; background: #0f172a; border-radius: 12px; overflow: hidden; aspect-ratio: 4/3; display: grid; place-items: center; }
+    .scan-card-video-wrap video { width: 100%; height: 100%; object-fit: cover; }
+    .scan-card-video-wrap .placeholder { color: #94a3b8; font-size: 14px; text-align: center; padding: 20px; }
+    .scan-card-video-wrap .placeholder svg { display: block; margin: 0 auto 12px; opacity: 0.5; }
+    .scan-card-capture { display: block; margin: 16px auto 0; padding: 12px 24px; background: linear-gradient(135deg, #0d9488, #0f766e); color: #fff; border: 0; border-radius: 99px; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3); transition: transform 0.15s; }
+    .scan-card-capture:hover { transform: translateY(-1px); }
+    .scan-card-capture:disabled { background: #cbd5e1; box-shadow: none; cursor: not-allowed; transform: none; }
+    .scan-card-hint { text-align: center; color: #64748b; font-size: 12px; margin-top: 12px; line-height: 1.5; }
+    .scan-card-preview { max-width: 100%; max-height: 200px; border-radius: 8px; margin: 12px 0; display: block; }
+    .scan-card-use { display: block; margin: 12px auto 0; padding: 12px 24px; background: #0f766e; color: #fff; border: 0; border-radius: 99px; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .scan-card-use:hover { background: #0d9488; }
+  `;
+
+  // Get the install URL for the QR code
+  function getInstallUrl() {
+    return window.location.origin + '/crm';
+  }
+
+  // Build the mobile app promo popup
+  window.__showMobilePromo = function () {
+    if (document.getElementById('mobilePromoOverlay')) {
+      document.getElementById('mobilePromoOverlay').classList.add('on');
+      return;
+    }
+    var installUrl = getInstallUrl();
+    var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=' + encodeURIComponent(installUrl);
+    var overlay = document.createElement('div');
+    overlay.id = 'mobilePromoOverlay';
+    overlay.className = 'mobile-promo-overlay';
+    overlay.innerHTML = ''
+      + '<div class="mobile-promo-card">'
+      + '  <button class="mobile-promo-close" onclick="window.__closeMobilePromo()" aria-label="Close">×</button>'
+      + '  <div class="mobile-promo-left">'
+      + '    <div class="mobile-promo-eyebrow">Afri OS · Mobile</div>'
+      + '    <h2>Save time away from your desk with the <span class="grad">mobile app</span></h2>'
+      + '    <p class="sub">Get more done with app-only features built for how African businesses actually sell — on the phone, in the field, between meetings.</p>'
+      + '    <div class="mobile-promo-features">'
+      + '      <div class="mobile-promo-feature">'
+      + '        <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></div>'
+      + '        <div class="info"><b>Business card scanner</b><span>Snap a photo of any card — Afri extracts the name, email, and phone, and creates the contact for you.</span></div>'
+      + '      </div>'
+      + '      <div class="mobile-promo-feature">'
+      + '        <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.351 1.903.67 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.319 1.85.543 2.81.67A2 2 0 0 1 22 16.92z"/></svg></div>'
+      + '        <div class="info"><b>Sales Caller ID</b><span>When a contact calls, see their deal stage, last touch, and notes before you pick up.</span></div>'
+      + '      </div>'
+      + '      <div class="mobile-promo-feature">'
+      + '        <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l3-3 4 4 6-6"/></svg></div>'
+      + '        <div class="info"><b>Dashboards on the go</b><span>Pipeline value, today\'s meetings, tasks due — all on your home screen. Installable as a PWA.</span></div>'
+      + '      </div>'
+      + '    </div>'
+      + '    <div class="mobile-promo-rating">'
+      + '      <span class="mobile-promo-stars">★★★★★</span>'
+      + '      <span class="rating-text"><b>4.7/5</b> · Rated by African founders</span>'
+      + '    </div>'
+      + '  </div>'
+      + '  <div class="mobile-promo-right">'
+      + '    <div class="mobile-promo-qr-wrap">'
+      + '      <img src="' + qrUrl + '" alt="QR code to install Afri CRM mobile" width="180" height="180">'
+      + '    </div>'
+      + '    <p class="mobile-promo-qr-caption"><b>Scan with your phone camera</b> to install Afri CRM as a progressive web app. Works on iOS and Android. No app store needed.</p>'
+      + '    <div class="mobile-promo-badges">'
+      + '      <a href="' + installUrl + '" class="mobile-promo-badge" target="_blank" rel="noopener">'
+      + '        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.04c-.03-2.95 2.42-4.37 2.53-4.44-1.38-2.02-3.53-2.3-4.3-2.32-1.83-.19-3.58 1.07-4.5 1.07-.94 0-2.37-1.05-3.91-1.02-2.01.03-3.87 1.17-4.91 2.98-2.09 3.63-.53 9 1.49 11.96 1 1.45 2.18 3.07 3.71 3.01 1.49-.06 2.05-.96 3.85-.96 1.78 0 2.3.96 3.86.93 1.6-.03 2.6-1.46 3.57-2.92 1.13-1.65 1.59-3.26 1.61-3.34-.04-.01-3.07-1.18-3.1-4.66M14.06 4.27c.82-1.0 1.37-2.4 1.22-3.78-1.18.05-2.61.78-3.45 1.78-.76.89-1.42 2.31-1.24 3.67 1.31.1 2.65-.67 3.47-1.67z"/></svg>'
+      + '        <div class="badge-text"><small>Install on</small><b>iOS · Safari</b></div>'
+      + '      </a>'
+      + '      <a href="' + installUrl + '" class="mobile-promo-badge" target="_blank" rel="noopener">'
+      + '        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 20.5V3.5c0-.59.34-1.11.84-1.35l13.69 9.85-13.69 9.85c-.5-.24-.84-.76-.84-1.35M17.04 12L21 14.6l-3.96 2.6V12zm0 0V9.4L21 12l-3.96 0z"/></svg>'
+      + '        <div class="badge-text"><small>Install on</small><b>Android · Chrome</b></div>'
+      + '      </a>'
+      + '    </div>'
+      + '    <div class="mobile-promo-actions">'
+      + '      <button class="mobile-promo-dismiss" onclick="window.__snoozeMobilePromo()">Remind me in 7 days</button>'
+      + '    </div>'
+      + '  </div>'
+      + '</div>';
+    document.body.appendChild(overlay);
+    // Close on backdrop click
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) window.__closeMobilePromo();
+    });
+    // Close on Escape
+    setTimeout(function() {
+      document.addEventListener('keydown', window.__mobilePromoEscHandler = function(e) {
+        if (e.key === 'Escape') window.__closeMobilePromo();
+      });
+    }, 100);
+  };
+
+  window.__closeMobilePromo = function () {
+    var o = document.getElementById('mobilePromoOverlay');
+    if (o) o.classList.remove('on');
+    if (window.__mobilePromoEscHandler) {
+      document.removeEventListener('keydown', window.__mobilePromoEscHandler);
+      window.__mobilePromoEscHandler = null;
+    }
+  };
+
+  window.__snoozeMobilePromo = function () {
+    try { localStorage.setItem('afri.mobile.snooze', new Date(Date.now() + 7 * 86400000).toISOString()); } catch {}
+    window.__closeMobilePromo();
+    toast('Got it. We\'ll remind you in 7 days.');
+  };
+
+  // Auto-show after 30s on desktop (only if not snoozed + not on mobile)
+  (function () {
+    var isMobile = window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
+    if (isMobile) return; // Don't show on mobile — they're already on mobile
+    var snooze = null;
+    try { snooze = localStorage.getItem('afri.mobile.snooze'); } catch {}
+    if (snooze && new Date(snooze) > new Date()) return; // Still snoozed
+    try { if (localStorage.getItem('afri.mobile.dismissed')) return; } catch {}
+    setTimeout(function () {
+      if (document.getElementById('mobilePromoOverlay')) return; // Already shown
+      // Only show if user is still on the page (didn't navigate away)
+      if (document.visibilityState === 'visible') {
+        window.__showMobilePromo();
+      }
+    }, 30000);
+  })();
+
+  // Inject "Get mobile app" button into the CRM top nav
+  (function () {
+    function injectMobileBtn() {
+      var nav = document.querySelector('.app > header, header, .topbar, #topbar, .nav');
+      if (!nav) {
+        // Fallback: try to find the bell/notifications area
+        var bell = document.getElementById('bell') || document.querySelector('[onclick*="loadBell"]');
+        if (!bell || !bell.parentElement) { setTimeout(injectMobileBtn, 1000); return; }
+        nav = bell.parentElement;
+      }
+      if (document.getElementById('navMobileBtn')) return; // Already injected
+      var btn = document.createElement('button');
+      btn.id = 'navMobileBtn';
+      btn.className = 'nav-mobile-btn';
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M9 18h6M9 2h6"/></svg><span class="nav-mobile-label">Mobile app</span>';
+      btn.onclick = window.__showMobilePromo;
+      // Insert at the start of nav, before any other elements
+      nav.insertBefore(btn, nav.firstChild);
+    }
+    // Wait for the nav to exist (SPA might not have rendered yet)
+    setTimeout(injectMobileBtn, 1500);
+  })();
+
+  // ============================================================
+  // BUSINESS CARD SCANNER — camera capture + form pre-fill
+  // Mobile-only feature on the Contacts page
+  // ============================================================
+  window.__openScanCard = function () {
+    if (document.getElementById('scanCardOverlay')) {
+      document.getElementById('scanCardOverlay').classList.add('on');
+      window.__startScanCardCamera();
+      return;
+    }
+    var overlay = document.createElement('div');
+    overlay.id = 'scanCardOverlay';
+    overlay.className = 'scan-card-overlay';
+    overlay.innerHTML = ''
+      + '<div class="scan-card-modal">'
+      + '  <div class="scan-card-head">'
+      + '    <h3>Scan business card</h3>'
+      + '    <button onclick="window.__closeScanCard()" aria-label="Close">×</button>'
+      + '  </div>'
+      + '  <div class="scan-card-body">'
+      + '    <div class="scan-card-video-wrap" id="scanVideoWrap">'
+      + '      <div class="placeholder">'
+      + '        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>'
+      + '        Camera starting...'
+      + '      </div>'
+      + '    </div>'
+      + '    <button class="scan-card-capture" id="scanCaptureBtn" onclick="window.__captureScanCard()" disabled>Capture card</button>'
+      + '    <p class="scan-card-hint">Hold the card steady in the frame. After capture, you can review the photo and pre-fill the new contact form.</p>'
+      + '  </div>'
+      + '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) window.__closeScanCard();
+    });
+    window.__startScanCardCamera();
+  };
+
+  window.__startScanCardCamera = async function () {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      var wrap = document.getElementById('scanVideoWrap');
+      if (wrap) {
+        wrap.innerHTML = '<div class="placeholder"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>Camera not available on this device. Try on mobile or use a different browser.</div>';
+      }
+      return;
+    }
+    try {
+      var stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' } // Use back camera on mobile
+      });
+      window.__scanCardStream = stream;
+      var wrap = document.getElementById('scanVideoWrap');
+      if (wrap) {
+        wrap.innerHTML = '<video id="scanVideo" autoplay playsinline muted></video>';
+        var video = document.getElementById('scanVideo');
+        video.srcObject = stream;
+        var btn = document.getElementById('scanCaptureBtn');
+        if (btn) btn.disabled = false;
+      }
+    } catch (e) {
+      var wrap = document.getElementById('scanVideoWrap');
+      if (wrap) {
+        wrap.innerHTML = '<div class="placeholder"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>Camera permission denied. Allow camera access in your browser settings.</div>';
+      }
+    }
+  };
+
+  window.__captureScanCard = function () {
+    var video = document.getElementById('scanVideo');
+    if (!video) return;
+    var canvas = document.createElement('canvas');
+    // Capture at 720p max for reasonable file size
+    var maxW = 720;
+    var aspect = video.videoWidth / video.videoHeight || (4/3);
+    canvas.width = Math.min(maxW, video.videoWidth || maxW);
+    canvas.height = canvas.width / aspect;
+    var ctx = canvas.getContext('2d');
+    // Draw the video frame, optionally rotated/mirrored
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    // Stop the camera stream
+    if (window.__scanCardStream) {
+      window.__scanCardStream.getTracks().forEach(function (t) { t.stop(); });
+      window.__scanCardStream = null;
+    }
+    // Show preview
+    var wrap = document.getElementById('scanVideoWrap');
+    if (wrap) {
+      wrap.innerHTML = '<img src="' + dataUrl + '" class="scan-card-preview" alt="Captured business card">';
+    }
+    var btn = document.getElementById('scanCaptureBtn');
+    if (btn) {
+      btn.textContent = 'Use this card';
+      btn.onclick = function () { window.__useScannedCard(dataUrl); };
+    }
+  };
+
+  window.__useScannedCard = function (dataUrl) {
+    window.__closeScanCard();
+    // Open the new-contact side panel with the scanned image attached
+    if (typeof window.openSidePanel === 'function') {
+      window.openSidePanel('new-contact', { scannedCard: dataUrl });
+    } else {
+      // Fallback: just trigger the contacts create flow + show toast
+      if (typeof go === 'function') go('contacts');
+      setTimeout(function () {
+        toast('Card captured! Fill in the contact details to save.');
+      }, 300);
+    }
+  };
+
+  window.__closeScanCard = function () {
+    var o = document.getElementById('scanCardOverlay');
+    if (o) o.classList.remove('on');
+    if (window.__scanCardStream) {
+      window.__scanCardStream.getTracks().forEach(function (t) { t.stop(); });
+      window.__scanCardStream = null;
+    }
+  };
+
 })();
 
