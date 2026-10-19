@@ -882,35 +882,282 @@
     .step-content p { font-size: 13px; }
   }
 
-  /* === FOOTER (skeleton for now — Step 5 fills it in) === */
+  /* === STATS BAND (compact impressive metrics) === */
+  .stats-band {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    max-width: 1200px;
+    margin: 0 auto 56px;
+    padding: 24px;
+    background: linear-gradient(135deg, #fff 0%, #f8fafc 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+  }
+  .stats-band .stat {
+    text-align: center;
+    padding: 12px;
+    border-right: 1px solid var(--border);
+  }
+  .stats-band .stat:last-child { border-right: 0; }
+  .stats-band .stat-number {
+    font-family: 'Fraunces', serif;
+    font-size: 38px;
+    font-weight: 800;
+    color: var(--teal);
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  .stats-band .stat-number .unit {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-left: 4px;
+    font-family: 'Inter', sans-serif;
+    letter-spacing: 0;
+  }
+  .stats-band .stat-label {
+    margin-top: 6px;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  @media (max-width: 640px) {
+    .stats-band { grid-template-columns: repeat(2, 1fr); }
+    .stats-band .stat:nth-child(2) { border-right: 0; }
+    .stats-band .stat:nth-child(1), .stats-band .stat:nth-child(2) {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+    }
+    .stats-band .stat-number { font-size: 28px; }
+  }
+
+  /* === FINAL CTA BAND === */
+  .cta-band {
+    position: relative;
+    padding: 100px 24px;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 20% 30%, rgba(13, 148, 136, 0.3) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(124, 58, 237, 0.25) 0%, transparent 50%),
+      linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f766e 100%);
+    color: #fff;
+    text-align: center;
+  }
+  .cta-band::before {
+    content: '';
+    position: absolute; inset: -30%;
+    background:
+      radial-gradient(circle at 30% 30%, rgba(45, 212, 191, 0.15) 0%, transparent 8%),
+      radial-gradient(circle at 70% 60%, rgba(167, 139, 250, 0.12) 0%, transparent 10%);
+    animation: hero-drift 25s linear infinite;
+    pointer-events: none;
+  }
+  .cta-band-inner {
+    position: relative; z-index: 1;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .cta-eyebrow {
+    display: inline-block;
+    font-size: 12px; font-weight: 800; letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--teal-light);
+    margin-bottom: 16px;
+  }
+  .cta-band h2 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(32px, 5vw, 52px);
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+    margin-bottom: 16px;
+  }
+  .cta-band p {
+    font-size: 17px;
+    color: rgba(226, 232, 240, 0.85);
+    max-width: 560px;
+    margin: 0 auto 32px;
+    line-height: 1.55;
+  }
+  .cta-actions {
+    display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+  .btn-lg { padding: 16px 28px; font-size: 16px; border-radius: 99px; }
+  .cta-trust {
+    display: flex; gap: 24px; justify-content: center; flex-wrap: wrap;
+    color: rgba(226, 232, 240, 0.65);
+    font-size: 13px;
+  }
+  .cta-trust .check { color: var(--teal-light); margin-right: 4px; font-weight: 800; }
+
+  /* === FOOTER (Step 5 expanded) === */
   .footer {
     background: var(--navy-deep);
     color: rgba(226, 232, 240, 0.7);
-    padding: 60px 24px 32px;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 0;
   }
-  .footer-inner {
+  .footer-top {
+    padding: 64px 24px 40px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .footer-top > * {
     max-width: 1200px; margin: 0 auto;
-    display: flex; align-items: center; justify-content: space-between; gap: 32px;
-    flex-wrap: wrap;
+  }
+  .footer-brand-block {
+    max-width: 1200px; margin: 0 auto 40px;
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 64px;
   }
   .footer-brand {
     display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px;
   }
   .footer-brand img { width: 32px; height: 32px; }
   .footer-brand .name {
     font-family: 'Fraunces', serif;
-    font-size: 20px; font-weight: 700; color: #fff;
+    font-size: 22px; font-weight: 700; color: #fff;
   }
   .footer-brand .name b { color: var(--teal-light); }
-  .footer-links { display: flex; gap: 24px; flex-wrap: wrap; font-size: 13px; }
-  .footer-links a { transition: color 0.12s; }
-  .footer-links a:hover { color: #fff; }
-  .footer-copy {
-    margin-top: 32px; padding-top: 24px;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    text-align: center; font-size: 12px;
+  .footer-tagline {
+    font-size: 14px; line-height: 1.55;
+    margin-bottom: 20px;
+    max-width: 320px;
+  }
+  .footer-social {
+    display: flex; gap: 10px;
+  }
+  .footer-social a {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: grid; place-items: center;
+    color: rgba(226, 232, 240, 0.7);
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .footer-social a:hover {
+    background: rgba(45, 212, 191, 0.12);
+    border-color: rgba(45, 212, 191, 0.4);
+    color: var(--teal-light);
+  }
+  .footer-cols {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 32px;
+    max-width: 1200px; margin: 0 auto;
+  }
+  .footer-col { display: flex; flex-direction: column; gap: 4px; }
+  .footer-col h4 {
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: rgba(226, 232, 240, 0.5);
+    margin: 0 0 12px;
+  }
+  .footer-col a {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 0;
+    color: rgba(226, 232, 240, 0.75);
+    font-size: 13px;
+    transition: color 0.12s;
+  }
+  .footer-col a:hover { color: #fff; }
+  .footer-col a .badge-soon {
+    font-size: 9px; font-weight: 700;
+    padding: 2px 6px; border-radius: 99px;
+    background: rgba(249, 115, 22, 0.15);
+    color: #fb923c;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .footer-col a.footer-cta-link {
+    color: var(--teal-light);
+    font-weight: 600;
+    margin-top: 8px;
+  }
+  .footer-newsletter {
+    padding: 32px 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .newsletter-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between; gap: 32px;
+    flex-wrap: wrap;
+  }
+  .newsletter-text b {
+    display: block;
+    color: #fff;
+    font-size: 15px; font-weight: 700;
+    margin-bottom: 2px;
+  }
+  .newsletter-text span {
+    color: rgba(226, 232, 240, 0.55);
+    font-size: 13px;
+  }
+  .newsletter-form {
+    display: flex; gap: 8px; flex: 1; max-width: 420px;
+  }
+  .newsletter-form input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 11px 14px;
+    color: #fff;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .newsletter-form input::placeholder { color: rgba(226, 232, 240, 0.4); }
+  .newsletter-form input:focus {
+    border-color: var(--teal);
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .newsletter-form button {
+    background: linear-gradient(135deg, var(--teal) 0%, var(--teal-dark) 100%);
+    color: #fff;
+    border: 0;
+    border-radius: 8px;
+    padding: 11px 18px;
+    font-size: 14px; font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    font-family: inherit;
+  }
+  .newsletter-form button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3);
+  }
+  .footer-bottom {
+    padding: 20px 24px;
+  }
+  .footer-bottom-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    flex-wrap: wrap;
+    font-size: 12px;
     color: rgba(226, 232, 240, 0.4);
+  }
+  .footer-bottom-links {
+    display: flex; gap: 16px;
+  }
+  .footer-bottom-links a {
+    color: rgba(226, 232, 240, 0.5);
+    transition: color 0.12s;
+  }
+  .footer-bottom-links a:hover { color: #fff; }
+  @media (max-width: 880px) {
+    .footer-brand-block { grid-template-columns: 1fr; gap: 32px; }
+    .footer-cols { grid-template-columns: repeat(2, 1fr); gap: 24px; }
+    .newsletter-inner { flex-direction: column; align-items: flex-start; gap: 16px; }
+    .newsletter-form { width: 100%; max-width: none; }
+    .footer-bottom-inner { flex-direction: column; text-align: center; }
   }
 
   /* === MOBILE === */
@@ -1216,11 +1463,55 @@
       <h3>African-first</h3>
       <p>Default Naira, Lagos time, NDPR-aware. Built in Nigeria, for Nigeria first — and the rest of the continent second.</p>
     </article>
+
+    <article class="feature-card" data-color="teal">
+      <div class="feature-ico">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l3-3 4 4 6-6"/></svg>
+      </div>
+      <h3>Lead scoring built-in</h3>
+      <p>Weights adapt to your industry, channel, and goal. Hot leads bubble up; cold ones get queued for later. No "score 1-100" guesswork — Afri does it for you.</p>
+    </article>
+
+    <article class="feature-card" data-color="violet">
+      <div class="feature-ico">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h8l-1 8 10-12h-8z"/></svg>
+      </div>
+      <h3>Sequences &amp; workflows</h3>
+      <p>Trigger-based automations: when a deal moves to "Negotiation", auto-email the buyer a quote. When a contact goes cold for 7 days, ping the owner. No-code, visual.</p>
+    </article>
+
+    <article class="feature-card" data-color="amber">
+      <div class="feature-ico">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M6 16h.01M10 16h.01M14 16h.01M18 16h.01"/></svg>
+      </div>
+      <h3>Command palette (⌘K)</h3>
+      <p>Jump anywhere in the app in 2 keystrokes. Create a contact, jump to a deal, switch to dark mode, search records — all from one keyboard-first launcher.</p>
+    </article>
   </div>
 </section>
 
 <!-- ===== HOW IT WORKS (Step 4) ===== -->
 <section class="section section-tinted" id="how">
+  <!-- STATS BAND (compact impressive metrics before the steps) -->
+  <div class="stats-band">
+    <div class="stat">
+      <div class="stat-number">5<span class="unit">sec</span></div>
+      <div class="stat-label">Sign up with Google</div>
+    </div>
+    <div class="stat">
+      <div class="stat-number">1<span class="unit">click</span></div>
+      <div class="stat-label">Gmail &amp; Calendar connect</div>
+    </div>
+    <div class="stat">
+      <div class="stat-number">0<span class="unit">$</span></div>
+      <div class="stat-label">Onboarding fee forever</div>
+    </div>
+    <div class="stat">
+      <div class="stat-number">88<span class="unit">+</span></div>
+      <div class="stat-label">API routes ready</div>
+    </div>
+  </div>
+
   <div class="section-head">
     <div class="eyebrow">Start in minutes, not weeks</div>
     <h2>How Afri OS works</h2>
@@ -1358,21 +1649,104 @@
   </div>
 </section>
 
-<!-- ===== FOOTER (Step 5 will expand this) ===== -->
-<footer class="footer">
-  <div class="footer-inner">
-    <div class="footer-brand">
-      <img src="/logo.svg" alt="Afri OS logo">
-      <span class="name">Afri <b>OS</b></span>
+<!-- ===== FINAL CTA BAND (Step 5) ===== -->
+<section class="cta-band">
+  <div class="cta-band-inner">
+    <div class="cta-eyebrow">Afri OS</div>
+    <h2>Run your business on the platform built for you.</h2>
+    <p>Join the African businesses who choose software that respects how they work — fast, mobile-first, and connected to the apps they already use.</p>
+    <div class="cta-actions">
+      <a href="/crm" class="btn btn-primary btn-lg">
+        Get started free
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+      </a>
+      <a href="#products" class="btn btn-ghost btn-lg">Explore the suite</a>
     </div>
-    <div class="footer-links">
-      <a href="/crm">Open CRM</a>
-      <a href="/privacy">Privacy Policy</a>
-      <a href="/terms">Terms of Service</a>
+    <div class="cta-trust">
+      <span><span class="check">✓</span> No credit card</span>
+      <span><span class="check">✓</span> Free forever</span>
+      <span><span class="check">✓</span> Cancel anytime</span>
     </div>
   </div>
-  <div class="footer-copy">
-    © 2026 Afri OS · Built for African businesses
+</section>
+
+<!-- ===== FOOTER (Step 5 expanded) ===== -->
+<footer class="footer">
+  <div class="footer-top">
+    <div class="footer-brand-block">
+      <a href="/" class="footer-brand">
+        <img src="/logo.svg" alt="Afri OS logo">
+        <span class="name">Afri <b>OS</b></span>
+      </a>
+      <p class="footer-tagline">The operating system for African business. CRM, ERP, and more — connected, beautiful, and built for the way you work.</p>
+      <div class="footer-social">
+        <a href="https://github.com/paul4180/afri-crm" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 4.42 2.87 8.17 6.84 9.5.5.09.66-.22.66-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02.8-.22 1.65-.33 2.5-.33.85 0 1.7.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.16.58.67.48A10.01 10.01 0 0 0 22 12c0-5.52-4.48-10-10-10z"/></svg>
+        </a>
+        <a href="mailto:hello@afri-crm-production.up.railway.app" aria-label="Email" title="Email">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg>
+        </a>
+        <a href="/crm" aria-label="Open CRM" title="Open CRM">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+      </div>
+    </div>
+    <div class="footer-cols">
+      <div class="footer-col">
+        <h4>Products</h4>
+        <a href="/crm">Afri CRM</a>
+        <a href="https://afri-erp-production.up.railway.app/">Afri ERP</a>
+        <a href="#products">Afri Helpdesk <span class="badge-soon">Soon</span></a>
+        <a href="#products">Afri Projects <span class="badge-soon">Soon</span></a>
+        <a href="#products">Afri Marketing <span class="badge-soon">Soon</span></a>
+      </div>
+      <div class="footer-col">
+        <h4>Company</h4>
+        <a href="#about">About</a>
+        <a href="#blog">Blog</a>
+        <a href="#careers">Careers</a>
+        <a href="#press">Press</a>
+        <a href="mailto:hello@afri-crm-production.up.railway.app">Contact</a>
+      </div>
+      <div class="footer-col">
+        <h4>Resources</h4>
+        <a href="/crm">Documentation</a>
+        <a href="/crm">API Reference</a>
+        <a href="/crm">Changelog</a>
+        <a href="#status">System Status</a>
+        <a href="#community">Community</a>
+      </div>
+      <div class="footer-col">
+        <h4>Legal</h4>
+        <a href="/privacy">Privacy Policy</a>
+        <a href="/terms">Terms of Service</a>
+        <a href="/privacy#security">Security</a>
+        <a href="/privacy#african-first">NDPR / GDPR</a>
+        <a href="/crm" class="footer-cta-link">Delete my account →</a>
+      </div>
+    </div>
+  </div>
+  <div class="footer-newsletter">
+    <div class="newsletter-inner">
+      <div class="newsletter-text">
+        <b>Get product updates</b>
+        <span>Once a month. No spam. Unsubscribe anytime.</span>
+      </div>
+      <form class="newsletter-form" onsubmit="event.preventDefault(); var b=this.querySelector('button'); b.textContent='Subscribed ✓'; b.style.background='#0f766e'; setTimeout(function(){b.textContent='Subscribe'; b.style.background='';},2000); this.querySelector('input').value='';">
+        <input type="email" placeholder="you@company.com" required>
+        <button type="submit">Subscribe</button>
+      </form>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="footer-bottom-inner">
+      <span>© 2026 Afri OS · Built for African businesses</span>
+      <div class="footer-bottom-links">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="/crm">Open CRM</a>
+      </div>
+    </div>
   </div>
 </footer>
 
