@@ -5853,6 +5853,9 @@
     }
     setTimeout(window.__syncMobileTabs, 100);
 
+    // Inject floating scan button (accessible from any mobile page)
+    if (window.__injectScanFab) window.__injectScanFab();
+
     // Render mobile home (will be re-rendered on go('home'))
     setTimeout(function () {
       if (window.__afriMobile && (window.page === 'home' || !window.page)) {
@@ -5983,15 +5986,15 @@
       + '  <div class="m-quick-handle"></div>'
       + '  <h3>Quick add</h3>'
       + '  <div class="m-quick-grid">'
-      + '    <button onclick="window.__closeMobileQuickAdd(); if (typeof window.openSidePanel === \'function\') window.openSidePanel(\'new-contact\'); else go(\'contacts\');">'
+      + '    <button onclick="window.__closeMobileQuickAdd(); window.__openContactPanel && window.__openContactPanel();">'
       + '      <div class="m-quick-ico teal"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M3 22c0-5 4-7 6-7s6 2 6 7"/><circle cx="17" cy="9" r="3"/></svg></div>'
       + '      <span>Contact</span>'
       + '    </button>'
-      + '    <button onclick="window.__closeMobileQuickAdd(); if (typeof window.openSidePanel === \'function\') window.openSidePanel(\'new-deal\'); else go(\'deals\');">'
+      + '    <button onclick="window.__closeMobileQuickAdd(); window.__openDealPanel && window.__openDealPanel();">'
       + '      <div class="m-quick-ico violet"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M7 7h4l2 5-2 5H7M13 7h4l2 5-2 5h-4"/></svg></div>'
       + '      <span>Deal</span>'
       + '    </button>'
-      + '    <button onclick="window.__closeMobileQuickAdd(); if (typeof window.openSidePanel === \'function\') window.openSidePanel(\'new-task\'); else go(\'tasks\');">'
+      + '    <button onclick="window.__closeMobileQuickAdd(); window.__openTaskPanel && window.__openTaskPanel();">'
       + '      <div class="m-quick-ico amber"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 11l2 2 4-4"/></svg></div>'
       + '      <span>Task</span>'
       + '    </button>'
@@ -6081,12 +6084,15 @@
     view.innerHTML =
       '<div class="m-contacts-head">'
       + '<h2>Contacts</h2>'
+      + '<button class="m-import-btn" onclick="window.__importPhoneContacts && window.__importPhoneContacts()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M9 22h6M9 2h6"/></svg><span>Phone</span></button>'
       + '<button class="m-scan-btn" onclick="window.__openScanCard && window.__openScanCard()" aria-label="Scan card"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></button>'
       + '</div>'
       + '<div class="m-search-bar">'
       + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>'
       + '<input id="mContactSearch" placeholder="Search contacts..." oninput="window.__filterMobileContacts(this.value)">'
+      + '<button class="m-auto-scroll-btn" onclick="window.__toggleAutoScroll(this)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg><span>Auto</span></button>'
       + '</div>'
+      + '<div id="mContactListWrap" class="m-contact-list-wrap">'
       + '<div id="mContactList" class="m-contact-list">'
       + (contacts.length > 0 ? contacts.map(function (c, i) {
           var colorClass = colors[i % colors.length];
@@ -6104,7 +6110,8 @@
             + '</div>'
             + '</div>';
         }).join('') : '<div class="m-empty">No contacts yet.<br>Tap the + button to add one,<br>or scan a business card.</div>')
-      + '</div>';
+      + '</div>'  // close mContactList
+      + '</div>';  // close mContactListWrap
   };
   window.__filterMobileContacts = function (q) {
     q = (q || '').toLowerCase();
@@ -6473,6 +6480,221 @@
       pulling = false;
     }, { passive: true });
   })();
+
+  // ============================================================
+  // MOBILE SIDE PANEL — make desktop side panels work as bottom
+  // sheets on mobile (full-width, slide up from bottom)
+  // ============================================================
+  style.textContent += `
+    [data-shell="mobile"] .side-panel-overlay { z-index: 200; }
+    [data-shell="mobile"] .side-panel {
+      top: auto !important; bottom: 0 !important; right: 0 !important; left: 0 !important;
+      width: 100% !important; max-width: 100% !important;
+      max-height: 88vh; border-radius: 20px 20px 0 0 !important;
+      transform: translateY(100%) !important;
+      box-shadow: 0 -8px 40px rgba(15,23,42,0.2) !important;
+    }
+    [data-shell="mobile"] .side-panel.open { transform: translateY(0) !important; }
+    [data-shell="mobile"] .side-panel-head {
+      border-radius: 20px 20px 0 0;
+      padding: 16px 20px 12px;
+      position: relative;
+    }
+    [data-shell="mobile"] .side-panel-head::before {
+      content: ''; position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+      width: 36px; height: 4px; background: #cbd5e1; border-radius: 99px;
+    }
+    [data-shell="mobile"] .side-panel-body {
+      padding: 16px 20px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    }
+    [data-shell="mobile"] .side-panel-foot {
+      padding: 12px 20px max(16px, env(safe-area-inset-bottom, 0));
+      border-top: 1px solid #f1f5f9;
+    }
+    [data-shell="mobile"] .field-row { flex-direction: column; gap: 10px; }
+    [data-shell="mobile"] .field-row label { width: 100% !important; }
+    [data-shell="mobile"] .side-panel-body input,
+    [data-shell="mobile"] .side-panel-body select,
+    [data-shell="mobile"] .side-panel-body textarea {
+      font-size: 16px !important; /* prevents iOS zoom on focus */
+      padding: 12px 14px !important;
+      border-radius: 10px !important;
+    }
+    [data-shell="mobile"] .side-panel-body label { font-size: 13px; font-weight: 600; color: var(--m-text-muted); margin-bottom: 4px; display: block; }
+    [data-shell="mobile"] .side-panel-body input,
+    [data-shell="mobile"] .side-panel-body select { width: 100%; border: 1px solid var(--m-border); background: var(--m-surface); color: var(--m-text); margin-bottom: 12px; }
+    [data-shell="mobile"] .side-panel-foot button {
+      padding: 12px 20px; border-radius: 10px; font-size: 14px; font-weight: 700;
+    }
+  `;
+
+  // ============================================================
+  // FIX: Wait for data before rendering mobile pages
+  // The bag (data cache) is loaded by enter() in boot(). Mobile
+  // pages render before enter() completes → empty/undefined data.
+  // Fix: check if bag is populated, show loading state if not.
+  // ============================================================
+  window.__mobileDataReady = function () {
+    return bag && bag.contacts && Array.isArray(bag.contacts) && bag.contacts.length >= 0;
+  };
+  window.__mobileShowLoading = function () {
+    var view = document.getElementById('view');
+    if (!view) return;
+    view.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh;gap:12px"><div style="width:32px;height:32px;border:3px solid #e2e8f0;border-top-color:#0d9488;border-radius:50%;animation:spin 0.8s linear infinite"></div><p style="color:#64748b;font-size:14px">Loading your data...</p></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+  };
+
+  // Wrap __drawMobileHome to wait for data
+  var origDrawMobileHome = window.__drawMobileHome;
+  if (typeof origDrawMobileHome === 'function') {
+    window.__drawMobileHome = async function () {
+      if (!window.__mobileDataReady()) {
+        window.__mobileShowLoading();
+        setTimeout(function () { if (window.__afriMobile) window.__drawMobileHome(); }, 500);
+        return;
+      }
+      return origDrawMobileHome.apply(this, arguments);
+    };
+  }
+  // Wrap __drawMobileContacts
+  var origDrawMobileContacts = window.__drawMobileContacts;
+  if (typeof origDrawMobileContacts === 'function') {
+    window.__drawMobileContacts = async function () {
+      if (!window.__mobileDataReady()) {
+        window.__mobileShowLoading();
+        setTimeout(function () { if (window.__afriMobile) window.__drawMobileContacts(); }, 500);
+        return;
+      }
+      return origDrawMobileContacts.apply(this, arguments);
+    };
+  }
+  // Wrap __drawMobileDeals
+  var origDrawMobileDeals = window.__drawMobileDeals;
+  if (typeof origDrawMobileDeals === 'function') {
+    window.__drawMobileDeals = async function () {
+      if (!window.__mobileDataReady()) {
+        window.__mobileShowLoading();
+        setTimeout(function () { if (window.__afriMobile) window.__drawMobileDeals(); }, 500);
+        return;
+      }
+      return origDrawMobileDeals.apply(this, arguments);
+    };
+  }
+  // Wrap __drawMobileTasks
+  var origDrawMobileTasks = window.__drawMobileTasks;
+  if (typeof origDrawMobileTasks === 'function') {
+    window.__drawMobileTasks = async function () {
+      if (!window.__mobileDataReady()) {
+        window.__mobileShowLoading();
+        setTimeout(function () { if (window.__afriMobile) window.__drawMobileTasks(); }, 500);
+        return;
+      }
+      return origDrawMobileTasks.apply(this, arguments);
+    };
+  }
+
+  // ============================================================
+  // PHONE CONTACTS IMPORT — uses navigator.contacts API (where
+  // supported — Chrome on Android, Safari on iOS 17+)
+  // ============================================================
+  style.textContent += `
+    .m-import-btn { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px; background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #1e40af; border: 0; font-size: 13px; font-weight: 700; cursor: pointer; flex-shrink: 0; }
+    .m-import-btn:active { transform: scale(0.93); }
+    .m-import-btn svg { width: 16px; height: 16px; }
+  `;
+  window.__importPhoneContacts = async function () {
+    if (!('contacts' in navigator) || !('select' in navigator.contacts)) {
+      toast('Phone contacts import not supported. Use CSV import on desktop.');
+      return;
+    }
+    try {
+      var contacts = await navigator.contacts.select(['name', 'email', 'tel'], { multiple: true });
+      if (!contacts || contacts.length === 0) { toast('No contacts selected.'); return; }
+      var imported = 0;
+      for (var i = 0; i < contacts.length; i++) {
+        var c = contacts[i];
+        var nameParts = (c.name && c.name[0]) ? c.name[0].split(' ') : [''];
+        var firstName = nameParts[0] || '';
+        var lastName = nameParts.slice(1).join(' ') || '';
+        var email = (c.email && c.email[0]) ? c.email[0] : '';
+        var phone = (c.tel && c.tel[0]) ? c.tel[0] : '';
+        if (!firstName && !email && !phone) continue;
+        var res = await api('/crm/api/contacts', { method: 'POST', body: JSON.stringify({ firstName: firstName, lastName: lastName, email: email, phone: phone, source: 'Phone import', status: 'ACTIVE' }) });
+        if (res && !res.error) imported++;
+      }
+      toast('Imported ' + imported + ' contact' + (imported !== 1 ? 's' : '') + ' from your phone');
+      await refresh();
+      if (window.__afriMobile && window.__drawMobileContacts) window.__drawMobileContacts();
+      if (navigator.vibrate) navigator.vibrate([10, 30, 10]);
+    } catch (e) {
+      toast('Could not import contacts: ' + (e.message || 'permission denied'));
+    }
+  };
+
+  // ============================================================
+  // AUTO-SCROLL for mobile contact list — slow continuous scroll
+  // that pauses on touch interaction
+  // ============================================================
+  style.textContent += `
+    .m-auto-scroll-btn { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 10px; background: var(--m-surface); border: 0.5px solid var(--m-border); color: var(--m-text-muted); font-size: 12px; font-weight: 600; cursor: pointer; flex-shrink: 0; }
+    .m-auto-scroll-btn:active { transform: scale(0.93); }
+    .m-auto-scroll-btn.on { background: var(--m-accent-tint-strong); color: var(--m-accent); border-color: var(--m-accent); }
+    .m-contact-list-wrap { position: relative; overflow: hidden; }
+    .m-contact-list-wrap.auto { height: calc(100vh - 280px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .m-contact-list-wrap.auto.paused { animation-play-state: paused; }
+  `;
+  window.__toggleAutoScroll = function (btn) {
+    var wrap = document.getElementById('mContactListWrap');
+    if (!wrap) return;
+    if (wrap.classList.contains('auto')) {
+      wrap.classList.remove('auto');
+      if (btn) { btn.classList.remove('on'); btn.querySelector('span').textContent = 'Auto'; }
+      if (window.__autoScrollInterval) { clearInterval(window.__autoScrollInterval); window.__autoScrollInterval = null; }
+    } else {
+      wrap.classList.add('auto');
+      if (btn) { btn.classList.add('on'); btn.querySelector('span').textContent = 'Stop'; }
+      // Slow auto-scroll: scroll down 1px every 50ms (~20px/s)
+      window.__autoScrollInterval = setInterval(function () {
+        if (!wrap.classList.contains('paused')) {
+          wrap.scrollTop += 1;
+          // Loop back to top when reaching bottom
+          if (wrap.scrollTop + wrap.clientHeight >= wrap.scrollHeight - 5) {
+            wrap.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        }
+      }, 50);
+      // Pause on touch
+      wrap.addEventListener('touchstart', function () { wrap.classList.add('paused'); }, { passive: true });
+      wrap.addEventListener('touchend', function () { setTimeout(function () { wrap.classList.remove('paused'); }, 2000); }, { passive: true });
+    }
+  };
+
+  // ============================================================
+  // ADVANCED BUSINESS CARD SCANNER — accessible from more places
+  // Floating scan button that appears on any mobile page
+  // ============================================================
+  style.textContent += `
+    .m-scan-fab {
+      position: fixed; bottom: calc(var(--m-tabbar-h) + 78px); left: 16px; z-index: 88;
+      width: 44px; height: 44px; border-radius: 50%;
+      background: linear-gradient(135deg, #fce7f3, #fbcfe8); color: #9f1239;
+      border: 0.5px solid #fbcfe8; cursor: pointer;
+      display: grid; place-items: center;
+      box-shadow: 0 4px 12px rgba(244,114,182,0.25);
+      transition: transform 0.15s;
+    }
+    .m-scan-fab:active { transform: scale(0.88); }
+    .m-scan-fab svg { width: 20px; height: 20px; }
+  `;
+  window.__injectScanFab = function () {
+    if (!window.__afriMobile) return;
+    if (document.getElementById('mScanFab')) return;
+    var fab = document.createElement('button');
+    fab.id = 'mScanFab';
+    fab.className = 'm-scan-fab';
+    fab.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>';
+    fab.onclick = function () { if (window.__openScanCard) window.__openScanCard(); };
+    document.body.appendChild(fab);
+  };
 
   // Inject mobile shell as early as possible — no setTimeout delays
   if (document.readyState === 'loading') {
