@@ -280,13 +280,14 @@
     max-width: 600px; margin: 0 auto;
   }
 
-  /* === HOVER DROPDOWN NAV (HubSpot mega-menu style) === */
+  /* === HOVER DROPDOWN NAV (HubSpot mega-menu style, refined) === */
   .nav-item { position: relative; }
   .nav-item > a {
-    display: flex; align-items: center; gap: 6px;
-    padding: 8px 14px; border-radius: 8px;
+    display: flex; align-items: center; gap: 5px;
+    padding: 8px 12px; border-radius: 8px;
     color: rgba(255, 255, 255, 0.85);
-    font-size: 14px; font-weight: 500;
+    font-size: 13px; font-weight: 600;
+    letter-spacing: -0.005em;
     transition: background 0.15s, color 0.15s;
     cursor: pointer;
   }
@@ -294,24 +295,24 @@
   .nav-item > a:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
   .nav.scrolled .nav-item > a:hover { background: var(--warm); color: var(--text); }
   .nav-item > a .chev {
-    width: 10px; height: 10px;
+    width: 9px; height: 9px;
     transition: transform 0.2s ease;
-    opacity: 0.7;
+    opacity: 0.6;
   }
   .nav-item:hover > a .chev { transform: rotate(180deg); opacity: 1; }
   .nav-dropdown {
-    position: absolute; top: calc(100% + 8px); left: 50%;
-    transform: translateX(-50%) translateY(8px);
+    position: absolute; top: calc(100% + 6px); left: 50%;
+    transform: translateX(-50%) translateY(4px);
     background: #fff;
     border: 1px solid var(--border);
-    border-radius: 14px;
-    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18), 0 8px 16px rgba(15, 23, 42, 0.08);
-    padding: 12px;
-    min-width: 360px;
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14), 0 4px 10px rgba(15, 23, 42, 0.06);
+    padding: 8px;
+    min-width: 320px;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
-    transition: opacity 0.18s ease, transform 0.18s ease;
+    transition: opacity 0.16s ease, transform 0.16s ease;
     z-index: 200;
   }
   .nav-item:hover .nav-dropdown,
@@ -323,34 +324,46 @@
   }
   .nav-dropdown::before {
     content: '';
-    position: absolute; top: -6px; left: 50%;
+    position: absolute; top: -5px; left: 50%;
     transform: translateX(-50%) rotate(45deg);
-    width: 12px; height: 12px;
+    width: 10px; height: 10px;
     background: #fff;
     border-left: 1px solid var(--border);
     border-top: 1px solid var(--border);
-    border-radius: 2px;
   }
-  .nav-dropdown .col { display: flex; flex-direction: column; gap: 2px; }
+  /* 2-column layout for products dropdown */
+  .nav-dropdown.cols-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    min-width: 480px;
+  }
+  .nav-dropdown.cols-2 .col-head {
+    grid-column: 1 / -1;
+  }
+  .nav-dropdown .col { display: flex; flex-direction: column; gap: 1px; }
   .nav-dropdown .col-head {
-    font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--text-muted);
-    padding: 6px 10px;
+    padding: 6px 10px 4px;
+    margin-top: 4px;
   }
+  .nav-dropdown .col-head:first-child { margin-top: 0; }
   .nav-dropdown-item {
-    display: flex; align-items: flex-start; gap: 12px;
-    padding: 10px 12px; border-radius: 10px;
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 10px; border-radius: 8px;
     color: var(--text);
-    transition: background 0.12s ease;
+    transition: background 0.1s ease;
     cursor: pointer;
   }
   .nav-dropdown-item:hover { background: var(--warm); }
   .nav-dropdown-item .ico {
-    width: 36px; height: 36px; border-radius: 10px;
+    width: 28px; height: 28px; border-radius: 8px;
     display: grid; place-items: center;
-    font-size: 18px; flex-shrink: 0;
+    font-size: 13px; flex-shrink: 0;
     background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+    font-weight: 700;
   }
   .nav-dropdown-item[data-color="teal"] .ico { background: linear-gradient(135deg, #ccfbf1, #99f6e4); }
   .nav-dropdown-item[data-color="violet"] .ico { background: linear-gradient(135deg, #ede9fe, #ddd6fe); }
@@ -360,18 +373,20 @@
   .nav-dropdown-item[data-color="emerald"] .ico { background: linear-gradient(135deg, #d1fae5, #a7f3d0); }
   .nav-dropdown-item .info { flex: 1; min-width: 0; }
   .nav-dropdown-item .info b {
-    display: block; font-size: 14px; font-weight: 700;
-    color: var(--text); margin-bottom: 2px;
+    display: block; font-size: 13px; font-weight: 700;
+    color: var(--text); margin-bottom: 1px;
+    letter-spacing: -0.005em;
+    line-height: 1.2;
   }
   .nav-dropdown-item .info span {
-    display: block; font-size: 12px; color: var(--text-muted);
-    line-height: 1.4;
+    display: block; font-size: 11px; color: var(--text-muted);
+    line-height: 1.35;
   }
   .nav-dropdown-item .badge {
-    font-size: 10px; font-weight: 700; padding: 3px 8px;
-    border-radius: 99px; flex-shrink: 0; margin-top: 4px;
+    font-size: 9px; font-weight: 800; padding: 2px 7px;
+    border-radius: 99px; flex-shrink: 0;
     background: #fef3c7; color: #92400e;
-    text-transform: uppercase; letter-spacing: 0.04em;
+    text-transform: uppercase; letter-spacing: 0.06em;
   }
   .nav-dropdown-item .badge.live { background: #dcfce7; color: #166534; }
 
@@ -513,6 +528,90 @@
     box-shadow: var(--shadow-sm);
   }
 
+  /* === FEATURES GRID === */
+  .section-tinted {
+    background: linear-gradient(180deg, transparent 0%, rgba(15, 23, 42, 0.025) 50%, transparent 100%);
+    max-width: none;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+  .section-tinted > .section-head,
+  .section-tinted > .features-grid {
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  @media (max-width: 1024px) {
+    .features-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .features-grid { grid-template-columns: 1fr; max-width: 480px; margin: 0 auto; }
+  }
+  .feature-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 24px;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .feature-card::after {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--teal);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 0.3s ease;
+  }
+  .feature-card[data-color="teal"]::after { background: linear-gradient(90deg, #0d9488, #2dd4bf); }
+  .feature-card[data-color="violet"]::after { background: linear-gradient(90deg, #8b5cf6, #c4b5fd); }
+  .feature-card[data-color="amber"]::after { background: linear-gradient(90deg, #f97316, #fcd34d); }
+  .feature-card[data-color="rose"]::after { background: linear-gradient(90deg, #ec4899, #fbcfe8); }
+  .feature-card[data-color="emerald"]::after { background: linear-gradient(90deg, #059669, #6ee7b7); }
+  .feature-card[data-color="blue"]::after { background: linear-gradient(90deg, #2563eb, #93c5fd); }
+  .feature-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+    border-color: transparent;
+  }
+  .feature-card:hover::after { transform: scaleX(1); }
+  .feature-ico {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    display: grid; place-items: center;
+    margin-bottom: 16px;
+    transition: transform 0.18s ease;
+    background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+    color: var(--text-muted);
+  }
+  .feature-card[data-color="teal"] .feature-ico { background: linear-gradient(135deg, #ccfbf1, #99f6e4); color: var(--teal-dark); }
+  .feature-card[data-color="violet"] .feature-ico { background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #5b21b6; }
+  .feature-card[data-color="amber"] .feature-ico { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; }
+  .feature-card[data-color="rose"] .feature-ico { background: linear-gradient(135deg, #fce7f3, #fbcfe8); color: #9f1239; }
+  .feature-card[data-color="emerald"] .feature-ico { background: linear-gradient(135deg, #d1fae5, #a7f3d0); color: #065f46; }
+  .feature-card[data-color="blue"] .feature-ico { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #1e3a8a; }
+  .feature-card:hover .feature-ico { transform: scale(1.08) rotate(-4deg); }
+  .feature-card h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 19px; font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.015em;
+    margin-bottom: 8px;
+    line-height: 1.2;
+  }
+  .feature-card p {
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1.55;
+    margin: 0;
+  }
+
   /* === FOOTER (skeleton for now — Step 5 fills it in) === */
   .footer {
     background: var(--navy-deep);
@@ -581,51 +680,49 @@
           Products
           <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </a>
-        <div class="nav-dropdown">
-          <div class="col">
-            <div class="col-head">Live now</div>
-            <a href="/crm" class="nav-dropdown-item" data-color="teal">
-              <div class="ico">CRM</div>
-              <div class="info">
-                <b>Afri CRM</b>
-                <span>Sales pipeline, contacts, deals, sequences</span>
-              </div>
-              <span class="badge live">Live</span>
-            </a>
-            <a href="https://afri-erp-production.up.railway.app/" class="nav-dropdown-item" data-color="violet">
-              <div class="ico">ERP</div>
-              <div class="info">
-                <b>Afri ERP</b>
-                <span>Books, invoicing, inventory, e-invoicing</span>
-              </div>
-              <span class="badge live">Live</span>
-            </a>
-            <div class="col-head" style="margin-top:8px">Coming soon</div>
-            <a href="#products" class="nav-dropdown-item" data-color="amber">
-              <div class="ico">HD</div>
-              <div class="info">
-                <b>Afri Helpdesk</b>
-                <span>Tickets + knowledge base (planned)</span>
-              </div>
-              <span class="badge">Soon</span>
-            </a>
-            <a href="#products" class="nav-dropdown-item" data-color="blue">
-              <div class="ico">PJ</div>
-              <div class="info">
-                <b>Afri Projects</b>
-                <span>Milestones + delivery tracking (planned)</span>
-              </div>
-              <span class="badge">Soon</span>
-            </a>
-            <a href="#products" class="nav-dropdown-item" data-color="rose">
-              <div class="ico">MK</div>
-              <div class="info">
-                <b>Afri Marketing</b>
-                <span>Email campaigns + forms (planned)</span>
-              </div>
-              <span class="badge">Soon</span>
-            </a>
-          </div>
+        <div class="nav-dropdown cols-2">
+          <div class="col-head">Live now</div>
+          <a href="/crm" class="nav-dropdown-item" data-color="teal">
+            <div class="ico">CRM</div>
+            <div class="info">
+              <b>Afri CRM</b>
+              <span>Sales pipeline, contacts, deals</span>
+            </div>
+            <span class="badge live">Live</span>
+          </a>
+          <a href="https://afri-erp-production.up.railway.app/" class="nav-dropdown-item" data-color="violet">
+            <div class="ico">ERP</div>
+            <div class="info">
+              <b>Afri ERP</b>
+              <span>Books, invoicing, inventory</span>
+            </div>
+            <span class="badge live">Live</span>
+          </a>
+          <div class="col-head">Coming soon</div>
+          <a href="#products" class="nav-dropdown-item" data-color="amber">
+            <div class="ico">HD</div>
+            <div class="info">
+              <b>Afri Helpdesk</b>
+              <span>Tickets + knowledge base</span>
+            </div>
+            <span class="badge">Soon</span>
+          </a>
+          <a href="#products" class="nav-dropdown-item" data-color="blue">
+            <div class="ico">PJ</div>
+            <div class="info">
+              <b>Afri Projects</b>
+              <span>Milestones + delivery</span>
+            </div>
+            <span class="badge">Soon</span>
+          </a>
+          <a href="#products" class="nav-dropdown-item" data-color="rose">
+            <div class="ico">MK</div>
+            <div class="info">
+              <b>Afri Marketing</b>
+              <span>Email campaigns + forms</span>
+            </div>
+            <span class="badge">Soon</span>
+          </a>
         </div>
       </div>
 
@@ -641,36 +738,36 @@
               <div class="ico">G</div>
               <div class="info">
                 <b>Google SSO sign-up</b>
-                <span>One click — no password to remember</span>
+                <span>One click, no password</span>
               </div>
             </a>
             <a href="/crm" class="nav-dropdown-item" data-color="violet">
               <div class="ico">📅</div>
               <div class="info">
                 <b>Calendar auto-connect</b>
-                <span>Your meetings appear on the home dashboard instantly</span>
+                <span>Meetings on home dashboard</span>
               </div>
             </a>
             <a href="/crm" class="nav-dropdown-item" data-color="amber">
               <div class="ico">✨</div>
               <div class="info">
                 <b>Onboarding wizard</b>
-                <span>5 steps — set up your CRM in 2 minutes</span>
+                <span>5 steps in 2 minutes</span>
               </div>
             </a>
-            <div class="col-head" style="margin-top:8px">Integrations</div>
+            <div class="col-head">Integrations</div>
             <a href="/crm" class="nav-dropdown-item" data-color="rose">
               <div class="ico">✉</div>
               <div class="info">
                 <b>Gmail &amp; Outlook connect</b>
-                <span>1-click OAuth, send + log emails from CRM</span>
+                <span>1-click OAuth, send + log emails</span>
               </div>
             </a>
             <a href="/crm" class="nav-dropdown-item" data-color="emerald">
               <div class="ico">🔑</div>
               <div class="info">
                 <b>API keys &amp; webhooks</b>
-                <span>Build on Afri CRM with X-API-Key header</span>
+                <span>Build with X-API-Key header</span>
               </div>
             </a>
           </div>
@@ -790,6 +887,64 @@
       <a href="#roadmap" class="btn btn-card ghost-card">
         See the roadmap
       </a>
+    </article>
+  </div>
+</section>
+
+<!-- ===== FEATURES GRID (Step 3) ===== -->
+<section class="section section-tinted" id="features">
+  <div class="section-head">
+    <div class="eyebrow">Why teams choose Afri OS</div>
+    <h2>Built different, on purpose</h2>
+    <p>Every feature here exists because we built it for African businesses first — not as an afterthought to a Western template.</p>
+  </div>
+  <div class="features-grid">
+    <article class="feature-card" data-color="teal">
+      <div class="feature-ico">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/></svg>
+      </div>
+      <h3>Sign up with Google</h3>
+      <p>One click. No password to remember, no email verification loop. New users land in the CRM in 5 seconds with their calendar auto-connected.</p>
+    </article>
+
+    <article class="feature-card" data-color="violet">
+      <div class="feature-ico">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="16" rx="2"/><path d="M2 10h20M6 3v4M18 3v4M8 14h.01M12 14h.01M16 14h.01"/></svg>
+      </div>
+      <h3>Calendar auto-pulled</h3>
+      <p>The moment you sign up with Google, today's meetings show on your home dashboard. No separate "Connect Calendar" step — it just works.</p>
+    </article>
+
+    <article class="feature-card" data-color="amber">
+      <div class="feature-ico">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h8l-1 8 10-12h-8z"/></svg>
+      </div>
+      <h3>Beautiful by default</h3>
+      <p>Modern glass-morphism UI, smooth animations, dark mode, mobile-first. The wizard alone has a 4-step transition that feels premium.</p>
+    </article>
+
+    <article class="feature-card" data-color="rose">
+      <div class="feature-ico">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M9 22h6M9 2h6"/></svg>
+      </div>
+      <h3>Mobile responsive</h3>
+      <p>Installable as a PWA. Drag deals on touch. Bottom-nav on mobile. Designed for the phone-first reality of African business.</p>
+    </article>
+
+    <article class="feature-card" data-color="emerald">
+      <div class="feature-ico">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+      </div>
+      <h3>Privacy-first</h3>
+      <p>Owner-only permanent account deletion in Settings → Danger Zone. One click, all data gone. No 30-day grace period nonsense.</p>
+    </article>
+
+    <article class="feature-card" data-color="blue">
+      <div class="feature-ico">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      </div>
+      <h3>African-first</h3>
+      <p>Default Naira, Lagos time, NDPR-aware. Built in Nigeria, for Nigeria first — and the rest of the continent second.</p>
     </article>
   </div>
 </section>
