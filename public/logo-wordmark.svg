@@ -1,0 +1,56 @@
+<svg viewBox="0 0 600 240" width="600" height="240" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="afriTeal2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2dd4bf"/>
+      <stop offset="50%" stop-color="#14b8a6"/>
+      <stop offset="100%" stop-color="#0d9488"/>
+    </linearGradient>
+    <radialGradient id="afriTealRadial2" cx="30%" cy="30%" r="80%">
+      <stop offset="0%" stop-color="#5eead4"/>
+      <stop offset="100%" stop-color="#0d9488"/>
+    </radialGradient>
+    <radialGradient id="bgGrad2" cx="50%" cy="50%" r="80%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </radialGradient>
+    <filter id="dotGlow2" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#cbd5e1"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Dark rounded background -->
+  <rect width="600" height="240" rx="48" fill="url(#bgGrad2)"/>
+
+  <!-- Sprocket logo on the left -->
+  <g transform="translate(0, 0)">
+    <!-- Three radiating lines -->
+    <g stroke="url(#afriTeal2)" stroke-width="11" stroke-linecap="round" fill="none">
+      <line x1="120" y1="84" x2="120" y2="36"/>
+      <line x1="151" y1="141" x2="196" y2="167"/>
+      <line x1="89" y1="141" x2="44" y2="167"/>
+    </g>
+    <!-- Central ring -->
+    <circle cx="120" cy="120" r="36" fill="none" stroke="url(#afriTeal2)" stroke-width="11"/>
+    <!-- Three solid dots -->
+    <g fill="url(#afriTealRadial2)" filter="url(#dotGlow2)">
+      <circle cx="120" cy="24" r="14"/>
+      <circle cx="203" cy="172" r="14"/>
+      <circle cx="37" cy="172" r="14"/>
+    </g>
+    <circle cx="116" cy="20" r="5" fill="#ffffff" opacity="0.4"/>
+  </g>
+
+  <!-- Wordmark "Afri OS" -->
+  <text x="260" y="140" font-family="'Inter', 'Helvetica Neue', sans-serif" font-size="72" font-weight="800" fill="url(#textGrad)" letter-spacing="-2">Afri OS</text>
+
+  <!-- Subtle tagline -->
+  <text x="262" y="178" font-family="'Inter', sans-serif" font-size="14" font-weight="600" fill="#94a3b8" letter-spacing="3" opacity="0.8">CRM · ERP · MORE</text>
+</svg>
