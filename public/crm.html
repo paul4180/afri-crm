@@ -626,14 +626,19 @@ async function boot() {
   document.getElementById('whoMark').textContent = initials(name);
   document.getElementById('whoName').textContent = company;
   document.getElementById('who').title = name;
-  document.getElementById('menu').innerHTML = `<div style="padding:8px"><b>${esc(me.fullName || '')}</b><div class="meta">${esc(me.email || '')}</div></div><div style="padding:8px">${esc(company)}</div><button type="button" onclick="go('guide')">Start guide</button><button type="button" onclick="openSetup()">Workspace</button><a href="/app">Open the books</a><button type="button" onclick="go('automation');autoTab='links';drawAutomation()">Connections</button><button type="button" onclick="logout()">Sign out</button>`;
+  document.getElementById('menu').innerHTML = `<div style="padding:8px"><b>${esc(me.fullName || '')}</b><div class="meta">${esc(me.email || '')}</div></div><div style="padding:8px">${esc(company)}</div><button type="button" onclick="go('guide')">Start guide</button><button type="button" onclick="openSetup()">Workspace</button><a href="/app">Open the books</a><button type="button" onclick="go('integrations')">Connections</button><button type="button" onclick="logout()">Sign out</button>`;
   const tool = new URLSearchParams(location.search).get('tool');
+  const pageQuery = new URLSearchParams(location.search).get('page');
   let resumeSetup = false;
   if (tool) {
     history.replaceState({}, '', '/crm');
-    setTimeout(() => toast(tool === 'failed' ? 'The sign-in did not finish. Check the client id, the secret, and the redirect address.' : 'Connected'), 400);
+    setTimeout(() => toast(tool === 'failed' ? 'The sign-in did not finish. Check the client id, the secret, and the redirect address.' : 'Connected ' + (tool === 'gmail' ? 'Gmail' : tool === 'calendar' ? 'Google Calendar' : tool === 'outlook' ? 'Outlook' : tool) + ' successfully'), 400);
     if (sessionStorage.getItem('crm-setup-draft') && !(workspace && workspace.done)) resumeSetup = true;
-    else { page = 'automation'; autoTab = 'links'; }
+    else if (pageQuery === 'integrations') { page = 'integrations'; }
+    else { page = 'integrations'; }  // Default to new Integrations page after OAuth (was automation>links)
+  } else if (pageQuery && ['integrations','settings','home','contacts','companies','deals'].includes(pageQuery)) {
+    page = pageQuery;
+    history.replaceState({}, '', '/crm');
   }
   enter().then(() => {
     if (resumeSetup) {
