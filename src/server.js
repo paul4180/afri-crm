@@ -29,9 +29,9 @@ await app.register(fastifyStatic, {
   index: false,
 });
 
-// CRM is the whole product in this repo — serve crm.html at root /
-app.get('/', async (req, reply) => reply.sendFile('crm.html'));
-// Backward compat: /crm also serves crm.html (for old bookmarks / ERP cross-links)
+// Landing page is the whole product's front door — serves landing.html at root /
+app.get('/', async (req, reply) => reply.sendFile('landing.html'));
+// CRM app stays at /crm (for direct access + ERP cross-links)
 app.get('/crm', async (req, reply) => reply.sendFile('crm.html'));
 // Privacy Policy + Terms of Service — required by Google OAuth verification
 app.get('/privacy', async (req, reply) => reply.sendFile('privacy.html'));
@@ -85,7 +85,7 @@ app.addHook('onSend', async (req, reply) => {
   const url = req.url || '';
   if (url.endsWith('.js') || url.endsWith('.css') || url.endsWith('.svg') || url.endsWith('.png') || url.endsWith('.ico')) {
     reply.header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
-  } else if (url.endsWith('.html') || url === '/' || url === '/crm') {
+  } else if (url.endsWith('.html') || url === '/' || url === '/crm' || url === '/privacy' || url === '/terms') {
     reply.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
   }
 });
