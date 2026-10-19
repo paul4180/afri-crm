@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Careers at Afri OS — Build the operating system for African business</title>
+<meta name="description" content="Join Afri OS. We're hiring engineers, designers, and operators to build software African businesses deserve.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Inter', sans-serif; background: #faf9f7; color: #0f172a; line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  a { color: inherit; text-decoration: none; }
+  :root { --teal: #0d9488; --teal-light: #2dd4bf; --teal-dark: #0f766e; --navy: #0f172a; --navy-deep: #020617; --warm: #faf9f7; --text: #0f172a; --text-muted: #64748b; --border: #e2e8f0; --orange: #f97316; --violet: #8b5cf6; }
+
+  /* NAV */
+  .nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 12px 24px; background: rgba(255,255,255,0.92); backdrop-filter: blur(20px) saturate(180%); border-bottom: 1px solid var(--border); box-shadow: 0 1px 2px rgba(15,23,42,0.06); }
+  .nav-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+  .nav-brand { display: flex; align-items: center; gap: 10px; }
+  .nav-brand img { width: 32px; height: 32px; }
+  .nav-brand .name { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+  .nav-brand .name b { color: var(--teal); }
+  .nav-links { display: flex; align-items: center; gap: 4px; }
+  .nav-links a { padding: 8px 14px; border-radius: 8px; color: var(--text-muted); font-size: 14px; font-weight: 500; transition: background 0.15s, color 0.15s; }
+  .nav-links a:hover { background: var(--warm); color: var(--text); }
+  .nav-cta { display: flex; align-items: center; gap: 8px; }
+  .nav-login { color: var(--text-muted); padding: 8px 14px; font-size: 14px; font-weight: 600; }
+  .nav-login:hover { color: var(--text); }
+  .nav-started { background: linear-gradient(135deg, var(--teal), var(--teal-dark)); color: #fff; padding: 10px 18px; border-radius: 99px; font-size: 14px; font-weight: 700; box-shadow: 0 4px 12px rgba(13,148,136,0.3); transition: transform 0.15s, box-shadow 0.15s; }
+  .nav-started:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(13,148,136,0.45); }
+
+  /* HERO */
+  .hero { position: relative; padding: 140px 24px 80px; overflow: hidden; background: radial-gradient(circle at 15% 20%, rgba(13,148,136,0.25), transparent 50%), radial-gradient(circle at 85% 75%, rgba(249,115,22,0.18), transparent 50%), linear-gradient(135deg, #0f172a, #1e1b4b 50%, #0f766e); color: #fff; text-align: center; }
+  .hero::before { content: ''; position: absolute; inset: -50%; background: radial-gradient(circle at 30% 30%, rgba(45,212,191,0.18), transparent 8%), radial-gradient(circle at 70% 60%, rgba(251,146,60,0.15), transparent 10%); animation: drift 25s linear infinite; pointer-events: none; }
+  @keyframes drift { 0% { transform: rotate(0deg) scale(1); } 50% { transform: rotate(180deg) scale(1.15); } 100% { transform: rotate(360deg) scale(1); } }
+  .hero-inner { position: relative; max-width: 760px; margin: 0 auto; }
+  .hero .eyebrow { display: inline-flex; align-items: center; gap: 10px; background: rgba(45,212,191,0.1); border: 1px solid rgba(45,212,191,0.3); padding: 8px 16px; border-radius: 99px; font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--teal-light); margin-bottom: 28px; backdrop-filter: blur(10px); }
+  .hero h1 { font-family: 'Fraunces', serif; font-size: clamp(38px, 5.5vw, 64px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.05; margin-bottom: 20px; }
+  .hero h1 .grad { background: linear-gradient(135deg, #2dd4bf 0%, #5eead4 30%, #fdba74 70%, #2dd4bf 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: shimmer 6s linear infinite; }
+  @keyframes shimmer { 0% { background-position: 0% 0%; } 100% { background-position: 200% 0%; } }
+  .hero p.sub { font-size: clamp(16px, 2vw, 19px); color: rgba(226,232,240,0.9); max-width: 580px; margin: 0 auto; line-height: 1.55; }
+  .hero-cta { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 32px; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 14px 26px; border-radius: 99px; font-size: 15px; font-weight: 700; transition: transform 0.15s, box-shadow 0.15s; }
+  .btn-primary { background: linear-gradient(135deg, var(--teal), var(--teal-dark)); color: #fff; box-shadow: 0 8px 24px rgba(13,148,136,0.4); }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(13,148,136,0.5); }
+  .btn-ghost { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(10px); }
+  .btn-ghost:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4); transform: translateY(-2px); }
+
+  /* PERKS */
+  .section { max-width: 1080px; margin: 0 auto; padding: 80px 24px; }
+  .section-head { text-align: center; margin-bottom: 56px; }
+  .section-head .eyebrow { display: inline-flex; align-items: center; gap: 8px; color: var(--teal); font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 16px; }
+  .section-head .eyebrow::before { content: ''; width: 16px; height: 2px; background: var(--teal); border-radius: 99px; }
+  .section-head h2 { font-family: 'Fraunces', serif; font-size: clamp(28px, 4vw, 40px); font-weight: 700; letter-spacing: -0.025em; line-height: 1.15; color: var(--text); margin-bottom: 16px; }
+  .section-head p { font-size: 16px; color: var(--text-muted); max-width: 580px; margin: 0 auto; }
+
+  .perks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  @media (max-width: 880px) { .perks { grid-template-columns: repeat(2, 1fr); } }
+  .perk-card { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 20px; transition: transform 0.18s, box-shadow 0.18s; }
+  .perk-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(15,23,42,0.08); }
+  .perk-card .ico { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; margin-bottom: 12px; background: linear-gradient(135deg, #ccfbf1, #99f6e4); color: var(--teal-dark); }
+  .perk-card.violet .ico { background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #5b21b6; }
+  .perk-card.amber .ico { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; }
+  .perk-card.rose .ico { background: linear-gradient(135deg, #fce7f3, #fbcfe8); color: #9f1239; }
+  .perk-card h3 { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .perk-card p { color: var(--text-muted); font-size: 12.5px; line-height: 1.5; margin: 0; }
+
+  /* OPEN ROLES */
+  .roles-list { display: flex; flex-direction: column; gap: 12px; max-width: 880px; margin: 0 auto; }
+  .role-card { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s; display: block; }
+  .role-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(15,23,42,0.08); border-color: var(--teal); }
+  .role-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .role-info h3 { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.015em; margin-bottom: 6px; }
+  .role-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+  .role-meta .tag { background: var(--warm); border: 1px solid var(--border); color: var(--text-muted); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 99px; }
+  .role-meta .tag.remote { background: #ecfdf5; border-color: #99f6e4; color: #166534; }
+  .role-meta .tag.full { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+  .role-arrow { color: var(--teal); font-size: 18px; font-weight: 700; flex-shrink: 0; }
+
+  /* CULTURE */
+  .culture-section { background: linear-gradient(180deg, transparent 0%, rgba(15,23,42,0.025) 50%, transparent 100%); padding: 80px 24px; max-width: none; }
+  .culture-inner { max-width: 880px; margin: 0 auto; }
+  .culture-quote { font-family: 'Fraunces', serif; font-size: clamp(22px, 3vw, 30px); font-weight: 600; color: var(--text); line-height: 1.4; font-style: italic; padding: 32px; background: #fff; border: 1px solid var(--border); border-left: 4px solid var(--teal); border-radius: 0 14px 14px 0; margin-bottom: 24px; }
+  .culture-quote::before { content: '"'; font-size: 64px; color: var(--teal); line-height: 0; margin-right: 8px; vertical-align: -24px; opacity: 0.4; }
+  .culture-text p { color: #334155; font-size: 16px; line-height: 1.7; margin-bottom: 16px; }
+  .culture-text p b { color: var(--text); }
+
+  /* CTA */
+  .cta-section { text-align: center; padding: 60px 24px; background: linear-gradient(135deg, #ecfdf5, #f0fdfa); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .cta-section h2 { font-family: 'Fraunces', serif; font-size: clamp(26px, 3.5vw, 36px); font-weight: 700; color: var(--text); letter-spacing: -0.02em; margin-bottom: 16px; }
+  .cta-section p { color: var(--text-muted); margin-bottom: 32px; font-size: 16px; }
+
+  /* FOOTER */
+  .footer { background: var(--navy-deep); color: rgba(226,232,240,0.7); padding: 0; }
+  .footer-top { padding: 64px 24px 40px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .footer-brand-block { max-width: 1200px; margin: 0 auto 40px; display: grid; grid-template-columns: 1fr 2fr; gap: 64px; }
+  .footer-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .footer-brand img { width: 32px; height: 32px; }
+  .footer-brand .name { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 700; color: #fff; }
+  .footer-brand .name b { color: var(--teal-light); }
+  .footer-tagline { font-size: 14px; line-height: 1.55; margin-bottom: 20px; max-width: 320px; }
+  .footer-social { display: flex; gap: 10px; }
+  .footer-social a { width: 36px; height: 36px; border-radius: 10px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); display: grid; place-items: center; color: rgba(226,232,240,0.7); transition: background 0.15s, color 0.15s, border-color 0.15s; }
+  .footer-social a:hover { background: rgba(45,212,191,0.12); border-color: rgba(45,212,191,0.4); color: var(--teal-light); }
+  .footer-cols { display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; max-width: 1200px; margin: 0 auto; }
+  .footer-col { display: flex; flex-direction: column; gap: 4px; }
+  .footer-col h4 { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(226,232,240,0.5); margin: 0 0 12px; }
+  .footer-col a { display: flex; align-items: center; gap: 8px; padding: 5px 0; color: rgba(226,232,240,0.75); font-size: 13px; transition: color 0.12s; }
+  .footer-col a:hover { color: #fff; }
+  .footer-col a .badge-soon { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 99px; background: rgba(249,115,22,0.15); color: #fb923c; text-transform: uppercase; letter-spacing: 0.05em; }
+  .footer-col a.footer-cta-link { color: var(--teal-light); font-weight: 600; margin-top: 8px; }
+  .footer-bottom { padding: 20px 24px; }
+  .footer-bottom-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 12px; color: rgba(226,232,240,0.4); }
+  .footer-bottom-links { display: flex; gap: 16px; }
+  .footer-bottom-links a { color: rgba(226,232,240,0.5); transition: color 0.12s; }
+  .footer-bottom-links a:hover { color: #fff; }
+  @media (max-width: 880px) {
+    .nav-links { display: none; }
+    .nav-login { display: none; }
+    .footer-brand-block { grid-template-columns: 1fr; gap: 32px; }
+    .footer-cols { grid-template-columns: repeat(2, 1fr); gap: 24px; }
+    .footer-bottom-inner { flex-direction: column; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== TOP NAV ===== -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-brand">
+      <img src="/logo.svg" alt="Afri OS logo">
+      <span class="name">Afri <b>OS</b></span>
+    </a>
+    <div class="nav-links">
+      <a href="/#products">Products</a>
+      <a href="/#features">Features</a>
+      <a href="/#how">How it works</a>
+      <a href="/about">About</a>
+      <a href="/blog">Blog</a>
+      <a href="/careers" style="color: var(--teal); font-weight: 700;">Careers</a>
+      <a href="/privacy">Privacy</a>
+    </div>
+    <div class="nav-cta">
+      <a href="/crm" class="nav-login">Log in</a>
+      <a href="/crm" class="nav-started">Get started free</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ===== HERO ===== -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="eyebrow">Afri OS · Careers</div>
+    <h1>Build the software <span class="grad">Africa deserves</span></h1>
+    <p class="sub">We're a small team in Lagos building the operating system for African business. We ship fast, in public, and we'd rather hire one great person than five average ones.</p>
+    <div class="hero-cta">
+      <a href="#open-roles" class="btn btn-primary">See open roles <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg></a>
+      <a href="/about" class="btn btn-ghost">Read our story</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== PERKS ===== -->
+<section class="section">
+  <div class="section-head">
+    <div class="eyebrow">What we offer</div>
+    <h2>The deal, in plain language</h2>
+    <p>No corporate speak. Here's what you actually get when you join.</p>
+  </div>
+  <div class="perks">
+    <div class="perk-card">
+      <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7v10l10 5 10-5V7l-10-5z"/><path d="M2 7l10 5 10-5M12 22V12"/></svg></div>
+      <h3>Equity from day one</h3>
+      <p>Every full-time hire gets equity. We're early — your stake grows with us.</p>
+    </div>
+    <div class="perk-card violet">
+      <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+      <h3>Remote-first, Africa</h3>
+      <p>Work from anywhere in Nigeria, Ghana, Kenya, or South Africa. We meet in Lagos quarterly.</p>
+    </div>
+    <div class="perk-card amber">
+      <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+      <h3>Async by default</h3>
+      <p>Write things down. No meetings before noon. Deep work protected.</p>
+    </div>
+    <div class="perk-card rose">
+      <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg></div>
+      <h3>Ship on Friday</h3>
+      <p>We ship every week. You'll see your work live in production within days of joining.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== OPEN ROLES ===== -->
+<section class="section" id="open-roles">
+  <div class="section-head">
+    <div class="eyebrow">Open positions</div>
+    <h2>What we're hiring for</h2>
+    <p>If a role doesn't fit you perfectly, send a note anyway. We hire for trajectory, not checklist.</p>
+  </div>
+  <div class="roles-list">
+    <a href="mailto:careers@afri-crm-production.up.railway.app?subject=Senior Full-stack Engineer" class="role-card">
+      <div class="role-row">
+        <div class="role-info">
+          <h3>Senior Full-stack Engineer</h3>
+          <div class="role-meta">
+            <span class="tag remote">Remote (Africa)</span>
+            <span class="tag full">Full-time</span>
+            <span class="tag">Engineering</span>
+            <span class="tag">Senior+</span>
+          </div>
+        </div>
+        <span class="role-arrow">→</span>
+      </div>
+    </a>
+
+    <a href="mailto:careers@afri-crm-production.up.railway.app?subject=Frontend Engineer" class="role-card">
+      <div class="role-row">
+        <div class="role-info">
+          <h3>Frontend Engineer (React + design systems)</h3>
+          <div class="role-meta">
+            <span class="tag remote">Remote (Africa)</span>
+            <span class="tag full">Full-time</span>
+            <span class="tag">Engineering</span>
+            <span class="tag">Mid → Senior</span>
+          </div>
+        </div>
+        <span class="role-arrow">→</span>
+      </div>
+    </a>
+
+    <a href="mailto:careers@afri-crm-production.up.railway.app?subject=Product Designer" class="role-card">
+      <div class="role-row">
+        <div class="role-info">
+          <h3>Product Designer</h3>
+          <div class="role-meta">
+            <span class="tag remote">Remote (Africa)</span>
+            <span class="tag full">Full-time</span>
+            <span class="tag">Design</span>
+            <span class="tag">Senior</span>
+          </div>
+        </div>
+        <span class="role-arrow">→</span>
+      </div>
+    </a>
+
+    <a href="mailto:careers@afri-crm-production.up.railway.app?subject=Growth Marketer" class="role-card">
+      <div class="role-row">
+        <div class="role-info">
+          <h3>Growth &amp; Content Marketer</h3>
+          <div class="role-meta">
+            <span class="tag remote">Remote (Africa)</span>
+            <span class="tag full">Full-time</span>
+            <span class="tag">Marketing</span>
+            <span class="tag">Founding role</span>
+          </div>
+        </div>
+        <span class="role-arrow">→</span>
+      </div>
+    </a>
+
+    <a href="mailto:careers@afri-crm-production.up.railway.app?subject=Customer Success Lead" class="role-card">
+      <div class="role-row">
+        <div class="role-info">
+          <h3>Customer Success Lead</h3>
+          <div class="role-meta">
+            <span class="tag remote">Remote (Africa)</span>
+            <span class="tag full">Full-time</span>
+            <span class="tag">Operations</span>
+            <span class="tag">Founding role</span>
+          </div>
+        </div>
+        <span class="role-arrow">→</span>
+      </div>
+    </a>
+
+    <a href="mailto:careers@afri-crm-production.up.railway.app?subject=DevRel Engineer" class="role-card">
+      <div class="role-row">
+        <div class="role-info">
+          <h3>DevRel Engineer (APIs + SDKs)</h3>
+          <div class="role-meta">
+            <span class="tag remote">Remote (Africa)</span>
+            <span class="tag full">Full-time</span>
+            <span class="tag">Engineering</span>
+            <span class="tag">Mid → Senior</span>
+          </div>
+        </div>
+        <span class="role-arrow">→</span>
+      </div>
+    </a>
+  </div>
+</section>
+
+<!-- ===== CULTURE ===== -->
+<section class="culture-section">
+  <div class="culture-inner">
+    <div class="section-head">
+      <div class="eyebrow">How we work</div>
+      <h2>The culture, in practice</h2>
+    </div>
+    <div class="culture-quote">
+      We don't hire people who need to be told what to do. We hire people who can be told what the goal is — and they figure out how to get there.
+    </div>
+    <div class="culture-text">
+      <p><b>Write things down.</b> Decisions live in documents, not Slack threads. Every feature ships with a public changelog entry. Every incident ships with a postmortem.</p>
+      <p><b>Async by default.</b> No standups. No "quick calls". If a meeting can be a doc, it's a doc. The few meetings we have are 25 minutes, end with action items, and the host is responsible for the write-up.</p>
+      <p><b>Ship on Friday.</b> We don't gate releases with QA cycles or staging environments. If you can ship it, ship it. If it breaks, fix it in public — the blog is your staging.</p>
+      <p><b>African context first.</b> We design for mobile. We default to Naira. We test on MTN and Glo networks. We don't ship features that assume fiber internet.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== CTA ===== -->
+<section class="cta-section">
+  <h2>Don't see your role?</h2>
+  <p>If you're great and you want to build African software, we want to meet you. Send a note — tell us what you'd want to work on.</p>
+  <a href="mailto:careers@afri-crm-production.up.railway.app" class="btn btn-primary">
+    Email us
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+  </a>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer class="footer">
+  <div class="footer-top">
+    <div class="footer-brand-block">
+      <div>
+        <a href="/" class="footer-brand">
+          <img src="/logo.svg" alt="Afri OS logo">
+          <span class="name">Afri <b>OS</b></span>
+        </a>
+        <p class="footer-tagline">The operating system for African business. CRM, ERP, and more — connected, beautiful, and built for the way you work.</p>
+        <div class="footer-social">
+          <a href="https://github.com/paul4180/afri-crm" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 4.42 2.87 8.17 6.84 9.5.5.09.66-.22.66-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02.8-.22 1.65-.33 2.5-.33.85 0 1.7.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.16.58.67.48A10.01 10.01 0 0 0 22 12c0-5.52-4.48-10-10-10z"/></svg></a>
+          <a href="mailto:hello@afri-crm-production.up.railway.app" aria-label="Email" title="Email"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg></a>
+          <a href="/crm" aria-label="Open CRM" title="Open CRM"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg></a>
+        </div>
+      </div>
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Products</h4>
+          <a href="/crm">Afri CRM</a>
+          <a href="https://afri-erp-production.up.railway.app/">Afri ERP</a>
+          <a href="/#products">Afri Helpdesk <span class="badge-soon">Soon</span></a>
+          <a href="/#products">Afri Projects <span class="badge-soon">Soon</span></a>
+          <a href="/#products">Afri Marketing <span class="badge-soon">Soon</span></a>
+        </div>
+        <div class="footer-col">
+          <h4>Company</h4>
+          <a href="/about">About</a>
+          <a href="/blog">Blog</a>
+          <a href="/careers">Careers</a>
+          <a href="/press">Press</a>
+          <a href="mailto:hello@afri-crm-production.up.railway.app">Contact</a>
+        </div>
+        <div class="footer-col">
+          <h4>Resources</h4>
+          <a href="/crm">Documentation</a>
+          <a href="/crm">API Reference</a>
+          <a href="/blog">Changelog</a>
+          <a href="/crm">System Status</a>
+          <a href="/crm">Community</a>
+        </div>
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <a href="/privacy">Privacy Policy</a>
+          <a href="/terms">Terms of Service</a>
+          <a href="/privacy#security">Security</a>
+          <a href="/privacy#african-first">NDPR / GDPR</a>
+          <a href="/crm" class="footer-cta-link">Delete my account →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="footer-bottom-inner">
+      <span>© 2026 Afri OS · Built for African businesses</span>
+      <div class="footer-bottom-links">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="/crm">Open CRM</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

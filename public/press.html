@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Afri OS Press — Media kit, press releases, and contact</title>
+<meta name="description" content="Press resources for Afri OS. Logos, screenshots, press releases, and direct contact with the founding team.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Inter', sans-serif; background: #faf9f7; color: #0f172a; line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  a { color: inherit; text-decoration: none; }
+  :root { --teal: #0d9488; --teal-light: #2dd4bf; --teal-dark: #0f766e; --navy: #0f172a; --navy-deep: #020617; --warm: #faf9f7; --text: #0f172a; --text-muted: #64748b; --border: #e2e8f0; --orange: #f97316; --violet: #8b5cf6; }
+
+  /* NAV */
+  .nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 12px 24px; background: rgba(255,255,255,0.92); backdrop-filter: blur(20px) saturate(180%); border-bottom: 1px solid var(--border); box-shadow: 0 1px 2px rgba(15,23,42,0.06); }
+  .nav-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+  .nav-brand { display: flex; align-items: center; gap: 10px; }
+  .nav-brand img { width: 32px; height: 32px; }
+  .nav-brand .name { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+  .nav-brand .name b { color: var(--teal); }
+  .nav-links { display: flex; align-items: center; gap: 4px; }
+  .nav-links a { padding: 8px 14px; border-radius: 8px; color: var(--text-muted); font-size: 14px; font-weight: 500; transition: background 0.15s, color 0.15s; }
+  .nav-links a:hover { background: var(--warm); color: var(--text); }
+  .nav-cta { display: flex; align-items: center; gap: 8px; }
+  .nav-login { color: var(--text-muted); padding: 8px 14px; font-size: 14px; font-weight: 600; }
+  .nav-login:hover { color: var(--text); }
+  .nav-started { background: linear-gradient(135deg, var(--teal), var(--teal-dark)); color: #fff; padding: 10px 18px; border-radius: 99px; font-size: 14px; font-weight: 700; box-shadow: 0 4px 12px rgba(13,148,136,0.3); transition: transform 0.15s, box-shadow 0.15s; }
+  .nav-started:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(13,148,136,0.45); }
+
+  /* HERO */
+  .hero { position: relative; padding: 140px 24px 60px; overflow: hidden; background: radial-gradient(circle at 15% 20%, rgba(13,148,136,0.25), transparent 50%), radial-gradient(circle at 85% 75%, rgba(124,58,237,0.22), transparent 50%), linear-gradient(135deg, #0f172a, #1e1b4b 50%, #0f766e); color: #fff; text-align: center; }
+  .hero::before { content: ''; position: absolute; inset: -50%; background: radial-gradient(circle at 30% 30%, rgba(45,212,191,0.18), transparent 8%), radial-gradient(circle at 70% 60%, rgba(167,139,250,0.15), transparent 10%); animation: drift 25s linear infinite; pointer-events: none; }
+  @keyframes drift { 0% { transform: rotate(0deg) scale(1); } 50% { transform: rotate(180deg) scale(1.15); } 100% { transform: rotate(360deg) scale(1); } }
+  .hero-inner { position: relative; max-width: 760px; margin: 0 auto; }
+  .hero .eyebrow { display: inline-flex; align-items: center; gap: 10px; background: rgba(45,212,191,0.1); border: 1px solid rgba(45,212,191,0.3); padding: 8px 16px; border-radius: 99px; font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--teal-light); margin-bottom: 28px; backdrop-filter: blur(10px); }
+  .hero h1 { font-family: 'Fraunces', serif; font-size: clamp(38px, 5.5vw, 64px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.05; margin-bottom: 20px; }
+  .hero p.sub { font-size: clamp(16px, 2vw, 19px); color: rgba(226,232,240,0.9); max-width: 580px; margin: 0 auto; line-height: 1.55; }
+
+  /* QUICK CONTACT */
+  .quick-contact { max-width: 880px; margin: -40px auto 60px; padding: 0 24px; position: relative; z-index: 2; }
+  .quick-card { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 24px 28px; box-shadow: 0 20px 50px rgba(15,23,42,0.12), 0 8px 16px rgba(15,23,42,0.06); display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  @media (max-width: 640px) { .quick-card { grid-template-columns: 1fr; } }
+  .quick-item { display: flex; flex-direction: column; gap: 4px; }
+  .quick-item .label { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
+  .quick-item .value { font-size: 15px; font-weight: 600; color: var(--text); }
+  .quick-item .value a { color: var(--teal); }
+  .quick-item .value a:hover { text-decoration: underline; }
+
+  /* SECTION */
+  .section { max-width: 880px; margin: 0 auto; padding: 60px 24px; }
+  .section-head { text-align: center; margin-bottom: 48px; }
+  .section-head .eyebrow { display: inline-flex; align-items: center; gap: 8px; color: var(--teal); font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 16px; }
+  .section-head .eyebrow::before { content: ''; width: 16px; height: 2px; background: var(--teal); border-radius: 99px; }
+  .section-head h2 { font-family: 'Fraunces', serif; font-size: clamp(28px, 4vw, 40px); font-weight: 700; letter-spacing: -0.025em; line-height: 1.15; color: var(--text); margin-bottom: 16px; }
+  .section-head p { font-size: 16px; color: var(--text-muted); max-width: 580px; margin: 0 auto; }
+
+  /* FACTS */
+  .facts-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 40px; }
+  @media (max-width: 640px) { .facts-grid { grid-template-columns: 1fr; } }
+  .fact { background: linear-gradient(135deg, #fff, #f8fafc); border: 1px solid var(--border); border-radius: 14px; padding: 20px; text-align: center; }
+  .fact .fact-number { font-family: 'Fraunces', serif; font-size: 32px; font-weight: 800; color: var(--teal); line-height: 1; letter-spacing: -0.03em; }
+  .fact .fact-number .unit { font-size: 13px; color: var(--text-muted); margin-left: 4px; font-family: 'Inter', sans-serif; font-weight: 600; }
+  .fact .fact-label { margin-top: 6px; color: var(--text-muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* BOILERPLATE */
+  .boilerplate { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 32px; }
+  .boilerplate h3 { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.015em; margin-bottom: 16px; }
+  .boilerplate p { color: #334155; font-size: 15px; line-height: 1.7; margin-bottom: 14px; }
+  .boilerplate p b { color: var(--text); }
+
+  /* MEDIA KIT */
+  .kit-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  @media (max-width: 640px) { .kit-grid { grid-template-columns: 1fr; } }
+  .kit-card { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 24px; transition: transform 0.18s, box-shadow 0.18s; display: flex; flex-direction: column; gap: 8px; }
+  .kit-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(15,23,42,0.08); }
+  .kit-card .ico { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #ccfbf1, #99f6e4); display: grid; place-items: center; color: var(--teal-dark); margin-bottom: 8px; }
+  .kit-card.violet .ico { background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #5b21b6; }
+  .kit-card.amber .ico { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; }
+  .kit-card.rose .ico { background: linear-gradient(135deg, #fce7f3, #fbcfe8); color: #9f1239; }
+  .kit-card h3 { font-family: 'Fraunces', serif; font-size: 17px; font-weight: 700; color: var(--text); }
+  .kit-card .desc { color: var(--text-muted); font-size: 13px; line-height: 1.5; margin-bottom: 12px; flex: 1; }
+  .kit-card .download { display: inline-flex; align-items: center; gap: 6px; color: var(--teal); font-size: 13px; font-weight: 600; padding: 6px 12px; border: 1px solid #99f6e4; border-radius: 99px; align-self: flex-start; transition: background 0.15s; }
+  .kit-card .download:hover { background: #f0fdfa; }
+
+  /* PRESS RELEASES */
+  .releases-list { display: flex; flex-direction: column; gap: 12px; }
+  .release-card { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s; display: block; }
+  .release-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(15,23,42,0.08); border-color: var(--teal); }
+  .release-date { color: var(--text-muted); font-size: 12px; margin-bottom: 8px; }
+  .release-card h3 { font-family: 'Fraunces', serif; font-size: 19px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; margin-bottom: 8px; line-height: 1.3; }
+  .release-card p { color: var(--text-muted); font-size: 14px; line-height: 1.5; margin-bottom: 12px; }
+  .release-card .read-more { color: var(--teal); font-size: 13px; font-weight: 600; }
+
+  /* CONTACT CTA */
+  .contact-cta { text-align: center; padding: 60px 24px; background: linear-gradient(135deg, #ecfdf5, #f0fdfa); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .contact-cta h2 { font-family: 'Fraunces', serif; font-size: clamp(26px, 3.5vw, 36px); font-weight: 700; color: var(--text); letter-spacing: -0.02em; margin-bottom: 16px; }
+  .contact-cta p { color: var(--text-muted); margin-bottom: 32px; font-size: 16px; max-width: 540px; margin-left: auto; margin-right: auto; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 14px 26px; border-radius: 99px; font-size: 15px; font-weight: 700; transition: transform 0.15s, box-shadow 0.15s; }
+  .btn-primary { background: linear-gradient(135deg, var(--teal), var(--teal-dark)); color: #fff; box-shadow: 0 8px 24px rgba(13,148,136,0.4); }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(13,148,136,0.5); }
+
+  /* FOOTER */
+  .footer { background: var(--navy-deep); color: rgba(226,232,240,0.7); padding: 0; }
+  .footer-top { padding: 64px 24px 40px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .footer-brand-block { max-width: 1200px; margin: 0 auto 40px; display: grid; grid-template-columns: 1fr 2fr; gap: 64px; }
+  .footer-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .footer-brand img { width: 32px; height: 32px; }
+  .footer-brand .name { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 700; color: #fff; }
+  .footer-brand .name b { color: var(--teal-light); }
+  .footer-tagline { font-size: 14px; line-height: 1.55; margin-bottom: 20px; max-width: 320px; }
+  .footer-social { display: flex; gap: 10px; }
+  .footer-social a { width: 36px; height: 36px; border-radius: 10px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); display: grid; place-items: center; color: rgba(226,232,240,0.7); transition: background 0.15s, color 0.15s, border-color 0.15s; }
+  .footer-social a:hover { background: rgba(45,212,191,0.12); border-color: rgba(45,212,191,0.4); color: var(--teal-light); }
+  .footer-cols { display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; max-width: 1200px; margin: 0 auto; }
+  .footer-col { display: flex; flex-direction: column; gap: 4px; }
+  .footer-col h4 { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(226,232,240,0.5); margin: 0 0 12px; }
+  .footer-col a { display: flex; align-items: center; gap: 8px; padding: 5px 0; color: rgba(226,232,240,0.75); font-size: 13px; transition: color 0.12s; }
+  .footer-col a:hover { color: #fff; }
+  .footer-col a .badge-soon { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 99px; background: rgba(249,115,22,0.15); color: #fb923c; text-transform: uppercase; letter-spacing: 0.05em; }
+  .footer-col a.footer-cta-link { color: var(--teal-light); font-weight: 600; margin-top: 8px; }
+  .footer-bottom { padding: 20px 24px; }
+  .footer-bottom-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 12px; color: rgba(226,232,240,0.4); }
+  .footer-bottom-links { display: flex; gap: 16px; }
+  .footer-bottom-links a { color: rgba(226,232,240,0.5); transition: color 0.12s; }
+  .footer-bottom-links a:hover { color: #fff; }
+  @media (max-width: 880px) {
+    .nav-links { display: none; }
+    .nav-login { display: none; }
+    .footer-brand-block { grid-template-columns: 1fr; gap: 32px; }
+    .footer-cols { grid-template-columns: repeat(2, 1fr); gap: 24px; }
+    .footer-bottom-inner { flex-direction: column; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== TOP NAV ===== -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-brand">
+      <img src="/logo.svg" alt="Afri OS logo">
+      <span class="name">Afri <b>OS</b></span>
+    </a>
+    <div class="nav-links">
+      <a href="/#products">Products</a>
+      <a href="/#features">Features</a>
+      <a href="/#how">How it works</a>
+      <a href="/about">About</a>
+      <a href="/blog">Blog</a>
+      <a href="/careers">Careers</a>
+      <a href="/press" style="color: var(--teal); font-weight: 700;">Press</a>
+    </div>
+    <div class="nav-cta">
+      <a href="/crm" class="nav-login">Log in</a>
+      <a href="/crm" class="nav-started">Get started free</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ===== HERO ===== -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="eyebrow">Afri OS · Press &amp; Media</div>
+    <h1>Story-worthy, by design</h1>
+    <p class="sub">Logos, screenshots, press releases, and a direct line to the founding team. Everything you need to write about Afri OS, in one place.</p>
+  </div>
+</section>
+
+<!-- ===== QUICK CONTACT ===== -->
+<div class="quick-contact">
+  <div class="quick-card">
+    <div class="quick-item">
+      <div class="label">Press contact</div>
+      <div class="value"><a href="mailto:press@afri-crm-production.up.railway.app">press@afri-crm-production.up.railway.app</a></div>
+    </div>
+    <div class="quick-item">
+      <div class="label">Response time</div>
+      <div class="value">Within 24 hours, Lagos time</div>
+    </div>
+    <div class="quick-item">
+      <div class="label">Founded</div>
+      <div class="value">2026 · Lagos, Nigeria</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== FACTS ===== -->
+<section class="section">
+  <div class="section-head">
+    <div class="eyebrow">Afri OS in numbers</div>
+    <h2>The quick facts</h2>
+    <p>For reporters on a deadline — the snapshot you need.</p>
+  </div>
+  <div class="facts-grid">
+    <div class="fact">
+      <div class="fact-number">2</div>
+      <div class="fact-label">Products live</div>
+    </div>
+    <div class="fact">
+      <div class="fact-number">88<span class="unit">+</span></div>
+      <div class="fact-label">API routes</div>
+    </div>
+    <div class="fact">
+      <div class="fact-number">27<span class="unit">K</span></div>
+      <div class="fact-label">Lines of code</div>
+    </div>
+    <div class="fact">
+      <div class="fact-number">5<span class="unit">sec</span></div>
+      <div class="fact-label">Time to sign up</div>
+    </div>
+    <div class="fact">
+      <div class="fact-number">0<span class="unit">$</span></div>
+      <div class="fact-label">Onboarding fee</div>
+    </div>
+    <div class="fact">
+      <div class="fact-number">100<span class="unit">%</span></div>
+      <div class="fact-label">African-built</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== BOILERPLATE ===== -->
+<section class="section">
+  <div class="section-head">
+    <div class="eyebrow">About Afri OS</div>
+    <h2>The company boilerplate</h2>
+    <p>Copy-paste ready. Use as-is or adapt.</p>
+  </div>
+  <div class="boilerplate">
+    <h3>About Afri OS</h3>
+    <p><b>Afri OS</b> is the operating system for African business. Founded in 2026 and headquartered in Lagos, Nigeria, Afri OS builds the customer relationship management (CRM), enterprise resource planning (ERP), and operational tools that African businesses need — designed for the way they actually work, not as a localized version of Western software.</p>
+    <p>Afri OS products are mobile-first, support Google single sign-on with one-click Gmail and Calendar integration, ship with default Naira currency and Lagos timezone awareness, and respect Nigerian Data Protection Regulation (NDPR). The platform is free for solo founders and small teams, with paid tiers for growing businesses.</p>
+    <p>The Afri OS suite currently includes <b>Afri CRM</b> (sales pipeline, contacts, deals, sequences, integrations) and <b>Afri ERP</b> (books, invoicing, inventory, e-invoicing compliance). Planned additions include Afri Helpdesk, Afri Projects, and Afri Marketing — all connected to the same workspace and data layer.</p>
+    <p>For more information, visit <a href="https://afri-crm-production.up.railway.app" style="color: var(--teal);">afri-crm-production.up.railway.app</a> or contact press@afri-crm-production.up.railway.app.</p>
+  </div>
+</section>
+
+<!-- ===== MEDIA KIT ===== -->
+<section class="section">
+  <div class="section-head">
+    <div class="eyebrow">Media kit</div>
+    <h2>Logos, screenshots, and assets</h2>
+    <p>Download what you need. All assets are press-approved.</p>
+  </div>
+  <div class="kit-grid">
+    <div class="kit-card">
+      <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>
+      <h3>Logo (PNG, transparent)</h3>
+      <p class="desc">512×512 PNG with transparent background. Use on light or dark.</p>
+      <a href="/logo-512.png" download class="download">Download ↓</a>
+    </div>
+    <div class="kit-card violet">
+      <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6h6M14 2 6 14h8l-1 8 10-12h-8z" transform="scale(0.8) translate(2 0)"/></svg></div>
+      <h3>Logo (SVG, vector)</h3>
+      <p class="desc">Infinite scalability. Use for any size — web, print, video.</p>
+      <a href="/logo.svg" download class="download">Download ↓</a>
+    </div>
+    <div class="kit-card amber">
+      <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg></div>
+      <h3>Wordmark (logo + text)</h3>
+      <p class="desc">SVG with "Afri OS" text lockup. For headers and footers.</p>
+      <a href="/logo-wordmark.svg" download class="download">Download ↓</a>
+    </div>
+    <div class="kit-card rose">
+      <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+      <h3>Product screenshots</h3>
+      <p class="desc">Coming soon. Email us with specific requests — we'll send same day.</p>
+      <a href="mailto:press@afri-crm-production.up.railway.app?subject=Screenshot request" class="download">Request →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== PRESS RELEASES ===== -->
+<section class="section">
+  <div class="section-head">
+    <div class="eyebrow">Press releases</div>
+    <h2>What we've announced</h2>
+  </div>
+  <div class="releases-list">
+    <a href="/blog" class="release-card">
+      <div class="release-date">October 19, 2026 · Lagos, Nigeria</div>
+      <h3>Afri OS submits Afri CRM app for Google OAuth verification</h3>
+      <p>Today Afri OS submitted its Afri CRM application for Google OAuth verification, marking the next step in removing the "unverified app" warning that currently appears for users connecting Gmail and Google Calendar.</p>
+      <span class="read-more">Read release →</span>
+    </a>
+    <a href="/blog" class="release-card">
+      <div class="release-date">October 18, 2026 · Lagos, Nigeria</div>
+      <h3>Afri CRM ships Pattern A: combined consent on Google SSO signup</h3>
+      <p>New users signing up with Google now have their calendar automatically connected in the same OAuth flow — no separate "Connect Calendar" step required. The "magic moment" of seeing today's meetings on the home dashboard happens within 5 seconds of sign-up.</p>
+      <span class="read-more">Read release →</span>
+    </a>
+    <a href="/blog" class="release-card">
+      <div class="release-date">October 17, 2026 · Lagos, Nigeria</div>
+      <h3>Afri OS launches the Afri OS landing page — HubSpot-level marketing site</h3>
+      <p>The new afri-crm-production.up.railway.app serves a full marketing experience: hero, products showcase, features grid (9 cards), how-it-works section with mini browser mockups, and an expanded 4-column footer with newsletter signup.</p>
+      <span class="read-more">Read release →</span>
+    </a>
+    <a href="/blog" class="release-card">
+      <div class="release-date">October 16, 2026 · Lagos, Nigeria</div>
+      <h3>Afri CRM ships HubSpot-style Danger Zone for permanent account deletion</h3>
+      <p>Workspace owners can now permanently delete their account and all data — including 38 database tables of CRM records, OAuth tokens, API keys, and webhooks — with a single confirmed action. No 30-day grace period.</p>
+      <span class="read-more">Read release →</span>
+    </a>
+    <a href="/blog" class="release-card">
+      <div class="release-date">October 15, 2026 · Lagos, Nigeria</div>
+      <h3>Afri CRM launches one-click Gmail, Calendar, and Outlook connect</h3>
+      <p>Afri CRM now supports Google and Microsoft OAuth flows for email and calendar integration. Users connect Gmail in one click — Google asks for consent, the user clicks Allow, and their inbox is connected.</p>
+      <span class="read-more">Read release →</span>
+    </a>
+    <a href="/blog" class="release-card">
+      <div class="release-date">October 12, 2026 · Lagos, Nigeria</div>
+      <h3>Afri OS launches sign up with Google SSO</h3>
+      <p>Afri CRM users can now sign up with a single Google click — no password to remember, no email verification loop. Account creation takes 5 seconds, and the user's workspace is immediately ready.</p>
+      <span class="read-more">Read release →</span>
+    </a>
+  </div>
+</section>
+
+<!-- ===== CONTACT CTA ===== -->
+<section class="contact-cta">
+  <h2>Writing about us?</h2>
+  <p>Email the founding team directly. We respond within 24 hours, Lagos time. Interview requests, embargoed stories, founder availability — all welcome.</p>
+  <a href="mailto:press@afri-crm-production.up.railway.app" class="btn btn-primary">
+    Email press
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+  </a>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer class="footer">
+  <div class="footer-top">
+    <div class="footer-brand-block">
+      <div>
+        <a href="/" class="footer-brand">
+          <img src="/logo.svg" alt="Afri OS logo">
+          <span class="name">Afri <b>OS</b></span>
+        </a>
+        <p class="footer-tagline">The operating system for African business. CRM, ERP, and more — connected, beautiful, and built for the way you work.</p>
+        <div class="footer-social">
+          <a href="https://github.com/paul4180/afri-crm" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 4.42 2.87 8.17 6.84 9.5.5.09.66-.22.66-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02.8-.22 1.65-.33 2.5-.33.85 0 1.7.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.16.58.67.48A10.01 10.01 0 0 0 22 12c0-5.52-4.48-10-10-10z"/></svg></a>
+          <a href="mailto:hello@afri-crm-production.up.railway.app" aria-label="Email" title="Email"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg></a>
+          <a href="/crm" aria-label="Open CRM" title="Open CRM"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg></a>
+        </div>
+      </div>
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Products</h4>
+          <a href="/crm">Afri CRM</a>
+          <a href="https://afri-erp-production.up.railway.app/">Afri ERP</a>
+          <a href="/#products">Afri Helpdesk <span class="badge-soon">Soon</span></a>
+          <a href="/#products">Afri Projects <span class="badge-soon">Soon</span></a>
+          <a href="/#products">Afri Marketing <span class="badge-soon">Soon</span></a>
+        </div>
+        <div class="footer-col">
+          <h4>Company</h4>
+          <a href="/about">About</a>
+          <a href="/blog">Blog</a>
+          <a href="/careers">Careers</a>
+          <a href="/press">Press</a>
+          <a href="mailto:hello@afri-crm-production.up.railway.app">Contact</a>
+        </div>
+        <div class="footer-col">
+          <h4>Resources</h4>
+          <a href="/crm">Documentation</a>
+          <a href="/crm">API Reference</a>
+          <a href="/blog">Changelog</a>
+          <a href="/crm">System Status</a>
+          <a href="/crm">Community</a>
+        </div>
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <a href="/privacy">Privacy Policy</a>
+          <a href="/terms">Terms of Service</a>
+          <a href="/privacy#security">Security</a>
+          <a href="/privacy#african-first">NDPR / GDPR</a>
+          <a href="/crm" class="footer-cta-link">Delete my account →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="footer-bottom-inner">
+      <span>© 2026 Afri OS · Built for African businesses</span>
+      <div class="footer-bottom-links">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="/crm">Open CRM</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
