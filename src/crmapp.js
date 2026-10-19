@@ -998,6 +998,70 @@ export function registerCrm(app, prisma) {
     if (!account) return reply.code(401).send({ error: 'Unauthorized' });
     return { accessToken: signCrm(app, account) };
   });
+
+  // ============================================================
+  // SSO — Sign up / Sign in with Google
+  // Single OAuth flow that creates OR logs in a user by their email.
+  // Uses openid+email+profile scope (just identity — no Gmail access).
+  // Gmail/Calendar connect is a separate opt-in on the Integrations page.
+  // ============================================================
+  app.get('/crm/api/sso/google/start', async (req, reply) => {
+    const origin = originOf(req);
+    const creds = appCreds(null, 'google');
+    if (!creds || !creds.id) return reply.redirect('/crm?sso=failed&reason=no_google');
+    const state = signState({ flow: 'sso', provider: 'google' });
+    const url = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({
+      client_id: creds.id,
+      redirect_uri: origin + '/crm/api/sso/google/callback',
+      response_type: 'code',
+      access_type: 'online',
+      prompt: 'select_account',
+      scope: 'openid email profile',
+      state,
+    });
+    return reply.redirect(url);
+  });
+
+  app.get('/crm/api/sso/google/callback', async (req, reply) => {
+    const data = readState(req.query.state);
+    if (!data || data.flow !== 'sso' || !req.query.code) return reply.redirect('/crm?sso=failed&reason=no_code');
+    const origin = originOf(req);
+    const creds = appCreds(null, 'google');
+    if (!creds) return reply.redirect('/crm?sso=failed&reason=no_creds');
+    const res = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({
+      code: req.query.code, client_id: creds.id, client_secret: creds.secret,
+      redirect_uri: origin + '/crm/api/sso/google/callback', grant_type: 'authorization_code',
+    }) });
+    const tokens = await res.json().catch(() => ({}));
+    if (!tokens.access_token) return reply.redirect('/crm?sso=failed&reason=no_token');
+    const profile = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers: { Authorization: 'Bearer ' + tokens.access_token } }).then((r) => r.json()).catch(() => ({}));
+    if (!profile.email) return reply.redirect('/crm?sso=failed&reason=no_email');
+    const email = profile.email.toLowerCase();
+    const fullName = profile.name || profile.given_name || email.split('@')[0];
+    // Look up existing user by email
+    let account = db.prepare('SELECT * FROM crm_accounts WHERE email = ?').get(email);
+    let isNew = false;
+    if (!account) {
+      // Create new workspace + owner account (no password — SSO-only)
+      const workspaceId = crypto.randomUUID();
+      const accountId = crypto.randomUUID();
+      let slug = slugify(fullName) || 'workspace';
+      if (db.prepare('SELECT id FROM crm_workspaces WHERE slug = ?').get(slug)) slug = slug + '-' + crypto.randomBytes(2).toString('hex');
+      db.prepare('INSERT INTO crm_workspaces (id, name, slug) VALUES (?,?,?)').run(workspaceId, fullName + ' Workspace', slug);
+      db.prepare('INSERT INTO crm_accounts (id, workspaceId, email, passwordHash, fullName, role) VALUES (?,?,?,?,?,?)').run(accountId, workspaceId, email, '', fullName, 'OWNER');
+      seedAccess(workspaceId);
+      writeAudit(workspaceId, accountId, 'signup', 'account', accountId, 'SSO Google: ' + email);
+      publishEvent(workspaceId, 'account.created', { id: accountId });
+      seedDemo(workspaceId, accountId);
+      account = db.prepare('SELECT * FROM crm_accounts WHERE id = ?').get(accountId);
+      isNew = true;
+    } else if (Number(account.active) === 0) {
+      return reply.redirect('/crm?sso=failed&reason=inactive');
+    }
+    const accessToken = openSession(app, account, req);
+    writeAudit(account.workspaceId, account.id, 'login', 'account', account.id, 'SSO Google: ' + email);
+    return reply.redirect('/crm?t=' + encodeURIComponent(accessToken) + (isNew ? '&sso=new' : '&sso=in'));
+  });
   app.get('/crm/api/notifications', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     const items = db.prepare('SELECT * FROM notifications WHERE tenantId = ? AND userId = ? ORDER BY createdAt DESC LIMIT 30').all(user.tenantId, user.sub);
