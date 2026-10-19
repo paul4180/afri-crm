@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Afri OS — The operating system for African business</title>
+<meta name="description" content="Afri OS is the all-in-one operating system for African businesses. CRM, ERP, and more — connected, beautiful, and built for the way you work.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
+<style>
+  /* === AFRI OS DESIGN SYSTEM === */
+  :root {
+    --teal: #0d9488;
+    --teal-light: #2dd4bf;
+    --teal-dark: #0f766e;
+    --navy: #0f172a;
+    --navy-light: #1e293b;
+    --navy-deep: #020617;
+    --warm: #faf9f7;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --border: #e2e8f0;
+    --orange: #f97316;
+    --violet: #8b5cf6;
+    --blue: #3b82f6;
+    --radius: 16px;
+    --shadow-sm: 0 1px 2px rgba(15,23,42,0.06);
+    --shadow-md: 0 4px 12px rgba(15,23,42,0.08);
+    --shadow-lg: 0 20px 50px rgba(15,23,42,0.15);
+    --shadow-xl: 0 40px 80px rgba(15,23,42,0.25);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--warm);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; cursor: pointer; border: 0; background: none; color: inherit; }
+
+  /* === TOP NAV === */
+  .nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    padding: 16px 24px;
+    background: rgba(15, 23, 42, 0.0);
+    backdrop-filter: blur(0px);
+    transition: background 0.25s ease, backdrop-filter 0.25s ease, padding 0.25s ease, border-color 0.25s ease;
+    border-bottom: 1px solid transparent;
+  }
+  .nav.scrolled {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(20px) saturate(180%);
+    padding: 10px 24px;
+    border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+  }
+  .nav-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  }
+  .nav-brand { display: flex; align-items: center; gap: 10px; }
+  .nav-brand img { width: 32px; height: 32px; display: block; }
+  .nav-brand .name {
+    font-family: 'Fraunces', serif;
+    font-size: 22px; font-weight: 700; color: #fff;
+    letter-spacing: -0.01em;
+    transition: color 0.25s ease;
+  }
+  .nav.scrolled .nav-brand .name { color: var(--text); }
+  .nav-brand .name b { color: var(--teal-light); font-weight: 700; }
+  .nav.scrolled .nav-brand .name b { color: var(--teal); }
+  .nav-links { display: flex; align-items: center; gap: 4px; }
+  .nav-links a {
+    padding: 8px 14px; border-radius: 8px;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 14px; font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+  }
+  .nav.scrolled .nav-links a { color: var(--text-muted); }
+  .nav-links a:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+  .nav.scrolled .nav-links a:hover { background: var(--warm); color: var(--text); }
+  .nav-cta { display: flex; align-items: center; gap: 8px; }
+  .nav-login {
+    color: rgba(255, 255, 255, 0.9) !important;
+    padding: 8px 14px; font-size: 14px; font-weight: 600;
+  }
+  .nav.scrolled .nav-login { color: var(--text-muted) !important; }
+  .nav-login:hover { color: #fff !important; }
+  .nav-scrolled .nav-login:hover { color: var(--text) !important; }
+  .nav-started {
+    background: linear-gradient(135deg, var(--teal) 0%, var(--teal-dark) 100%);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 99px;
+    font-size: 14px; font-weight: 700;
+    box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .nav-started:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(13, 148, 136, 0.45);
+  }
+  .nav-mobile-toggle { display: none; }
+
+  /* === HERO === */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 120px 24px 80px;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(13, 148, 136, 0.25) 0%, transparent 45%),
+      radial-gradient(circle at 85% 75%, rgba(124, 58, 237, 0.22) 0%, transparent 50%),
+      radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.10) 0%, transparent 70%),
+      linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+    color: #fff;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: -50%;
+    background:
+      radial-gradient(circle at 30% 30%, rgba(45, 212, 191, 0.18) 0%, transparent 8%),
+      radial-gradient(circle at 70% 60%, rgba(167, 139, 250, 0.15) 0%, transparent 10%),
+      radial-gradient(circle at 50% 80%, rgba(96, 165, 250, 0.12) 0%, transparent 12%);
+    animation: hero-drift 30s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes hero-drift {
+    0% { transform: rotate(0deg) scale(1); }
+    50% { transform: rotate(180deg) scale(1.15); }
+    100% { transform: rotate(360deg) scale(1); }
+  }
+  .hero-inner {
+    position: relative; z-index: 1;
+    max-width: 920px;
+    text-align: center;
+  }
+  .hero .eyebrow {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: rgba(45, 212, 191, 0.1);
+    border: 1px solid rgba(45, 212, 191, 0.3);
+    padding: 8px 16px;
+    border-radius: 99px;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--teal-light);
+    margin-bottom: 32px;
+    backdrop-filter: blur(10px);
+    animation: hero-pop 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) 0.05s both;
+  }
+  .hero .eyebrow .dot {
+    width: 6px; height: 6px;
+    background: var(--teal-light);
+    border-radius: 50%;
+    box-shadow: 0 0 12px var(--teal-light);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.4); }
+  }
+  .hero h1 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(40px, 6vw, 80px);
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+    margin-bottom: 24px;
+    animation: hero-pop 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both;
+  }
+  .hero h1 .grad {
+    background: linear-gradient(135deg, #2dd4bf 0%, #5eead4 30%, #a7f3d0 50%, #5eead4 70%, #2dd4bf 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: grad-shimmer 6s linear infinite;
+  }
+  @keyframes grad-shimmer {
+    0% { background-position: 0% 0%; }
+    100% { background-position: 200% 0%; }
+  }
+  .hero p.sub {
+    font-size: clamp(16px, 2vw, 20px);
+    color: rgba(226, 232, 240, 0.9);
+    max-width: 640px;
+    margin: 0 auto 40px;
+    line-height: 1.55;
+    animation: hero-pop 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.25s both;
+  }
+  .hero-cta {
+    display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
+    animation: hero-pop 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.35s both;
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 26px;
+    border-radius: 99px;
+    font-size: 15px; font-weight: 700;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    position: relative; overflow: hidden;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--teal) 0%, var(--teal-dark) 100%);
+    color: #fff;
+    box-shadow: 0 8px 24px rgba(13, 148, 136, 0.4);
+  }
+  .btn-primary::before {
+    content: '';
+    position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transition: left 0.6s ease;
+  }
+  .btn-primary:hover::before { left: 100%; }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(13, 148, 136, 0.5);
+  }
+  .btn-primary:active { transform: translateY(0) scale(0.98); }
+  .btn-ghost {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+  }
+  .btn-ghost:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.4);
+    transform: translateY(-2px);
+  }
+  .hero-trust {
+    margin-top: 48px;
+    display: flex; gap: 32px; justify-content: center; flex-wrap: wrap;
+    color: rgba(226, 232, 240, 0.6);
+    font-size: 13px;
+    animation: hero-pop 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.5s both;
+  }
+  .hero-trust .item { display: flex; align-items: center; gap: 8px; }
+  .hero-trust .item .check { color: var(--teal-light); font-size: 16px; }
+  @keyframes hero-pop {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* === SECTION COMMON === */
+  .section {
+    padding: 100px 24px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .section-head { text-align: center; margin-bottom: 64px; }
+  .section-head .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    color: var(--teal); font-size: 12px; font-weight: 700;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .section-head .eyebrow::before {
+    content: ''; width: 16px; height: 2px;
+    background: var(--teal); border-radius: 99px;
+  }
+  .section-head h2 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(32px, 4vw, 52px);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+    margin-bottom: 16px;
+    color: var(--text);
+  }
+  .section-head p {
+    font-size: 18px; color: var(--text-muted);
+    max-width: 600px; margin: 0 auto;
+  }
+
+  /* === FOOTER (skeleton for now — Step 5 fills it in) === */
+  .footer {
+    background: var(--navy-deep);
+    color: rgba(226, 232, 240, 0.7);
+    padding: 60px 24px 32px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .footer-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between; gap: 32px;
+    flex-wrap: wrap;
+  }
+  .footer-brand {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .footer-brand img { width: 32px; height: 32px; }
+  .footer-brand .name {
+    font-family: 'Fraunces', serif;
+    font-size: 20px; font-weight: 700; color: #fff;
+  }
+  .footer-brand .name b { color: var(--teal-light); }
+  .footer-links { display: flex; gap: 24px; flex-wrap: wrap; font-size: 13px; }
+  .footer-links a { transition: color 0.12s; }
+  .footer-links a:hover { color: #fff; }
+  .footer-copy {
+    margin-top: 32px; padding-top: 24px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    text-align: center; font-size: 12px;
+    color: rgba(226, 232, 240, 0.4);
+  }
+
+  /* === MOBILE === */
+  @media (max-width: 880px) {
+    .nav-links { display: none; }
+    .nav-login { display: none; }
+    .nav-mobile-toggle {
+      display: flex; flex-direction: column; gap: 5px;
+      padding: 10px; background: rgba(255,255,255,0.08);
+      border-radius: 8px; border: 1px solid rgba(255,255,255,0.15);
+    }
+    .nav.scrolled .nav-mobile-toggle { background: var(--warm); border-color: var(--border); }
+    .nav-mobile-toggle span {
+      width: 22px; height: 2px; background: #fff; border-radius: 99px;
+      transition: background 0.15s;
+    }
+    .nav.scrolled .nav-mobile-toggle span { background: var(--text); }
+    .hero { padding: 100px 20px 60px; }
+    .hero-trust { gap: 16px; font-size: 12px; }
+    .section { padding: 60px 20px; }
+    .footer-inner { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== TOP NAV ===== -->
+<nav class="nav" id="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-brand">
+      <img src="/logo.svg" alt="Afri OS logo">
+      <span class="name">Afri <b>OS</b></span>
+    </a>
+    <div class="nav-links">
+      <a href="#products">Products</a>
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+    </div>
+    <div class="nav-cta">
+      <a href="/crm" class="nav-login">Log in</a>
+      <a href="/crm" class="nav-started">Get started free</a>
+    </div>
+    <button class="nav-mobile-toggle" aria-label="Menu" onclick="document.querySelector('.nav-links').style.display = (document.querySelector('.nav-links').style.display === 'flex' ? 'none' : 'flex')">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- ===== HERO ===== -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="eyebrow">
+      <span class="dot"></span>
+      <span>Afri OS · The operating system for African business</span>
+    </div>
+    <h1>
+      Run your entire business on <span class="grad">one African platform</span>
+    </h1>
+    <p class="sub">
+      Afri OS is the all-in-one operating system for African businesses — CRM, ERP, and more, connected and built for the way you actually work. Sign up in one click with Google, connect Gmail and Calendar instantly, and start closing deals today.
+    </p>
+    <div class="hero-cta">
+      <a href="/crm" class="btn btn-primary">
+        Get started free
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+      </a>
+      <a href="#how" class="btn btn-ghost">
+        See how it works
+      </a>
+    </div>
+    <div class="hero-trust">
+      <div class="item"><span class="check">✓</span> Free forever</div>
+      <div class="item"><span class="check">✓</span> Google SSO sign-up</div>
+      <div class="item"><span class="check">✓</span> One-click Gmail &amp; Calendar</div>
+      <div class="item"><span class="check">✓</span> Mobile responsive</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== PLACEHOLDER for next steps (Step 2-4 will fill in) ===== -->
+
+<!-- ===== FOOTER (Step 5 will expand this) ===== -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <img src="/logo.svg" alt="Afri OS logo">
+      <span class="name">Afri <b>OS</b></span>
+    </div>
+    <div class="footer-links">
+      <a href="/crm">Open CRM</a>
+      <a href="/privacy">Privacy Policy</a>
+      <a href="/terms">Terms of Service</a>
+    </div>
+  </div>
+  <div class="footer-copy">
+    © 2026 Afri OS · Built for African businesses
+  </div>
+</footer>
+
+<script>
+  // Sticky nav background change on scroll
+  (function() {
+    var nav = document.getElementById('nav');
+    var ticking = false;
+    function onScroll() {
+      if (!ticking) {
+        window.requestAnimationFrame(function() {
+          if (window.scrollY > 30) nav.classList.add('scrolled');
+          else nav.classList.remove('scrolled');
+          ticking = false;
+        });
+        ticking = true;
+      }
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+</script>
+
+</body>
+</html>
