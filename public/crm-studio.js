@@ -5458,6 +5458,12 @@
       max-width: 100% !important;
       margin: 0 !important;
       min-height: calc(100vh - var(--m-topbar-h) - var(--m-tabbar-h) - 24px);
+      -webkit-overflow-scrolling: touch;
+      contain: layout style;
+    }
+    [data-shell="mobile"] * {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
 
     /* ===== MOBILE TOP BAR ===== */
@@ -5466,13 +5472,14 @@
       height: var(--m-topbar-h);
       padding: 0 14px;
       padding-top: env(safe-area-inset-top, 0);
-      background: var(--m-surface-elevated);
-      backdrop-filter: blur(20px) saturate(180%);
-      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      background: rgba(255,255,255,0.98);
       border-bottom: 0.5px solid var(--m-border);
       display: flex; align-items: center; justify-content: space-between; gap: 10px;
       box-sizing: border-box;
+      will-change: transform;
+      transform: translateZ(0);
     }
+    [data-theme="dark"] .m-topbar { background: rgba(15,23,42,0.98); }
     .m-icon-btn {
       width: 40px; height: 40px; border-radius: var(--m-radius-sm);
       background: transparent; border: 0;
@@ -5505,13 +5512,14 @@
       height: var(--m-tabbar-h);
       padding: 6px 8px;
       padding-bottom: max(6px, env(safe-area-inset-bottom, 0));
-      background: var(--m-surface-elevated);
-      backdrop-filter: blur(20px) saturate(180%);
-      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      background: rgba(255,255,255,0.98);
       border-top: 0.5px solid var(--m-border);
       display: flex; align-items: stretch; justify-content: space-around;
       box-sizing: border-box;
+      will-change: transform;
+      transform: translateZ(0);
     }
+    [data-theme="dark"] .m-tabbar { background: rgba(15,23,42,0.98); }
     .m-tab {
       flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
       background: transparent; border: 0;
@@ -5802,9 +5810,9 @@
       + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>'
       + '<span>Tasks</span>'
       + '</button>'
-      + '<button class="m-tab" data-tab="profile" onclick="go(\'settings\')">'
-      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4 4-6 8-6s8 2 8 6"/></svg>'
-      + '<span>Profile</span>'
+      + '<button class="m-tab" data-tab="more" onclick="window.__drawMobileMore()">'
+      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>'
+      + '<span>More</span>'
       + '</button>';
     document.body.appendChild(tabbar);
 
@@ -5823,8 +5831,10 @@
         home: 'home', contacts: 'contacts', companies: 'contacts',
         deals: 'deals', opportunities: 'deals',
         tasks: 'tasks', activities: 'tasks',
-        settings: 'profile', integrations: 'profile',
-        calendar: 'home', feed: 'home', forecast: 'home', dashboard: 'home'
+        settings: 'more', integrations: 'more', more: 'more',
+        calendar: 'more', feed: 'more', forecast: 'more',
+        dashboard: 'more', automation: 'more', sequences: 'more',
+        audit: 'more', guide: 'more'
       };
       var tab = map[p] || 'home';
       document.querySelectorAll('.m-tab').forEach(function (t) {
@@ -6033,6 +6043,436 @@
     };
     window.drawHome.__mobileWrapped = true;
   }
+
+  // ============================================================
+  // PHASE 2: Mobile contacts list
+  // ============================================================
+  style.textContent += `
+    .m-contacts-head { padding: 14px 4px 10px; display: flex; align-items: center; gap: 8px; }
+    .m-contacts-head h2 { font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; color: var(--m-text); margin: 0; flex: 1; letter-spacing: -0.02em; }
+    .m-scan-btn { width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #fce7f3, #fbcfe8); color: #9f1239; border: 0; display: grid; place-items: center; cursor: pointer; flex-shrink: 0; }
+    .m-scan-btn:active { transform: scale(0.9); }
+    .m-search-bar { position: sticky; top: calc(var(--m-topbar-h) + 4px); z-index: 5; background: var(--m-bg); padding: 6px 0 10px; }
+    .m-search-bar input { width: 100%; padding: 11px 14px 11px 40px; border-radius: 12px; border: 0.5px solid var(--m-border); background: var(--m-surface); color: var(--m-text); font-size: 14px; font-family: inherit; outline: none; box-sizing: border-box; }
+    [data-theme="dark"] .m-search-bar input { background: var(--m-surface); border-color: var(--m-border); }
+    .m-search-bar { position: relative; }
+    .m-search-bar svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); margin-top: 3px; color: var(--m-text-subtle); pointer-events: none; }
+    .m-contact-list { display: flex; flex-direction: column; gap: 0; background: var(--m-surface); border: 0.5px solid var(--m-border); border-radius: var(--m-radius); overflow: hidden; }
+    .m-contact-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 0.5px solid var(--m-border); cursor: pointer; transition: background 0.1s; }
+    .m-contact-row:last-child { border-bottom: 0; }
+    .m-contact-row:active { background: var(--m-accent-tint); }
+    .m-contact-row .avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
+    .m-contact-row .info { flex: 1; min-width: 0; }
+    .m-contact-row .info b { display: block; font-size: 14px; font-weight: 700; color: var(--m-text); line-height: 1.2; margin-bottom: 2px; }
+    .m-contact-row .info span { display: block; font-size: 12px; color: var(--m-text-muted); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .m-contact-row .actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .m-contact-row .act-btn { width: 32px; height: 32px; border-radius: 8px; border: 0; display: grid; place-items: center; cursor: pointer; }
+    .m-contact-row .act-btn.call { background: #dcfce7; color: #166534; }
+    .m-contact-row .act-btn.email { background: #dbeafe; color: #1e40af; }
+    .m-contact-row .act-btn.wa { background: #d1fae5; color: #065f46; }
+    .m-contact-row .act-btn:active { transform: scale(0.88); }
+    .m-empty { text-align: center; padding: 40px 20px; color: var(--m-text-muted); font-size: 14px; }
+  `;
+  window.__drawMobileContacts = async function () {
+    var view = document.getElementById('view');
+    if (!view) return;
+    var contacts = (bag.contacts || []).slice(0, 50);
+    var colors = ['teal','violet','amber','rose','emerald','blue'];
+    view.innerHTML =
+      '<div class="m-contacts-head">'
+      + '<h2>Contacts</h2>'
+      + '<button class="m-scan-btn" onclick="window.__openScanCard && window.__openScanCard()" aria-label="Scan card"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></button>'
+      + '</div>'
+      + '<div class="m-search-bar">'
+      + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>'
+      + '<input id="mContactSearch" placeholder="Search contacts..." oninput="window.__filterMobileContacts(this.value)">'
+      + '</div>'
+      + '<div id="mContactList" class="m-contact-list">'
+      + (contacts.length > 0 ? contacts.map(function (c, i) {
+          var colorClass = colors[i % colors.length];
+          var initials = ((c.firstName || '').charAt(0) + (c.lastName || '').charAt(0)).toUpperCase() || '?';
+          var name = ((c.firstName || '') + ' ' + (c.lastName || '')).trim() || c.name || 'Unknown';
+          var phone = c.phone || '';
+          var email = c.email || '';
+          return '<div class="m-contact-row" onclick="go(\'contacts\')" data-name="' + esc(name.toLowerCase()) + '">'
+            + '<div class="avatar ' + colorClass + '">' + esc(initials) + '</div>'
+            + '<div class="info"><b>' + esc(name) + '</b><span>' + esc(email || phone || 'No contact info') + '</span></div>'
+            + '<div class="actions">'
+            + (phone ? '<a class="act-btn call" href="tel:' + esc(phone.replace(/[^+0-9]/g, '')) + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.35 1.9.67 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.32 1.85.54 2.81.67A2 2 0 0 1 22 16.92z"/></svg></a>' : '')
+            + (email ? '<a class="act-btn email" href="mailto:' + esc(email) + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg></a>' : '')
+            + (phone ? '<a class="act-btn wa" href="https://wa.me/' + esc(phone.replace(/[^0-9]/g, '').replace(/^0/, '234')) + '" target="_blank"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.77.46 3.44 1.28 4.88L2 22l5.24-1.28A9.93 9.93 0 0 0 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm5 14.5c-.2.5-1.2 1-1.7 1-.5 0-1.1.05-1.8-.3-.4-.2-.9-.4-1.5-.8-1.3-.9-2.2-2.4-2.3-2.5-.1-.1-.5-.7-.5-1.3 0-.6.3-1 .4-1.1.1-.1.2-.2.3-.2.1 0 .15 0 .2.01.1.01.2.01.3.2.1.2.4.8.5.9.1.15.1.3 0 .4-.1.1-.2.2-.3.3-.1.1-.2.2-.1.4.1.2.5 1 1.1 1.6.8.7 1.4 1 1.6 1.1.2.1.3.1.4-.1.1-.2.5-.5.6-.7.1-.2.2-.2.4-.1.2.1 1 .5 1.2.6.2.1.3.1.3.2.1.1.1.3 0 .5z"/></svg></a>' : '')
+            + '</div>'
+            + '</div>';
+        }).join('') : '<div class="m-empty">No contacts yet.<br>Tap the + button to add one,<br>or scan a business card.</div>')
+      + '</div>';
+  };
+  window.__filterMobileContacts = function (q) {
+    q = (q || '').toLowerCase();
+    document.querySelectorAll('.m-contact-row').forEach(function (row) {
+      var name = row.dataset.name || '';
+      row.style.display = (!q || name.indexOf(q) >= 0) ? 'flex' : 'none';
+    });
+  };
+  var origDrawContacts = window.drawContacts;
+  if (typeof origDrawContacts === 'function' && !origDrawContacts.__mobileWrapped) {
+    window.drawContacts = function () {
+      if (window.__afriMobile) return window.__drawMobileContacts();
+      return origDrawContacts.apply(this, arguments);
+    };
+    window.drawContacts.__mobileWrapped = true;
+  }
+
+  // ============================================================
+  // PHASE 3: Mobile deals board
+  // ============================================================
+  style.textContent += `
+    .m-deals-head { padding: 14px 4px 10px; }
+    .m-deals-head h2 { font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; color: var(--m-text); margin: 0; letter-spacing: -0.02em; }
+    .m-deals-head p { font-size: 13px; color: var(--m-text-muted); margin: 4px 0 0; }
+    .m-stage-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 8px 0 12px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .m-stage-tabs::-webkit-scrollbar { display: none; }
+    .m-stage-tab { padding: 7px 14px; border-radius: 99px; background: var(--m-surface); border: 0.5px solid var(--m-border); color: var(--m-text-muted); font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: all 0.15s; }
+    .m-stage-tab:active { transform: scale(0.93); }
+    .m-stage-tab.on { background: var(--m-accent); color: #fff; border-color: var(--m-accent); }
+    .m-deal-card { background: var(--m-surface); border: 0.5px solid var(--m-border); border-radius: var(--m-radius); padding: 14px; margin-bottom: 8px; cursor: pointer; box-shadow: var(--m-shadow); }
+    .m-deal-card:active { transform: scale(0.98); }
+    .m-deal-card .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+    .m-deal-card .name { font-size: 14px; font-weight: 700; color: var(--m-text); line-height: 1.3; flex: 1; }
+    .m-deal-card .amount { font-family: 'Fraunces', serif; font-size: 18px; font-weight: 800; color: var(--m-accent); white-space: nowrap; letter-spacing: -0.02em; }
+    .m-deal-card .meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--m-text-muted); }
+    .m-deal-card .stage-badge { padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+    .m-deal-card .stage-badge.new { background: #dbeafe; color: #1e40af; }
+    .m-deal-card .stage-badge.qualified { background: #fef3c7; color: #92400e; }
+    .m-deal-card .stage-badge.proposal { background: #ede9fe; color: #5b21b6; }
+    .m-deal-card .stage-badge.negotiation { background: #fce7f3; color: #9f1239; }
+    .m-deal-card .stage-badge.won { background: #dcfce7; color: #166534; }
+    .m-deal-card .stage-badge.lost { background: #fee2e2; color: #991b1b; }
+  `;
+  window.__drawMobileDeals = async function () {
+    var view = document.getElementById('view');
+    if (!view) return;
+    var deals = (bag.deals || []).slice(0, 30);
+    var stages = ['NEW','QUALIFICATION','PROPOSAL','NEGOTIATION','WON','LOST'];
+    var stageLabels = { NEW: 'New', QUALIFICATION: 'Qualified', PROPOSAL: 'Proposal', NEGOTIATION: 'Negotiation', WON: 'Won', LOST: 'Lost' };
+    var currentStage = 'all';
+    view.innerHTML =
+      '<div class="m-deals-head">'
+      + '<h2>Deals</h2>'
+      + '<p>' + deals.length + ' deals · ₦' + (deals.reduce(function(s,d){return s + (d.amount||0)},0)/1000000).toFixed(1) + 'M pipeline</p>'
+      + '</div>'
+      + '<div class="m-stage-tabs" id="mStageTabs">'
+      + '<button class="m-stage-tab on" onclick="window.__filterMobileDeals(\'all\', this)">All</button>'
+      + stages.map(function(s) { return '<button class="m-stage-tab" onclick="window.__filterMobileDeals(\'' + s + '\', this)">' + (stageLabels[s]||s) + '</button>'; }).join('')
+      + '</div>'
+      + '<div id="mDealList">'
+      + (deals.length > 0 ? deals.map(function (d) {
+          var stage = d.stage || 'NEW';
+          var stageClass = stage.toLowerCase().replace(/[^a-z]/g, '');
+          return '<div class="m-deal-card" data-stage="' + esc(stage) + '" onclick="go(\'deals\')">'
+            + '<div class="top">'
+            + '<div class="name">' + esc(d.name || 'Untitled deal') + '</div>'
+            + '<div class="amount">₦' + (Number(d.amount || 0) / 1000).toFixed(0) + 'K</div>'
+            + '</div>'
+            + '<div class="meta">'
+            + '<span class="stage-badge ' + stageClass + '">' + esc(stageLabels[stage] || stage) + '</span>'
+            + (d.closeDate ? '<span>· ' + new Date(d.closeDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + '</span>' : '')
+            + '</div>'
+            + '</div>';
+        }).join('') : '<div class="m-empty">No deals yet.<br>Tap the + button to create one.</div>')
+      + '</div>';
+  };
+  window.__filterMobileDeals = function (stage, btn) {
+    document.querySelectorAll('.m-stage-tab').forEach(function (t) { t.classList.remove('on'); });
+    if (btn) btn.classList.add('on');
+    document.querySelectorAll('.m-deal-card').forEach(function (card) {
+      card.style.display = (stage === 'all' || card.dataset.stage === stage) ? 'block' : 'none';
+    });
+  };
+  var origDrawDeals = window.drawDeals;
+  if (typeof origDrawDeals === 'function' && !origDrawDeals.__mobileWrapped) {
+    window.drawDeals = function () {
+      if (window.__afriMobile) return window.__drawMobileDeals();
+      return origDrawDeals.apply(this, arguments);
+    };
+    window.drawDeals.__mobileWrapped = true;
+  }
+
+  // ============================================================
+  // PHASE 4: Mobile tasks
+  // ============================================================
+  style.textContent += `
+    .m-tasks-head { padding: 14px 4px 10px; }
+    .m-tasks-head h2 { font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; color: var(--m-text); margin: 0; letter-spacing: -0.02em; }
+    .m-tasks-head p { font-size: 13px; color: var(--m-text-muted); margin: 4px 0 0; }
+    .m-task-section { margin-bottom: 16px; }
+    .m-task-section h3 { font-size: 12px; font-weight: 700; color: var(--m-text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 8px 4px; }
+    .m-task-list { background: var(--m-surface); border: 0.5px solid var(--m-border); border-radius: var(--m-radius); overflow: hidden; }
+    .m-task-row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 0.5px solid var(--m-border); cursor: pointer; }
+    .m-task-row:last-child { border-bottom: 0; }
+    .m-task-row:active { background: var(--m-accent-tint); }
+    .m-task-row.overdue { border-left: 3px solid #ef4444; }
+    .m-task-row.done { opacity: 0.5; }
+    .m-task-row.done .title { text-decoration: line-through; }
+    .m-task-check { width: 24px; height: 24px; border-radius: 6px; border: 2px solid var(--m-border-strong); flex-shrink: 0; display: grid; place-items: center; cursor: pointer; transition: all 0.15s; }
+    .m-task-check:active { transform: scale(0.85); }
+    .m-task-check.done { background: var(--m-accent); border-color: var(--m-accent); color: #fff; }
+    .m-task-check.done svg { display: block; }
+    .m-task-check svg { display: none; }
+    .m-task-info { flex: 1; min-width: 0; }
+    .m-task-info .title { font-size: 14px; font-weight: 600; color: var(--m-text); line-height: 1.3; }
+    .m-task-info .meta { font-size: 11px; color: var(--m-text-muted); margin-top: 2px; }
+    .m-task-info .meta .due { color: #ef4444; font-weight: 600; }
+  `;
+  window.__drawMobileTasks = async function () {
+    var view = document.getElementById('view');
+    if (!view) return;
+    var tasks = (bag.activities || []).filter(function (a) { return a.type === 'TASK' || a.type === 'TODO' || a.type === 'CALL' || a.type === 'MEETING'; }).slice(0, 30);
+    var today = new Date().toISOString().slice(0, 10);
+    var overdue = tasks.filter(function (t) { return t.dueAt && t.dueAt < today && t.status !== 'HELD' && t.status !== 'DONE'; });
+    var todayTasks = tasks.filter(function (t) { return t.dueAt === today && t.status !== 'HELD' && t.status !== 'DONE'; });
+    var upcoming = tasks.filter(function (t) { return t.dueAt && t.dueAt > today && t.status !== 'HELD' && t.status !== 'DONE'; }).slice(0, 5);
+    function renderTaskRow(t) {
+      var done = t.status === 'HELD' || t.status === 'DONE';
+      var isOverdue = t.dueAt && t.dueAt < today && !done;
+      return '<div class="m-task-row' + (done ? ' done' : '') + (isOverdue ? ' overdue' : '') + '">'
+        + '<div class="m-task-check' + (done ? ' done' : '') + '" onclick="window.__toggleMobileTask(this)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>'
+        + '<div class="m-task-info"><div class="title">' + esc(t.subject || t.notes || 'Untitled task') + '</div>'
+        + '<div class="meta">' + (t.dueAt ? '<span class="' + (isOverdue ? 'due' : '') + '">' + (isOverdue ? 'Overdue' : 'Due') + ': ' + new Date(t.dueAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + '</span>' : 'No due date') + '</div></div>'
+        + '</div>';
+    }
+    view.innerHTML =
+      '<div class="m-tasks-head">'
+      + '<h2>Tasks</h2>'
+      + '<p>' + (overdue.length + todayTasks.length) + ' due today · ' + overdue.length + ' overdue</p>'
+      + '</div>'
+      + (overdue.length > 0 ? '<div class="m-task-section"><h3>Overdue</h3><div class="m-task-list">' + overdue.map(renderTaskRow).join('') + '</div></div>' : '')
+      + (todayTasks.length > 0 ? '<div class="m-task-section"><h3>Today</h3><div class="m-task-list">' + todayTasks.map(renderTaskRow).join('') + '</div></div>' : '')
+      + (upcoming.length > 0 ? '<div class="m-task-section"><h3>Upcoming</h3><div class="m-task-list">' + upcoming.map(renderTaskRow).join('') + '</div></div>' : '')
+      + (overdue.length + todayTasks.length + upcoming.length === 0 ? '<div class="m-empty">No tasks.<br>Tap the + button to create one.</div>' : '');
+  };
+  window.__toggleMobileTask = function (check) {
+    var row = check.parentElement;
+    if (check.classList.contains('done')) {
+      check.classList.remove('done'); row.classList.remove('done');
+    } else {
+      check.classList.add('done'); row.classList.add('done');
+      if (navigator.vibrate) navigator.vibrate(10);
+    }
+  };
+  var origDrawTasks = window.drawTasks;
+  if (typeof origDrawTasks === 'function' && !origDrawTasks.__mobileWrapped) {
+    window.drawTasks = function () {
+      if (window.__afriMobile) return window.__drawMobileTasks();
+      return origDrawTasks.apply(this, arguments);
+    };
+    window.drawTasks.__mobileWrapped = true;
+  }
+
+  // ============================================================
+  // PHASE 5: Mobile profile + settings
+  // ============================================================
+  style.textContent += `
+    .m-profile-head { padding: 20px 4px 16px; text-align: center; }
+    .m-profile-avatar { width: 72px; height: 72px; border-radius: 50%; margin: 0 auto 12px; background: linear-gradient(135deg, #0d9488, #0f766e); display: grid; place-items: center; color: #fff; font-family: 'Fraunces', serif; font-size: 28px; font-weight: 800; }
+    .m-profile-head h2 { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 700; color: var(--m-text); margin: 0 0 4px; }
+    .m-profile-head p { font-size: 13px; color: var(--m-text-muted); margin: 0; }
+    .m-profile-head .ws { font-size: 12px; color: var(--m-accent); font-weight: 600; margin-top: 8px; }
+    .m-settings-section { margin-bottom: 16px; }
+    .m-settings-section h3 { font-size: 12px; font-weight: 700; color: var(--m-text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 8px 4px; }
+    .m-settings-list { background: var(--m-surface); border: 0.5px solid var(--m-border); border-radius: var(--m-radius); overflow: hidden; }
+    .m-settings-row { display: flex; align-items: center; gap: 12px; padding: 14px; border-bottom: 0.5px solid var(--m-border); cursor: pointer; }
+    .m-settings-row:last-child { border-bottom: 0; }
+    .m-settings-row:active { background: var(--m-accent-tint); }
+    .m-settings-row .ico { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0; }
+    .m-settings-row .ico.teal { background: #ccfbf1; color: #0f766e; }
+    .m-settings-row .ico.violet { background: #ede9fe; color: #5b21b6; }
+    .m-settings-row .ico.amber { background: #fef3c7; color: #92400e; }
+    .m-settings-row .ico.rose { background: #fce7f3; color: #9f1239; }
+    .m-settings-row .ico.blue { background: #dbeafe; color: #1e40af; }
+    .m-settings-row .label { flex: 1; font-size: 14px; font-weight: 600; color: var(--m-text); }
+    .m-settings-row .value { font-size: 12px; color: var(--m-text-muted); }
+    .m-settings-row .arrow { color: var(--m-text-subtle); font-size: 18px; }
+    .m-integration-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; }
+    .m-integration-badge.on { background: #dcfce7; color: #166534; }
+    .m-integration-badge.off { background: #f1f5f9; color: #64748b; }
+    .m-signout-btn { display: block; width: 100%; padding: 14px; border-radius: var(--m-radius); background: #fee2e2; color: #991b1b; border: 0; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 16px; }
+    .m-signout-btn:active { transform: scale(0.97); }
+  `;
+  window.__drawMobileProfile = async function () {
+    var view = document.getElementById('view');
+    if (!view) return;
+    var name = (me && me.fullName) || 'User';
+    var email = (me && me.email) || '';
+    var company = (me && me.company) || 'Afri CRM';
+    var initials = name.split(' ').map(function(w){return w.charAt(0)}).join('').toUpperCase().slice(0,2);
+    view.innerHTML =
+      '<div class="m-profile-head">'
+      + '<div class="m-profile-avatar">' + esc(initials) + '</div>'
+      + '<h2>' + esc(name) + '</h2>'
+      + '<p>' + esc(email) + '</p>'
+      + '<div class="ws">' + esc(company) + '</div>'
+      + '</div>'
+      + '<div class="m-settings-section">'
+      + '<h3>Integrations</h3>'
+      + '<div class="m-settings-list">'
+      + '<div class="m-settings-row" onclick="go(\'integrations\')"><div class="ico teal"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg></div><div class="label">Gmail</div><span class="m-integration-badge ' + (window.__ssoCalendarConnected ? 'on' : 'off') + '">' + (window.__ssoCalendarConnected ? 'Connected' : 'Off') + '</span></div>'
+      + '<div class="m-settings-row" onclick="go(\'integrations\')"><div class="ico violet"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg></div><div class="label">Calendar</div><span class="m-integration-badge ' + (window.__ssoCalendarConnected ? 'on' : 'off') + '">' + (window.__ssoCalendarConnected ? 'Connected' : 'Off') + '</span></div>'
+      + '<div class="m-settings-row" onclick="go(\'integrations\')"><div class="ico blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M9 22h6"/></svg></div><div class="label">Mobile app</div><span class="value">PWA</span></div>'
+      + '</div>'
+      + '</div>'
+      + '<div class="m-settings-section">'
+      + '<h3>Preferences</h3>'
+      + '<div class="m-settings-list">'
+      + '<div class="m-settings-row" onclick="go(\'settings\')"><div class="ico amber"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2"/></svg></div><div class="label">Workspace</div><div class="arrow">›</div></div>'
+      + '<div class="m-settings-row" onclick="go(\'settings\')"><div class="ico rose"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4 4-6 8-6s8 2 8 6"/></svg></div><div class="label">Team</div><div class="arrow">›</div></div>'
+      + '<div class="m-settings-row" onclick="go(\'settings\')"><div class="ico violet"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 3 7v5c0 5 3.5 7.5 8 9 4.5-1.5 8-4 8-9V7z"/></svg></div><div class="label">Permissions</div><div class="arrow">›</div></div>'
+      + '<div class="m-settings-row" onclick="window.__setTheme(document.documentElement.getAttribute(\'data-theme\') === \'dark\' ? \'light\' : \'dark\')"><div class="ico blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div><div class="label">Dark mode</div><div class="arrow">›</div></div>'
+      + '</div>'
+      + '</div>'
+      + '<div class="m-settings-section">'
+      + '<h3>Account</h3>'
+      + '<div class="m-settings-list">'
+      + '<div class="m-settings-row" onclick="go(\'settings\')"><div class="ico teal"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div><div class="label">Sessions</div><div class="arrow">›</div></div>'
+      + '<div class="m-settings-row" onclick="go(\'integrations\')"><div class="ico amber"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg></div><div class="label">API keys</div><div class="arrow">›</div></div>'
+      + '</div>'
+      + '</div>'
+      + '<button class="m-signout-btn" onclick="logout()">Sign out</button>';
+  };
+
+  // ============================================================
+  // PHASE 6: Mobile "More" page (replaces Profile tab)
+  // ============================================================
+  style.textContent += `
+    .m-more-head { padding: 14px 4px 10px; }
+    .m-more-head h2 { font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; color: var(--m-text); margin: 0; letter-spacing: -0.02em; }
+    .m-more-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+    .m-more-item { background: var(--m-surface); border: 0.5px solid var(--m-border); border-radius: var(--m-radius); padding: 16px 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; transition: transform 0.12s; }
+    .m-more-item:active { transform: scale(0.93); }
+    .m-more-item .ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; }
+    .m-more-item span { font-size: 11px; font-weight: 600; color: var(--m-text); text-align: center; }
+    .m-more-section h3 { font-size: 12px; font-weight: 700; color: var(--m-text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 10px 4px; }
+    .m-more-section { margin-bottom: 20px; }
+  `;
+  window.__drawMobileMore = function () {
+    var view = document.getElementById('view');
+    if (!view) return;
+    document.querySelectorAll('.m-tab').forEach(function (t) { t.classList.toggle('on', t.dataset.tab === 'more'); });
+    window.page = 'more';
+    view.innerHTML =
+      '<div class="m-more-head"><h2>More</h2></div>'
+      + '<div class="m-more-section">'
+      + '<h3>Sales</h3>'
+      + '<div class="m-more-grid">'
+      + '<div class="m-more-item" onclick="go(\'contacts\')"><div class="ico" style="background:linear-gradient(135deg,#ccfbf1,#99f6e4);color:#0f766e"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 22c0-5 4-7 6-7s6 2 6 7"/><circle cx="9" cy="8" r="4"/></svg></div><span>Companies</span></div>'
+      + '<div class="m-more-item" onclick="go(\'deals\')"><div class="ico" style="background:linear-gradient(135deg,#dbeafe,#bfdbfe);color:#1e40af"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l3-3 4 4 6-6"/></svg></div><span>Opportunities</span></div>'
+      + '<div class="m-more-item" onclick="go(\'calendar\')"><div class="ico" style="background:linear-gradient(135deg,#fef3c7,#fde68a);color:#92400e"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg></div><span>Calendar</span></div>'
+      + '<div class="m-more-item" onclick="go(\'feed\')"><div class="ico" style="background:linear-gradient(135deg,#fce7f3,#fbcfe8);color:#9f1239"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg></div><span>Activity</span></div>'
+      + '<div class="m-more-item" onclick="go(\'forecast\')"><div class="ico" style="background:linear-gradient(135deg,#ede9fe,#ddd6fe);color:#5b21b6"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg></div><span>Forecast</span></div>'
+      + '<div class="m-more-item" onclick="go(\'sequences\')"><div class="ico" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0);color:#065f46"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/></svg></div><span>Sequences</span></div>'
+      + '</div>'
+      + '</div>'
+      + '<div class="m-more-section">'
+      + '<h3>Platform</h3>'
+      + '<div class="m-more-grid">'
+      + '<div class="m-more-item" onclick="go(\'dashboard\')"><div class="ico" style="background:linear-gradient(135deg,#ccfbf1,#99f6e4);color:#0f766e"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg></div><span>Dashboard</span></div>'
+      + '<div class="m-more-item" onclick="go(\'automation\')"><div class="ico" style="background:linear-gradient(135deg,#fef3c7,#fde68a);color:#92400e"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h8l-1 8 10-12h-8z"/></svg></div><span>Automation</span></div>'
+      + '<div class="m-more-item" onclick="go(\'integrations\')"><div class="ico" style="background:linear-gradient(135deg,#dbeafe,#bfdbfe);color:#1e40af"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><span>Integrations</span></div>'
+      + '</div>'
+      + '</div>'
+      + '<div class="m-more-section">'
+      + '<h3>Data</h3>'
+      + '<div class="m-more-grid">'
+      + '<div class="m-more-item" onclick="go(\'settings\')"><div class="ico" style="background:linear-gradient(135deg,#fce7f3,#fbcfe8);color:#9f1239"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="4"/><path d="M3 22c0-5 4-7 6-7s6 2 6 7"/></svg></div><span>People</span></div>'
+      + '<div class="m-more-item" onclick="go(\'settings\')"><div class="ico" style="background:linear-gradient(135deg,#ede9fe,#ddd6fe);color:#5b21b6"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 4 6v6c0 5 3 7 8 9 5-2 8-4 8-9V6z"/></svg></div><span>Pipeline</span></div>'
+      + '<div class="m-more-item" onclick="go(\'audit\')"><div class="ico" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0);color:#065f46"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg></div><span>Audit log</span></div>'
+      + '</div>'
+      + '</div>'
+      // Profile section at bottom of More page
+      + '<div class="m-more-section">'
+      + '<h3>Profile</h3>'
+      + '<div id="mProfileContent"></div>'
+      + '</div>';
+    // Load profile content into the div
+    setTimeout(function () {
+      var pc = document.getElementById('mProfileContent');
+      if (pc && window.__drawMobileProfile) {
+        // Temporarily move the view to the profile div
+        var realView = document.getElementById('view');
+        if (realView) {
+          // Call the profile renderer and move its output
+          var saved = realView.innerHTML;
+          window.__drawMobileProfile();
+          var profileHTML = realView.innerHTML;
+          realView.innerHTML = saved;
+          pc.innerHTML = profileHTML.replace(/^<div class="m-profile-head"/, '<div class="m-profile-head" style="padding-top:0"');
+        }
+      }
+    }, 100);
+  };
+
+  // ============================================================
+  // PHASE 7: Mobile-native features (haptics, pull-to-refresh)
+  // ============================================================
+  // Add haptic feedback to all buttons on mobile
+  (function () {
+    if (!window.__afriMobile) return;
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('button, .m-tab, .m-contact-row, .m-deal-card, .m-task-row, .m-more-item, .m-quick-action')) {
+        if (navigator.vibrate) navigator.vibrate(8);
+      }
+    }, true);
+  })();
+
+  // Pull-to-refresh (simulated)
+  style.textContent += `
+    .m-ptr { position: fixed; top: var(--m-topbar-h); left: 0; right: 0; height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--m-bg); z-index: 80; transition: height 0.2s; }
+    .m-ptr.on { height: 44px; }
+    .m-ptr svg { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+  `;
+  (function () {
+    if (!window.__afriMobile) return;
+    var ptr = document.createElement('div');
+    ptr.id = 'mPtr';
+    ptr.className = 'm-ptr';
+    ptr.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--m-accent)" stroke-width="2" style="display:none"><path d="M21 12a9 9 0 1 1-6.2-8.55"/></svg>';
+    document.body.appendChild(ptr);
+    var startY = 0, pulling = false;
+    document.addEventListener('touchstart', function (e) {
+      if (window.scrollY === 0) {
+        startY = e.touches[0].clientY;
+        pulling = true;
+      }
+    }, { passive: true });
+    document.addEventListener('touchmove', function (e) {
+      if (pulling && window.scrollY === 0) {
+        var diff = e.touches[0].clientY - startY;
+        if (diff > 60 && diff < 120) {
+          ptr.classList.add('on');
+          ptr.querySelector('svg').style.display = 'block';
+        }
+      }
+    }, { passive: true });
+    document.addEventListener('touchend', function () {
+      if (ptr.classList.contains('on')) {
+        // Refresh: reload the current page
+        setTimeout(function () {
+          ptr.classList.remove('on');
+          ptr.querySelector('svg').style.display = 'none';
+          if (window.__afriMobile) {
+            var p = window.page || 'home';
+            if (p === 'home' && window.__drawMobileHome) window.__drawMobileHome();
+            else if (p === 'contacts' && window.__drawMobileContacts) window.__drawMobileContacts();
+            else if (p === 'deals' && window.__drawMobileDeals) window.__drawMobileDeals();
+            else if (p === 'tasks' && window.__drawMobileTasks) window.__drawMobileTasks();
+            else if (p === 'more' && window.__drawMobileMore) window.__drawMobileMore();
+          }
+          if (navigator.vibrate) navigator.vibrate(20);
+        }, 800);
+      }
+      pulling = false;
+    }, { passive: true });
+  })();
 
   // Inject mobile shell as early as possible — no setTimeout delays
   if (document.readyState === 'loading') {
