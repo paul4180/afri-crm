@@ -1165,35 +1165,35 @@ export function registerCrm(app, prisma) {
   });
   app.get('/crm/api/connect/google/callback', async (req, reply) => {
     const data = readState(req.query.state);
-    if (!data || !req.query.code) return reply.redirect('/crm?tool=failed');
+    if (!data || !req.query.code) return reply.redirect('/crm?tool=failed&page=integrations');
     const origin = originOf(req);
     const creds = appCreds(data.tenantId, 'google');
-    if (!creds) return reply.redirect('/crm?tool=failed');
+    if (!creds) return reply.redirect('/crm?tool=failed&page=integrations');
     const res = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({
       code: req.query.code, client_id: creds.id, client_secret: creds.secret,
       redirect_uri: origin + '/crm/api/connect/google/callback', grant_type: 'authorization_code',
     }) });
     const tokens = await res.json().catch(() => ({}));
-    if (!tokens.access_token) return reply.redirect('/crm?tool=failed');
+    if (!tokens.access_token) return reply.redirect('/crm?tool=failed&page=integrations');
     const profile = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers: { Authorization: 'Bearer ' + tokens.access_token } }).then((r) => r.json()).catch(() => ({}));
     saveConnection(data.tenantId, data.provider, profile.email, tokens);
-    return reply.redirect('/crm?tool=' + data.provider);
+    return reply.redirect('/crm?tool=' + data.provider + '&page=integrations');
   });
   app.get('/crm/api/connect/microsoft/callback', async (req, reply) => {
     const data = readState(req.query.state);
-    if (!data || !req.query.code) return reply.redirect('/crm?tool=failed');
+    if (!data || !req.query.code) return reply.redirect('/crm?tool=failed&page=integrations');
     const origin = originOf(req);
     const creds = appCreds(data.tenantId, 'microsoft');
-    if (!creds) return reply.redirect('/crm?tool=failed');
+    if (!creds) return reply.redirect('/crm?tool=failed&page=integrations');
     const res = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({
       code: req.query.code, client_id: creds.id, client_secret: creds.secret,
       redirect_uri: origin + '/crm/api/connect/microsoft/callback', grant_type: 'authorization_code',
     }) });
     const tokens = await res.json().catch(() => ({}));
-    if (!tokens.access_token) return reply.redirect('/crm?tool=failed');
+    if (!tokens.access_token) return reply.redirect('/crm?tool=failed&page=integrations');
     const profile = await fetch('https://graph.microsoft.com/v1.0/me', { headers: { Authorization: 'Bearer ' + tokens.access_token } }).then((r) => r.json()).catch(() => ({}));
     saveConnection(data.tenantId, 'outlook', profile.mail || profile.userPrincipalName, tokens);
-    return reply.redirect('/crm?tool=outlook');
+    return reply.redirect('/crm?tool=outlook&page=integrations');
   });
   app.get('/crm/api/day', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
