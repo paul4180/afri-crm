@@ -1010,13 +1010,20 @@ export function registerCrm(app, prisma) {
     const creds = appCreds(null, 'google');
     if (!creds || !creds.id) return reply.redirect('/crm?sso=failed&reason=no_google');
     const state = signState({ flow: 'sso', provider: 'google' });
+    // Pattern A: Combined consent — request identity AND calendar.readonly in one OAuth flow.
+    // - access_type=offline: requests a refresh_token so we can fetch calendar events later
+    // - prompt=consent: forces Google to ALWAYS return a refresh_token (even if user has authorized before)
+    //   This means the consent screen shows on every Google SSO login — slight UX cost but guarantees
+    //   we have working tokens. HubSpot does this too.
+    // - scope: identity (openid email profile) + calendar.readonly (sensitive scope)
+    // After consent, the callback creates the user account AND saves calendar tokens automatically.
     const url = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({
       client_id: creds.id,
       redirect_uri: origin + '/crm/api/sso/google/callback',
       response_type: 'code',
-      access_type: 'online',
-      prompt: 'select_account',
-      scope: 'openid email profile',
+      access_type: 'offline',
+      prompt: 'consent',
+      scope: 'openid email profile https://www.googleapis.com/auth/calendar.readonly',
       state,
     });
     return reply.redirect(url);
@@ -1038,6 +1045,9 @@ export function registerCrm(app, prisma) {
     if (!profile.email) return reply.redirect('/crm?sso=failed&reason=no_email');
     const email = profile.email.toLowerCase();
     const fullName = profile.name || profile.given_name || email.split('@')[0];
+    // Detect if calendar scope was actually granted (user could deny it on consent screen)
+    const scopeGranted = String(tokens.scope || '');
+    const calendarGranted = scopeGranted.includes('calendar.readonly');
     // Look up existing user by email
     let account = db.prepare('SELECT * FROM crm_accounts WHERE email = ?').get(email);
     let isNew = false;
@@ -1058,9 +1068,17 @@ export function registerCrm(app, prisma) {
     } else if (Number(account.active) === 0) {
       return reply.redirect('/crm?sso=failed&reason=inactive');
     }
+    // Pattern A: Save calendar connection automatically — user already granted calendar scope during SSO consent.
+    // This is the magic moment — calendar is connected the moment they sign up, no separate Connect step needed.
+    if (calendarGranted && tokens.refresh_token) {
+      saveConnection(account.workspaceId, 'calendar', email, tokens);
+      writeAudit(account.workspaceId, account.id, 'connect', 'calendar', '', 'SSO auto-connect: ' + email);
+    }
     const accessToken = openSession(app, account, req);
     writeAudit(account.workspaceId, account.id, 'login', 'account', account.id, 'SSO Google: ' + email);
-    return reply.redirect('/crm?t=' + encodeURIComponent(accessToken) + (isNew ? '&sso=new' : '&sso=in'));
+    // Pass calendar status to frontend via query param so wizard + home dashboard can react
+    const calendarParam = calendarGranted ? '&cal=1' : '&cal=0';
+    return reply.redirect('/crm?t=' + encodeURIComponent(accessToken) + (isNew ? '&sso=new' : '&sso=in') + calendarParam);
   });
   app.get('/crm/api/notifications', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;

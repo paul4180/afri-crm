@@ -2447,14 +2447,27 @@
       if (current) {
         if (current.key === 'connect_inbox') {
           // Special render: connection action buttons + skip
-          const actions = (current.actions || []).map((a) => {
+          // Pattern A: If user came from Google SSO with calendar auto-connected, hide the Calendar button
+          // and show a "Calendar connected ✓" badge instead
+          const calendarAlreadyConnected = window.__ssoCalendarConnected === true;
+          let actions = (current.actions || []).filter(function(a) {
+            // Skip calendar button if already connected via SSO
+            if (a.provider === 'calendar' && calendarAlreadyConnected) return false;
+            return true;
+          }).map((a) => {
             const colorAttr = a.color ? ` data-color="${a.color}"` : '';
             return `<button type="button" class="wizard-choice"${colorAttr} onclick="window.__wizardConnectInbox('${a.provider}')">
               <div class="ico">${a.ico}</div>
               <div class="label"><b>${esc(a.label)}</b><span>${esc(a.hint)}</span></div>
             </button>`;
           }).join('');
-          body = `<div class="wizard-body-anim"><h2>${esc(current.question)}</h2><p class="wizard-sub">${esc(current.sub)}</p><div class="wizard-choices">${actions}</div></div>`;
+          // Add a "Calendar connected" celebration card if calendar was auto-connected
+          const calendarCard = calendarAlreadyConnected ? `
+            <div class="wizard-choice on" data-color="emerald" style="cursor:default;pointer-events:none">
+              <div class="ico">📅</div>
+              <div class="label"><b>Google Calendar connected</b><span>Your meetings will appear on the home dashboard</span></div>
+            </div>` : '';
+          body = `<div class="wizard-body-anim"><h2>${esc(current.question)}</h2><p class="wizard-sub">${esc(current.sub)}</p><div class="wizard-choices">${calendarCard}${actions}</div></div>`;
         } else {
           body = `<div class="wizard-body-anim"><h2>${esc(current.question)}</h2><p class="wizard-sub">${esc(current.sub)}</p><div class="wizard-choices">${choices}</div></div>`;
         }
@@ -4696,23 +4709,55 @@
     .integration-prompt .dismiss { background: transparent; color: #94a3b8; padding: 4px; border: 0; font-size: 16px; cursor: pointer; }
   `;
 
-  // Show integration prompts on relevant pages
+  // Show integration prompts OR today's meetings on home page (depending on connection state)
   var origDrawHome2 = (typeof drawHome === 'function' && !drawHome.__ip) ? drawHome : null;
   if (origDrawHome2) {
-    drawHome = function () {
+    drawHome = async function () {
       origDrawHome2();
-      setTimeout(function () {
-        if (localStorage.getItem('afri.prompt.gmail')) return;
+      setTimeout(async function () {
         var view = document.getElementById('view');
         if (!view) return;
-        var prompt = document.createElement('div');
-        prompt.className = 'integration-prompt';
-        prompt.innerHTML =
-          '<div class="prompt-ico">📅</div>' +
-          '<div class="prompt-text"><b>Connect your calendar</b><br>See your meetings and tasks on your Google or Outlook calendar.</div>' +
-          '<button onclick="go(\'settings\')">Connect</button>' +
-          '<button class="dismiss" onclick="this.parentElement.remove();localStorage.setItem(\'afri.prompt.gmail\',\'1\')">×</button>';
-        view.insertBefore(prompt, view.firstChild);
+        // Try to fetch today's meetings via the /crm/api/day endpoint (uses calendar connection)
+        var day = null;
+        try { day = await api('/crm/api/day'); } catch (e) { day = null; }
+        if (day && day.events && day.events.length > 0) {
+          // Calendar is connected AND user has meetings today — show today's meetings card
+          var eventsHtml = day.events.map(function(e) {
+            var time = e.when ? new Date(e.when).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+            return '<div style="display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #f1f5f9"><span style="font-size:16px">📅</span><div style="flex:1"><b style="font-size:13px;color:#0f172a;display:block">' + esc(e.title) + '</b>' + (time ? '<span style="font-size:11px;color:#64748b">' + time + '</span>' : '') + '</div></div>';
+          }).join('');
+          var card = document.createElement('div');
+          card.className = 'integration-prompt';
+          card.style.background = 'linear-gradient(135deg, #ecfdf5, #f0fdfa)';
+          card.style.borderColor = '#99f6e4';
+          card.innerHTML =
+            '<div class="prompt-ico">📅</div>' +
+            '<div class="prompt-text"><b>Today\'s meetings</b><br>From your connected Google Calendar</div>' +
+            '<div style="flex:1;min-width:0;margin:0 16px">' + eventsHtml + '</div>' +
+            '<button class="dismiss" onclick="this.parentElement.remove()" style="font-size:18px">×</button>';
+          view.insertBefore(card, view.firstChild);
+        } else if (day && day.events && day.events.length === 0 && window.__ssoCalendarConnected) {
+          // Calendar connected but no meetings today — show a welcome state
+          var card = document.createElement('div');
+          card.className = 'integration-prompt';
+          card.style.background = 'linear-gradient(135deg, #ecfdf5, #f0fdfa)';
+          card.style.borderColor = '#99f6e4';
+          card.innerHTML =
+            '<div class="prompt-ico">📅</div>' +
+            '<div class="prompt-text"><b>Google Calendar connected</b><br>No meetings scheduled for today — enjoy the focus time.</div>' +
+            '<button class="dismiss" onclick="this.parentElement.remove()" style="font-size:18px">×</button>';
+          view.insertBefore(card, view.firstChild);
+        } else if (!localStorage.getItem('afri.prompt.gmail')) {
+          // Calendar not connected — show the original "Connect your calendar" prompt
+          var prompt = document.createElement('div');
+          prompt.className = 'integration-prompt';
+          prompt.innerHTML =
+            '<div class="prompt-ico">📅</div>' +
+            '<div class="prompt-text"><b>Connect your calendar</b><br>See your meetings and tasks on your Google or Outlook calendar.</div>' +
+            '<button onclick="go(\'integrations\')">Connect</button>' +
+            '<button class="dismiss" onclick="this.parentElement.remove();localStorage.setItem(\'afri.prompt.gmail\',\'1\')">×</button>';
+          view.insertBefore(prompt, view.firstChild);
+        }
       }, 100);
     };
     drawHome.__ip = true;
