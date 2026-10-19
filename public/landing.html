@@ -280,6 +280,239 @@
     max-width: 600px; margin: 0 auto;
   }
 
+  /* === HOVER DROPDOWN NAV (HubSpot mega-menu style) === */
+  .nav-item { position: relative; }
+  .nav-item > a {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border-radius: 8px;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 14px; font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+    cursor: pointer;
+  }
+  .nav.scrolled .nav-item > a { color: var(--text-muted); }
+  .nav-item > a:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+  .nav.scrolled .nav-item > a:hover { background: var(--warm); color: var(--text); }
+  .nav-item > a .chev {
+    width: 10px; height: 10px;
+    transition: transform 0.2s ease;
+    opacity: 0.7;
+  }
+  .nav-item:hover > a .chev { transform: rotate(180deg); opacity: 1; }
+  .nav-dropdown {
+    position: absolute; top: calc(100% + 8px); left: 50%;
+    transform: translateX(-50%) translateY(8px);
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18), 0 8px 16px rgba(15, 23, 42, 0.08);
+    padding: 12px;
+    min-width: 360px;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    z-index: 200;
+  }
+  .nav-item:hover .nav-dropdown,
+  .nav-item:focus-within .nav-dropdown {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+  }
+  .nav-dropdown::before {
+    content: '';
+    position: absolute; top: -6px; left: 50%;
+    transform: translateX(-50%) rotate(45deg);
+    width: 12px; height: 12px;
+    background: #fff;
+    border-left: 1px solid var(--border);
+    border-top: 1px solid var(--border);
+    border-radius: 2px;
+  }
+  .nav-dropdown .col { display: flex; flex-direction: column; gap: 2px; }
+  .nav-dropdown .col-head {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 6px 10px;
+  }
+  .nav-dropdown-item {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 10px 12px; border-radius: 10px;
+    color: var(--text);
+    transition: background 0.12s ease;
+    cursor: pointer;
+  }
+  .nav-dropdown-item:hover { background: var(--warm); }
+  .nav-dropdown-item .ico {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: grid; place-items: center;
+    font-size: 18px; flex-shrink: 0;
+    background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+  }
+  .nav-dropdown-item[data-color="teal"] .ico { background: linear-gradient(135deg, #ccfbf1, #99f6e4); }
+  .nav-dropdown-item[data-color="violet"] .ico { background: linear-gradient(135deg, #ede9fe, #ddd6fe); }
+  .nav-dropdown-item[data-color="amber"] .ico { background: linear-gradient(135deg, #fef3c7, #fde68a); }
+  .nav-dropdown-item[data-color="blue"] .ico { background: linear-gradient(135deg, #dbeafe, #bfdbfe); }
+  .nav-dropdown-item[data-color="rose"] .ico { background: linear-gradient(135deg, #fce7f3, #fbcfe8); }
+  .nav-dropdown-item[data-color="emerald"] .ico { background: linear-gradient(135deg, #d1fae5, #a7f3d0); }
+  .nav-dropdown-item .info { flex: 1; min-width: 0; }
+  .nav-dropdown-item .info b {
+    display: block; font-size: 14px; font-weight: 700;
+    color: var(--text); margin-bottom: 2px;
+  }
+  .nav-dropdown-item .info span {
+    display: block; font-size: 12px; color: var(--text-muted);
+    line-height: 1.4;
+  }
+  .nav-dropdown-item .badge {
+    font-size: 10px; font-weight: 700; padding: 3px 8px;
+    border-radius: 99px; flex-shrink: 0; margin-top: 4px;
+    background: #fef3c7; color: #92400e;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .nav-dropdown-item .badge.live { background: #dcfce7; color: #166534; }
+
+  /* Simple non-dropdown nav links (How it works, Privacy, Terms) */
+  .nav-item-link {
+    padding: 8px 14px; border-radius: 8px;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 14px; font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+  }
+  .nav.scrolled .nav-item-link { color: var(--text-muted); }
+  .nav-item-link:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+  .nav.scrolled .nav-item-link:hover { background: var(--warm); color: var(--text); }
+
+  /* === PRODUCTS GRID === */
+  .products-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  @media (max-width: 1024px) {
+    .products-grid { grid-template-columns: 1fr; max-width: 480px; margin: 0 auto; }
+  }
+  .product-card {
+    position: relative;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px 24px 24px;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    overflow: hidden;
+  }
+  .product-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, var(--teal), var(--violet), var(--orange), var(--teal));
+    background-size: 200% 100%;
+    opacity: 0;
+    transition: opacity 0.18s;
+  }
+  .product-card:hover {
+    transform: translateY(-6px);
+    box-shadow: var(--shadow-lg);
+    border-color: transparent;
+  }
+  .product-card:hover::before {
+    opacity: 1;
+    animation: grad-shimmer 3s linear infinite;
+  }
+  .product-card[data-color="teal"] .product-icon { background: linear-gradient(135deg, #ccfbf1, #5eead4); color: var(--teal-dark); }
+  .product-card[data-color="violet"] .product-icon { background: linear-gradient(135deg, #ede9fe, #c4b5fd); color: #5b21b6; }
+  .product-card[data-color="amber"] .product-icon { background: linear-gradient(135deg, #fef3c7, #fcd34d); color: #92400e; }
+  .product-card .product-status {
+    position: absolute; top: 16px; right: 16px;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .product-card .product-status .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-muted);
+  }
+  .product-card .product-status .status-dot.live {
+    background: #22c55e;
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .product-card .product-status .status-dot.soon {
+    background: var(--orange);
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.18);
+  }
+  .product-card .product-icon {
+    width: 56px; height: 56px;
+    border-radius: 14px;
+    display: grid; place-items: center;
+    font-family: 'Fraunces', serif;
+    font-size: 18px; font-weight: 800;
+    letter-spacing: -0.01em;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  }
+  .product-card h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 26px; font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+  .product-card .tagline {
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1.55;
+    margin-bottom: 20px;
+    min-height: 66px;
+  }
+  .product-card .product-features {
+    list-style: none;
+    margin: 0 0 24px;
+    padding: 0;
+    display: flex; flex-direction: column;
+    gap: 8px;
+  }
+  .product-card .product-features li {
+    display: flex; align-items: flex-start; gap: 8px;
+    font-size: 13px; color: var(--text);
+    line-height: 1.4;
+  }
+  .product-card .product-features li .check {
+    color: var(--teal);
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .product-card .btn-card {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: linear-gradient(135deg, var(--teal) 0%, var(--teal-dark) 100%);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 14px; font-weight: 700;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 4px 12px rgba(13, 148, 136, 0.25);
+  }
+  .product-card .btn-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(13, 148, 136, 0.4);
+  }
+  .product-card .btn-card:active { transform: translateY(0) scale(0.98); }
+  .product-card .btn-card.ghost-card {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    box-shadow: none;
+  }
+  .product-card .btn-card.ghost-card:hover {
+    background: var(--warm);
+    color: var(--text);
+    border-color: var(--text-muted);
+    box-shadow: var(--shadow-sm);
+  }
+
   /* === FOOTER (skeleton for now — Step 5 fills it in) === */
   .footer {
     background: var(--navy-deep);
@@ -343,11 +576,110 @@
       <span class="name">Afri <b>OS</b></span>
     </a>
     <div class="nav-links">
-      <a href="#products">Products</a>
-      <a href="#features">Features</a>
-      <a href="#how">How it works</a>
-      <a href="/privacy">Privacy</a>
-      <a href="/terms">Terms</a>
+      <div class="nav-item" id="nav-products">
+        <a href="#products">
+          Products
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </a>
+        <div class="nav-dropdown">
+          <div class="col">
+            <div class="col-head">Live now</div>
+            <a href="/crm" class="nav-dropdown-item" data-color="teal">
+              <div class="ico">CRM</div>
+              <div class="info">
+                <b>Afri CRM</b>
+                <span>Sales pipeline, contacts, deals, sequences</span>
+              </div>
+              <span class="badge live">Live</span>
+            </a>
+            <a href="https://afri-erp-production.up.railway.app/" class="nav-dropdown-item" data-color="violet">
+              <div class="ico">ERP</div>
+              <div class="info">
+                <b>Afri ERP</b>
+                <span>Books, invoicing, inventory, e-invoicing</span>
+              </div>
+              <span class="badge live">Live</span>
+            </a>
+            <div class="col-head" style="margin-top:8px">Coming soon</div>
+            <a href="#products" class="nav-dropdown-item" data-color="amber">
+              <div class="ico">HD</div>
+              <div class="info">
+                <b>Afri Helpdesk</b>
+                <span>Tickets + knowledge base (planned)</span>
+              </div>
+              <span class="badge">Soon</span>
+            </a>
+            <a href="#products" class="nav-dropdown-item" data-color="blue">
+              <div class="ico">PJ</div>
+              <div class="info">
+                <b>Afri Projects</b>
+                <span>Milestones + delivery tracking (planned)</span>
+              </div>
+              <span class="badge">Soon</span>
+            </a>
+            <a href="#products" class="nav-dropdown-item" data-color="rose">
+              <div class="ico">MK</div>
+              <div class="info">
+                <b>Afri Marketing</b>
+                <span>Email campaigns + forms (planned)</span>
+              </div>
+              <span class="badge">Soon</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="nav-item" id="nav-features">
+        <a href="#features">
+          Features
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </a>
+        <div class="nav-dropdown">
+          <div class="col">
+            <div class="col-head">Sign up &amp; onboarding</div>
+            <a href="/crm" class="nav-dropdown-item" data-color="teal">
+              <div class="ico">G</div>
+              <div class="info">
+                <b>Google SSO sign-up</b>
+                <span>One click — no password to remember</span>
+              </div>
+            </a>
+            <a href="/crm" class="nav-dropdown-item" data-color="violet">
+              <div class="ico">📅</div>
+              <div class="info">
+                <b>Calendar auto-connect</b>
+                <span>Your meetings appear on the home dashboard instantly</span>
+              </div>
+            </a>
+            <a href="/crm" class="nav-dropdown-item" data-color="amber">
+              <div class="ico">✨</div>
+              <div class="info">
+                <b>Onboarding wizard</b>
+                <span>5 steps — set up your CRM in 2 minutes</span>
+              </div>
+            </a>
+            <div class="col-head" style="margin-top:8px">Integrations</div>
+            <a href="/crm" class="nav-dropdown-item" data-color="rose">
+              <div class="ico">✉</div>
+              <div class="info">
+                <b>Gmail &amp; Outlook connect</b>
+                <span>1-click OAuth, send + log emails from CRM</span>
+              </div>
+            </a>
+            <a href="/crm" class="nav-dropdown-item" data-color="emerald">
+              <div class="ico">🔑</div>
+              <div class="info">
+                <b>API keys &amp; webhooks</b>
+                <span>Build on Afri CRM with X-API-Key header</span>
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <a href="#how" class="nav-item-link">How it works</a>
+      <a href="/privacy" class="nav-item-link">Privacy</a>
+      <a href="/terms" class="nav-item-link">Terms</a>
     </div>
     <div class="nav-cta">
       <a href="/crm" class="nav-login">Log in</a>
@@ -390,7 +722,77 @@
   </div>
 </section>
 
-<!-- ===== PLACEHOLDER for next steps (Step 2-4 will fill in) ===== -->
+<!-- ===== PRODUCTS SHOWCASE (Step 2) ===== -->
+<section class="section" id="products">
+  <div class="section-head">
+    <div class="eyebrow">One platform · Many products</div>
+    <h2>The Afri OS suite</h2>
+    <p>Each product is powerful on its own — together they're a connected operating system for your entire business.</p>
+  </div>
+  <div class="products-grid">
+    <article class="product-card live" data-color="teal">
+      <div class="product-status">
+        <span class="status-dot live"></span> Live now
+      </div>
+      <div class="product-icon">CRM</div>
+      <h3>Afri CRM</h3>
+      <p class="tagline">Sales pipeline, contacts, deals, sequences — built for how African businesses actually sell.</p>
+      <ul class="product-features">
+        <li><span class="check">✓</span> Sign up with Google in one click</li>
+        <li><span class="check">✓</span> Auto-connect Google Calendar on signup</li>
+        <li><span class="check">✓</span> 1-click Connect Gmail &amp; Outlook</li>
+        <li><span class="check">✓</span> Beautiful onboarding wizard</li>
+        <li><span class="check">✓</span> Drag-and-drop deal pipeline</li>
+        <li><span class="check">✓</span> API keys &amp; webhooks for builders</li>
+      </ul>
+      <a href="/crm" class="btn btn-card">
+        Open Afri CRM
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+      </a>
+    </article>
+
+    <article class="product-card live" data-color="violet">
+      <div class="product-status">
+        <span class="status-dot live"></span> Live now
+      </div>
+      <div class="product-icon">ERP</div>
+      <h3>Afri ERP</h3>
+      <p class="tagline">Books, invoicing, inventory, cash flow, e-invoicing — the operational backbone for serious businesses.</p>
+      <ul class="product-features">
+        <li><span class="check">✓</span> Full general ledger + chart of accounts</li>
+        <li><span class="check">✓</span> Quote → invoice → payment workflow</li>
+        <li><span class="check">✓</span> WHT receivable &amp; aging reports</li>
+        <li><span class="check">✓</span> E-invoicing compliance</li>
+        <li><span class="check">✓</span> Retail &amp; trades industry packs</li>
+        <li><span class="check">✓</span> PDF invoice generator</li>
+      </ul>
+      <a href="https://afri-erp-production.up.railway.app/" class="btn btn-card">
+        Open Afri ERP
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+      </a>
+    </article>
+
+    <article class="product-card coming" data-color="amber">
+      <div class="product-status">
+        <span class="status-dot soon"></span> Coming soon
+      </div>
+      <div class="product-icon">OS</div>
+      <h3>Afri OS Suite</h3>
+      <p class="tagline">The roadmap includes Helpdesk, Projects, Marketing, and Inbox — all connected to your CRM + ERP data.</p>
+      <ul class="product-features">
+        <li><span class="check">✓</span> Helpdesk — tickets + knowledge base</li>
+        <li><span class="check">✓</span> Projects — milestones + delivery tracking</li>
+        <li><span class="check">✓</span> Marketing — email campaigns + forms</li>
+        <li><span class="check">✓</span> Inbox — unified WhatsApp + email</li>
+        <li><span class="check">✓</span> Same workspace, same sign-in</li>
+        <li><span class="check">✓</span> Same data layer — no copying</li>
+      </ul>
+      <a href="#roadmap" class="btn btn-card ghost-card">
+        See the roadmap
+      </a>
+    </article>
+  </div>
+</section>
 
 <!-- ===== FOOTER (Step 5 will expand this) ===== -->
 <footer class="footer">
