@@ -2377,13 +2377,24 @@
     document.body.appendChild(overlay);
 
     window.__wizardPick = (key, value) => { state[key] = value; render(); };
-    window.__wizardConnectInbox = (provider) => {
+    window.__wizardConnectInbox = async (provider) => {
       // Save wizard state so it can be resumed after OAuth redirect
       try {
         sessionStorage.setItem('crm-setup-draft', JSON.stringify({ ...state, step: state.step }));
       } catch {}
-      // Navigate to the OAuth start URL — server redirects to Google/Microsoft
-      window.location.href = '/crm/api/connect/' + provider;
+      // Call the OAuth start endpoint WITH the Bearer token (direct browser
+      // navigation doesn't send Authorization header, so we use api() which
+      // does). The server returns { url: "https://accounts.google.com/..." }
+      // which we then navigate to.
+      var btn = document.querySelector('.wizard-overlay .wizard-choice[onclick*="' + provider + '"]');
+      if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+      var res = await api('/crm/api/connect/' + provider);
+      if (res && res.url) {
+        window.location.href = res.url;
+        return;
+      }
+      if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+      toast(res && res.error ? res.error : 'Could not start OAuth. Try again or use the Integrations page.');
     };
     window.__wizardBack = () => { if (state.step > 0) { state.step--; render(); } };
     window.__wizardNext = async () => {
