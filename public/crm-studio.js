@@ -123,108 +123,225 @@
        ============================================================ */
     .wizard-overlay {
       position: fixed; inset: 0; z-index: 90;
-      background: rgba(2, 6, 23, 0.65);
-      backdrop-filter: blur(4px);
+      background:
+        radial-gradient(circle at 15% 20%, rgba(13, 148, 136, 0.18) 0%, transparent 50%),
+        radial-gradient(circle at 85% 80%, rgba(124, 58, 237, 0.18) 0%, transparent 50%),
+        radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.08) 0%, transparent 70%),
+        linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+      backdrop-filter: blur(8px);
       display: grid; place-items: center;
       padding: 16px;
-      animation: wizard-fade 0.18s ease-out;
+      overflow: hidden;
+      animation: wizard-fade 0.25s ease-out;
+    }
+    .wizard-overlay::before {
+      content: '';
+      position: absolute; inset: -50%;
+      background:
+        radial-gradient(circle at 30% 30%, rgba(45, 212, 191, 0.15) 0%, transparent 8%),
+        radial-gradient(circle at 70% 60%, rgba(167, 139, 250, 0.12) 0%, transparent 10%),
+        radial-gradient(circle at 50% 80%, rgba(96, 165, 250, 0.1) 0%, transparent 12%);
+      animation: wizard-drift 20s linear infinite;
+      pointer-events: none;
+    }
+    @keyframes wizard-drift {
+      0% { transform: rotate(0deg) scale(1); }
+      50% { transform: rotate(180deg) scale(1.1); }
+      100% { transform: rotate(360deg) scale(1); }
     }
     @keyframes wizard-fade { from { opacity: 0; } to { opacity: 1; } }
     .wizard-card {
-      background: #fff;
-      border-radius: 20px;
-      width: min(480px, 100%);
+      position: relative;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 24px;
+      width: min(560px, 100%);
       max-height: 90vh;
       overflow: auto;
-      box-shadow: 0 30px 80px rgba(0,0,0,0.35), 0 8px 24px rgba(0,0,0,0.15);
-      animation: wizard-pop 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+      box-shadow:
+        0 30px 80px rgba(15, 23, 42, 0.5),
+        0 12px 32px rgba(15, 23, 42, 0.3),
+        0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+      animation: wizard-pop 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
     }
-    @keyframes wizard-pop { from { transform: translateY(12px) scale(0.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+    .wizard-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 4px;
+      background: linear-gradient(90deg, #0d9488, #6366f1, #8b5cf6, #0d9488);
+      background-size: 200% 100%;
+      animation: wizard-shimmer 3s linear infinite;
+      border-radius: 24px 24px 0 0;
+    }
+    @keyframes wizard-shimmer {
+      0% { background-position: 0% 0%; }
+      100% { background-position: 200% 0%; }
+    }
+    @keyframes wizard-pop {
+      from { transform: translateY(20px) scale(0.96); opacity: 0; }
+      to { transform: translateY(0) scale(1); opacity: 1; }
+    }
     .wizard-head {
-      padding: 24px 24px 0;
+      padding: 28px 28px 0;
       display: flex; justify-content: space-between; align-items: center;
     }
     .wizard-eyebrow {
-      font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
+      font-size: 11px; font-weight: 800; letter-spacing: 0.18em;
       color: #0d9488; text-transform: uppercase;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .wizard-eyebrow::before {
+      content: ''; width: 16px; height: 2px; background: #0d9488; border-radius: 99px;
     }
     .wizard-skip {
-      background: transparent; border: 0; color: #94a3b8;
-      font-size: 13px; cursor: pointer; padding: 4px 8px;
+      background: transparent; border: 1px solid #e2e8f0; color: #64748b;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      padding: 6px 12px; border-radius: 99px;
+      transition: all 0.12s;
     }
-    .wizard-skip:hover { color: #475569; }
-    .wizard-body { padding: 16px 24px 8px; }
+    .wizard-skip:hover { color: #0f172a; border-color: #cbd5e1; background: #f8fafc; }
+    .wizard-body { padding: 20px 28px 12px; position: relative; }
+    .wizard-body-anim {
+      animation: wizard-step-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    @keyframes wizard-step-in {
+      from { transform: translateX(20px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
     .wizard-body h2 {
-      font-size: 22px; font-weight: 700; color: #0f172a;
-      margin: 0 0 6px; letter-spacing: -0.02em;
+      font-size: 26px; font-weight: 800; color: #0f172a;
+      margin: 0 0 8px; letter-spacing: -0.025em;
+      line-height: 1.2;
     }
     .wizard-body p.wizard-sub {
-      color: #64748b; font-size: 14px; line-height: 1.5;
-      margin: 0 0 20px;
+      color: #64748b; font-size: 14px; line-height: 1.6;
+      margin: 0 0 24px;
     }
     .wizard-choices {
-      display: grid; gap: 10px; margin-bottom: 8px;
+      display: grid; gap: 12px; margin-bottom: 8px;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 480px) {
+      .wizard-choices { grid-template-columns: 1fr 1fr; }
+      .wizard-choices .wizard-choice.full-span { grid-column: 1 / -1; }
     }
     .wizard-choice {
       display: flex; align-items: center; gap: 14px;
-      padding: 14px 16px; border-radius: 12px;
+      padding: 16px; border-radius: 14px;
       border: 1.5px solid #e2e8f0; background: #fff;
       cursor: pointer; text-align: left;
-      transition: border-color 0.12s, background 0.12s, transform 0.08s;
+      transition: all 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
       font: inherit; color: #0f172a;
+      position: relative; overflow: hidden;
     }
-    .wizard-choice:hover { border-color: #14b8a6; background: #f0fdfa; transform: translateY(-1px); }
+    .wizard-choice::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(13, 148, 136, 0.06), rgba(99, 102, 241, 0.04));
+      opacity: 0;
+      transition: opacity 0.18s;
+      pointer-events: none;
+    }
+    .wizard-choice:hover {
+      border-color: #14b8a6; transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(13, 148, 136, 0.12);
+    }
+    .wizard-choice:hover::before { opacity: 1; }
+    .wizard-choice:active { transform: translateY(0) scale(0.98); transition-duration: 0.04s; }
     .wizard-choice.on {
-      border-color: #0d9488; background: #ecfdf5;
-      box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+      border-color: #0d9488; background: linear-gradient(135deg, #ecfdf5, #f0fdfa);
+      box-shadow:
+        0 0 0 3px rgba(13, 148, 136, 0.12),
+        0 8px 20px rgba(13, 148, 136, 0.18);
+    }
+    .wizard-choice.on::after {
+      content: '✓';
+      position: absolute; top: 12px; right: 12px;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: #0d9488; color: #fff;
+      font-size: 13px; font-weight: 700;
+      display: grid; place-items: center;
+      animation: wizard-check-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes wizard-check-pop {
+      from { transform: scale(0) rotate(-90deg); }
+      to { transform: scale(1) rotate(0deg); }
     }
     .wizard-choice .ico {
-      width: 36px; height: 36px; border-radius: 10px;
-      background: #f1f5f9; display: grid; place-items: center;
-      font-size: 18px; flex-shrink: 0;
+      width: 44px; height: 44px; border-radius: 12px;
+      background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+      display: grid; place-items: center;
+      font-size: 22px; flex-shrink: 0;
+      transition: all 0.18s;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
     }
-    .wizard-choice.on .ico { background: #ccfbf1; }
-    .wizard-choice .label b { display: block; font-size: 14px; font-weight: 700; margin-bottom: 2px; }
-    .wizard-choice .label span { font-size: 12px; color: #64748b; }
+    /* Per-step icon color themes */
+    .wizard-choice[data-color="teal"] .ico { background: linear-gradient(135deg, #ccfbf1, #99f6e4); }
+    .wizard-choice[data-color="blue"] .ico { background: linear-gradient(135deg, #dbeafe, #bfdbfe); }
+    .wizard-choice[data-color="violet"] .ico { background: linear-gradient(135deg, #ede9fe, #ddd6fe); }
+    .wizard-choice[data-color="amber"] .ico { background: linear-gradient(135deg, #fef3c7, #fde68a); }
+    .wizard-choice[data-color="rose"] .ico { background: linear-gradient(135deg, #fce7f3, #fbcfe8); }
+    .wizard-choice[data-color="emerald"] .ico { background: linear-gradient(135deg, #d1fae5, #a7f3d0); }
+    .wizard-choice.on .ico { transform: scale(1.06); }
+    .wizard-choice .label b { display: block; font-size: 14px; font-weight: 700; margin-bottom: 3px; color: #0f172a; }
+    .wizard-choice .label span { font-size: 12px; color: #64748b; line-height: 1.4; }
     .wizard-foot {
-      padding: 12px 24px 20px;
-      display: flex; gap: 8px; align-items: center;
+      padding: 16px 28px 24px;
+      display: flex; gap: 10px; align-items: center;
       border-top: 1px solid #f1f5f9;
     }
     .wizard-foot .step-dots {
-      display: flex; gap: 6px; flex: 1;
+      display: flex; gap: 6px; flex: 1; align-items: center;
     }
     .wizard-foot .step-dots i {
-      width: 6px; height: 6px; border-radius: 50%;
-      background: #cbd5e1; transition: background 0.15s, width 0.15s;
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #cbd5e1; transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
     }
-    .wizard-foot .step-dots i.on { background: #0d9488; width: 18px; border-radius: 99px; }
+    .wizard-foot .step-dots i.on { background: #0d9488; width: 28px; border-radius: 99px; box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.18); }
     .wizard-foot .step-dots i.done { background: #5eead4; }
     .wizard-foot button.primary {
-      background: linear-gradient(135deg, #0d9488, #0f766e);
-      color: #fff; border: 0; border-radius: 10px;
-      padding: 11px 18px; font-weight: 700; font-size: 14px;
-      cursor: pointer; transition: transform 0.1s, box-shadow 0.15s;
+      background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+      color: #fff; border: 0; border-radius: 12px;
+      padding: 12px 22px; font-weight: 700; font-size: 14px;
+      cursor: pointer;
+      transition: all 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
+      box-shadow: 0 4px 12px rgba(13, 148, 136, 0.25);
+      position: relative; overflow: hidden;
     }
-    .wizard-foot button.primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(13, 148, 136, 0.3); }
+    .wizard-foot button.primary::before {
+      content: '';
+      position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+      transition: left 0.5s;
+    }
+    .wizard-foot button.primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(13, 148, 136, 0.4);
+    }
+    .wizard-foot button.primary:hover::before { left: 100%; }
+    .wizard-foot button.primary:active { transform: translateY(0) scale(0.98); }
     .wizard-foot button.primary:disabled {
       background: #e2e8f0; color: #94a3b8; cursor: not-allowed;
       transform: none; box-shadow: none;
     }
+    .wizard-foot button.primary:disabled::before { display: none; }
     .wizard-foot button.ghost {
       background: transparent; border: 0; color: #64748b;
-      font-size: 13px; cursor: pointer; padding: 11px 14px;
+      font-size: 13px; font-weight: 600; cursor: pointer; padding: 12px 14px;
+      transition: color 0.12s;
     }
     .wizard-foot button.ghost:hover { color: #0f172a; }
     .wizard-foot a.advanced {
       margin-left: auto; font-size: 12px; color: #94a3b8;
       text-decoration: underline; text-underline-offset: 2px;
+      transition: color 0.12s;
     }
     .wizard-foot a.advanced:hover { color: #475569; }
     @media (max-width: 480px) {
-      .wizard-card { border-radius: 16px; }
-      .wizard-head, .wizard-body, .wizard-foot { padding-left: 18px; padding-right: 18px; }
-      .wizard-body h2 { font-size: 20px; }
+      .wizard-card { border-radius: 18px; }
+      .wizard-head, .wizard-body, .wizard-foot { padding-left: 20px; padding-right: 20px; }
+      .wizard-body h2 { font-size: 22px; }
+      .wizard-choices { grid-template-columns: 1fr; }
     }
 
     /* ============================================================
@@ -2263,11 +2380,11 @@
         question: 'What does your business do?',
         sub: 'Afri uses this to set sensible defaults for stages and tags. You can change it later.',
         choices: [
-          { value: 'Services',      ico: '💼', label: 'Services',      hint: 'Consulting, agency, professional' },
-          { value: 'Retail',        ico: '🛍', label: 'Retail',        hint: 'Shops, e-commerce, trade' },
-          { value: 'Manufacturing', ico: '🏭', label: 'Manufacturing', hint: 'Production, assembly, factories' },
-          { value: 'Agriculture',   ico: '🌾', label: 'Agriculture',   hint: 'Farming, processing, agribusiness' },
-          { value: 'Other',         ico: '✨', label: 'Other',         hint: 'Healthcare, education, hospitality, mining...' },
+          { value: 'Services',      ico: '💼', label: 'Services',      hint: 'Consulting, agency, professional', color: 'teal' },
+          { value: 'Retail',        ico: '🛍', label: 'Retail',        hint: 'Shops, e-commerce, trade', color: 'rose' },
+          { value: 'Manufacturing', ico: '🏭', label: 'Manufacturing', hint: 'Production, assembly, factories', color: 'amber' },
+          { value: 'Agriculture',   ico: '🌾', label: 'Agriculture',   hint: 'Farming, processing, agribusiness', color: 'emerald' },
+          { value: 'Other',         ico: '✨', label: 'Other',         hint: 'Healthcare, education, hospitality, mining...', color: 'violet' },
         ],
       },
       {
@@ -2275,10 +2392,10 @@
         question: 'How do you sell?',
         sub: 'The lead scoring uses your answer. A phone weighs more when buyers use WhatsApp.',
         choices: [
-          { value: 'Phone & WhatsApp', ico: '📞', label: 'Phone & WhatsApp', hint: 'Most leads come in by call or chat' },
-          { value: 'Email',             ico: '✉', label: 'Email',             hint: 'Inbound forms, online enquiries, outreach' },
-          { value: 'In-person',         ico: '🤝', label: 'In-person',         hint: 'Walk-ins, meetings, field sales' },
-          { value: 'Mixed',              ico: '🔀', label: 'Mixed',              hint: 'Some of each — Afri uses balanced weights' },
+          { value: 'Phone & WhatsApp', ico: '📞', label: 'Phone & WhatsApp', hint: 'Most leads come in by call or chat', color: 'teal' },
+          { value: 'Email',             ico: '✉', label: 'Email',             hint: 'Inbound forms, online enquiries, outreach', color: 'blue' },
+          { value: 'In-person',         ico: '🤝', label: 'In-person',         hint: 'Walk-ins, meetings, field sales', color: 'amber' },
+          { value: 'Mixed',              ico: '🔀', label: 'Mixed',              hint: 'Some of each — Afri uses balanced weights', color: 'violet' },
         ],
       },
       {
@@ -2286,9 +2403,9 @@
         question: "What's the goal?",
         sub: 'When the goal is to close, the deal amount weighs more. When the goal is support, the touch weighs more.',
         choices: [
-          { value: 'Close deals',       ico: '🎯', label: 'Close deals',       hint: 'Pipeline, revenue, conversion' },
-          { value: 'Customer support',   ico: '🛠', label: 'Customer support',  hint: 'Tickets, retention, service quality' },
-          { value: 'Job delivery',       ico: '📦', label: 'Job delivery',       hint: 'Projects, fulfillment, milestones' },
+          { value: 'Close deals',       ico: '🎯', label: 'Close deals',       hint: 'Pipeline, revenue, conversion', color: 'rose' },
+          { value: 'Customer support',   ico: '🛠', label: 'Customer support',  hint: 'Tickets, retention, service quality', color: 'blue' },
+          { value: 'Job delivery',       ico: '📦', label: 'Job delivery',       hint: 'Projects, fulfillment, milestones', color: 'amber' },
         ],
       },
       {
@@ -2296,9 +2413,9 @@
         question: 'Connect your inbox',
         sub: 'Send and log emails from Afri CRM. Connect Gmail, Google Calendar, or Outlook in one click. You can skip and do this later from the Integrations page.',
         actions: [
-          { provider: 'gmail',    ico: '✉',  label: 'Connect Gmail',          hint: 'Sync emails, send from CRM, log conversations' },
-          { provider: 'calendar',  ico: '📅', label: 'Connect Google Calendar', hint: 'See meetings, sync tasks to calendar' },
-          { provider: 'outlook',   ico: '📧', label: 'Connect Outlook',        hint: 'Sync Outlook emails and calendar' },
+          { provider: 'gmail',    ico: '✉',  label: 'Connect Gmail',          hint: 'Sync emails, send from CRM, log conversations', color: 'rose' },
+          { provider: 'calendar',  ico: '📅', label: 'Connect Google Calendar', hint: 'See meetings, sync tasks to calendar', color: 'blue' },
+          { provider: 'outlook',   ico: '📧', label: 'Connect Outlook',        hint: 'Sync Outlook emails and calendar', color: 'blue' },
         ],
         skipText: 'Skip — I\'ll do this later',
       },
@@ -2319,7 +2436,8 @@
       const choices = current && current.choices ? current.choices.map((c) => {
         const on = state[current.key] === c.value ? ' on' : '';
         const safeVal = String(c.value).replace(/'/g, "\\'");
-        return `<button type="button" class="wizard-choice${on}" onclick="window.__wizardPick('${current.key}','${safeVal}')">
+        const colorAttr = c.color ? ` data-color="${c.color}"` : '';
+        return `<button type="button" class="wizard-choice${on}"${colorAttr} onclick="window.__wizardPick('${current.key}','${safeVal}')">
           <div class="ico">${c.ico}</div>
           <div class="label"><b>${esc(c.label)}</b><span>${esc(c.hint)}</span></div>
         </button>`;
@@ -2330,18 +2448,19 @@
         if (current.key === 'connect_inbox') {
           // Special render: connection action buttons + skip
           const actions = (current.actions || []).map((a) => {
-            return `<button type="button" class="wizard-choice" onclick="window.__wizardConnectInbox('${a.provider}')">
+            const colorAttr = a.color ? ` data-color="${a.color}"` : '';
+            return `<button type="button" class="wizard-choice"${colorAttr} onclick="window.__wizardConnectInbox('${a.provider}')">
               <div class="ico">${a.ico}</div>
               <div class="label"><b>${esc(a.label)}</b><span>${esc(a.hint)}</span></div>
             </button>`;
           }).join('');
-          body = `<h2>${esc(current.question)}</h2><p class="wizard-sub">${esc(current.sub)}</p><div class="wizard-choices">${actions}</div>`;
+          body = `<div class="wizard-body-anim"><h2>${esc(current.question)}</h2><p class="wizard-sub">${esc(current.sub)}</p><div class="wizard-choices">${actions}</div></div>`;
         } else {
-          body = `<h2>${esc(current.question)}</h2><p class="wizard-sub">${esc(current.sub)}</p><div class="wizard-choices">${choices}</div>`;
+          body = `<div class="wizard-body-anim"><h2>${esc(current.question)}</h2><p class="wizard-sub">${esc(current.sub)}</p><div class="wizard-choices">${choices}</div></div>`;
         }
       } else {
         // Confirm step
-        body = `<h2>Looks good.</h2><p class="wizard-sub">Industry: <b>${esc(state.industry || '—')}</b><br>Channel: <b>${esc(state.channel || '—')}</b><br>Goal: <b>${esc(state.goal || '—')}</b><br><br>Afri will use these to set your pipeline stages, lead scoring weights, and default tags. You can change them anytime from the sidebar.</p>`;
+        body = `<div class="wizard-body-anim"><h2>Looks good.</h2><p class="wizard-sub">Industry: <b>${esc(state.industry || '—')}</b><br>Channel: <b>${esc(state.channel || '—')}</b><br>Goal: <b>${esc(state.goal || '—')}</b><br><br>Afri will use these to set your pipeline stages, lead scoring weights, and default tags. You can change them anytime from the sidebar.</p></div>`;
       }
 
       // For connect_inbox step, Continue button means "skip" — always allowed
@@ -2376,7 +2495,23 @@
     `;
     document.body.appendChild(overlay);
 
-    window.__wizardPick = (key, value) => { state[key] = value; render(); };
+    window.__wizardPick = (key, value) => {
+      state[key] = value;
+      render();
+      // Auto-advance after a short delay (HubSpot pattern — click a choice,
+      // see it selected briefly, then move to next step automatically).
+      // Skip auto-advance for connect_inbox step (uses __wizardConnectInbox instead).
+      if (state.step < STEPS.length && STEPS[state.step] && STEPS[state.step].key !== 'connect_inbox') {
+        clearTimeout(window.__wizardAutoTimer);
+        window.__wizardAutoTimer = setTimeout(() => {
+          // Only advance if the user is still on the same step (didn't click Back)
+          if (state.step < STEPS.length && state[STEPS[state.step].key] === value) {
+            state.step++;
+            render();
+          }
+        }, 350);
+      }
+    };
     window.__wizardConnectInbox = async (provider) => {
       // Save wizard state so it can be resumed after OAuth redirect
       try {
@@ -2396,7 +2531,10 @@
       if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
       toast(res && res.error ? res.error : 'Could not start OAuth. Try again or use the Integrations page.');
     };
-    window.__wizardBack = () => { if (state.step > 0) { state.step--; render(); } };
+    window.__wizardBack = () => {
+      clearTimeout(window.__wizardAutoTimer);
+      if (state.step > 0) { state.step--; render(); }
+    };
     window.__wizardNext = async () => {
       if (state.step < STEPS.length) {
         state.step++;
