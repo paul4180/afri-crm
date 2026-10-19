@@ -3552,7 +3552,52 @@
     const el = document.getElementById('settingsContent');
     const data = await api('/crm/api/setup');
     if (!data || data.error) { el.innerHTML = '<p class="hello">Could not load.</p>'; return; }
-    el.innerHTML = '<div class="settings-section"><h3>Business details</h3><div class="settings-row"><label>Business name<input id="setName" value="'+esc(data.name||'')+'"></label><label>Industry<select id="setIndustry">'+['Services','Retail','Manufacturing','Agriculture','Other'].map(function(i){return '<option '+(data.industry===i?'selected':'')+'>'+i+'</option>';}).join('')+'</select></label></div><div class="settings-row"><label>How do you sell?<select id="setChannel">'+['Phone & WhatsApp','Email','In-person','Mixed'].map(function(c){return '<option '+(data.channel===c?'selected':'')+'>'+c+'</option>';}).join('')+'</select></label><label>Whats the goal?<select id="setGoal">'+['Close deals','Customer support','Job delivery'].map(function(g){return '<option '+(data.goal===g?'selected':'')+'>'+g+'</option>';}).join('')+'</select></label></div></div><button type="button" onclick="window.__saveWorkspace()">Save changes</button> <button type="button" class="ghost" onclick="window.__loadDemo()">Load demo data</button><p class="hello" id="workspaceStatus" style="margin-top:12px"></p>';
+    var wsName = data.name || (me && me.company) || 'workspace';
+    el.innerHTML = '<div class="settings-section"><h3>Business details</h3><div class="settings-row"><label>Business name<input id="setName" value="'+esc(data.name||'')+'"></label><label>Industry<select id="setIndustry">'+['Services','Retail','Manufacturing','Agriculture','Other'].map(function(i){return '<option '+(data.industry===i?'selected':'')+'>'+i+'</option>';}).join('')+'</select></label></div><div class="settings-row"><label>How do you sell?<select id="setChannel">'+['Phone & WhatsApp','Email','In-person','Mixed'].map(function(c){return '<option '+(data.channel===c?'selected':'')+'>'+c+'</option>';}).join('')+'</select></label><label>Whats the goal?<select id="setGoal">'+['Close deals','Customer support','Job delivery'].map(function(g){return '<option '+(data.goal===g?'selected':'')+'>'+g+'</option>';}).join('')+'</select></label></div></div><button type="button" onclick="window.__saveWorkspace()">Save changes</button> <button type="button" class="ghost" onclick="window.__loadDemo()">Load demo data</button><p class="hello" id="workspaceStatus" style="margin-top:12px"></p>' +
+    '<div class="danger-zone" style="margin-top:32px;padding:18px;border:1px solid #fecaca;border-radius:14px;background:#fef2f2"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="font-size:20px">⚠</span><b style="color:#991b1b;font-size:15px">Danger Zone</b></div><p style="color:#7f1d1d;font-size:13px;line-height:1.6;margin:0 0 12px">Permanently delete this workspace and <b>all</b> its data — contacts, companies, deals, activities, notes, emails, pipelines, tags, automations, API keys, webhooks, and OAuth connections. <b>This cannot be undone.</b> You will be signed out immediately.</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="danger-btn" onclick="window.__openDeleteModal()">Permanently delete workspace</button><span style="font-size:11px;color:#991b1b">Workspace name: <code style="background:#fee2e2;padding:2px 6px;border-radius:4px;font-family:ui-monospace,monospace">'+esc(wsName)+'</code></span></div></div>' +
+    '<div id="deleteModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px" onclick="if(event.target.id===\'deleteModal\')window.__closeDeleteModal()"><div class="card" style="max-width:500px;width:100%;background:#fff;padding:24px;border-radius:14px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><span style="font-size:24px">⚠</span><b style="color:#991b1b;font-size:18px">Delete this workspace?</b></div><p style="color:#374151;font-size:13px;line-height:1.6;margin:0 0 16px">You are about to permanently delete <b>'+esc(wsName)+'</b> and <b>all</b> data associated with it:</p><ul style="margin:0 0 16px 18px;padding:0;color:#374151;font-size:13px;line-height:1.7"><li>All contacts, companies, and deals</li><li>All activities, notes, and emails</li><li>All pipelines, tags, and automations</li><li>All API keys and webhooks</li><li>All OAuth connections (Gmail, Outlook, etc.)</li><li>All team members and their access</li></ul><p style="color:#7f1d1d;font-size:12px;margin:0 0 8px"><b>This action is irreversible.</b> The data cannot be recovered.</p><div style="margin-top:16px"><label style="font-size:12px;color:#475569;font-weight:600">Type your workspace name to confirm <code style="background:#fee2e2;padding:2px 6px;border-radius:4px;font-family:ui-monospace,monospace;color:#991b1b">'+esc(wsName)+'</code><input id="deleteConfirmInput" placeholder="'+esc(wsName)+'" style="margin-top:6px;border-color:#fecaca"></label></div><div style="margin-top:12px"><label style="font-size:12px;color:#475569;font-weight:600">Reason for leaving (optional)<textarea id="deleteReasonInput" placeholder="Tell us why you\'re leaving so we can improve..." style="margin-top:6px;width:100%;min-height:60px;border-color:#fecaca;font-family:inherit;font-size:13px;padding:8px"></textarea></label></div><label class="check" style="margin-top:12px;color:#475569;font-size:13px;display:flex;align-items:center;gap:8px"><input id="deleteAckCheckbox" type="checkbox"> I understand this action is permanent and cannot be undone.</label><p class="err" id="deleteError" style="margin-top:8px"></p><div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end"><button type="button" class="ghost" onclick="window.__closeDeleteModal()">Cancel</button><button type="button" class="danger-btn" id="deleteSubmitBtn" onclick="window.__confirmDelete()">Delete forever</button></div></div></div>';
+  };
+  window.__openDeleteModal = function () {
+    var m = document.getElementById('deleteModal');
+    if (m) { m.style.display = 'flex'; }
+    setTimeout(function() { var i = document.getElementById('deleteConfirmInput'); if (i) i.focus(); }, 50);
+  };
+  window.__closeDeleteModal = function () {
+    var m = document.getElementById('deleteModal');
+    if (m) m.style.display = 'none';
+    var i = document.getElementById('deleteConfirmInput');
+    var r = document.getElementById('deleteReasonInput');
+    var a = document.getElementById('deleteAckCheckbox');
+    var e = document.getElementById('deleteError');
+    if (i) i.value = '';
+    if (r) r.value = '';
+    if (a) a.checked = false;
+    if (e) e.textContent = '';
+  };
+  window.__confirmDelete = async function () {
+    var btn = document.getElementById('deleteSubmitBtn');
+    var errEl = document.getElementById('deleteError');
+    var name = (document.getElementById('deleteConfirmInput') || {}).value || '';
+    var reason = (document.getElementById('deleteReasonInput') || {}).value || '';
+    var ack = (document.getElementById('deleteAckCheckbox') || {}).checked;
+    if (!name) { if (errEl) errEl.textContent = 'Type your workspace name to confirm.'; return; }
+    if (!ack) { if (errEl) errEl.textContent = 'Check the box to acknowledge this cannot be undone.'; return; }
+    if (!confirm('Last chance. Are you absolutely sure? This will permanently delete your workspace and all data.')) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Deleting…'; }
+    var res = await api('/crm/api/account', { method: 'DELETE', body: JSON.stringify({ confirm: name, reason: reason }) });
+    if (res && res.ok) {
+      // Sign out + redirect to login page
+      token = '';
+      localStorage.removeItem('crmToken');
+      if (errEl) errEl.textContent = '';
+      // Show a goodbye page briefly
+      var view = document.getElementById('view') || document.body;
+      view.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:20px"><div style="font-size:48px;margin-bottom:12px">👋</div><h1 style="color:#0f172a;margin:0 0 8px">Workspace deleted</h1><p style="color:#64748b;font-size:14px;margin:0 0 16px">Your account and all data have been permanently removed from Afri CRM.</p><p style="color:#94a3b8;font-size:12px;margin:0">Redirecting to sign in…</p></div>';
+      setTimeout(function() { location.href = '/crm'; }, 2500);
+    } else {
+      if (btn) { btn.disabled = false; btn.textContent = 'Delete forever'; }
+      if (errEl) errEl.textContent = (res && res.error) || 'Could not delete account.';
+    }
   };
   window.__saveWorkspace = async function () {
     const body = { name: document.getElementById('setName').value.trim(), industry: document.getElementById('setIndustry').value, channel: document.getElementById('setChannel').value, goal: document.getElementById('setGoal').value, done: 1 };
@@ -4600,6 +4645,9 @@
     .integration-card button { font-size: 12px; padding: 6px 14px; border-radius: 8px; align-self: flex-start; }
     .integration-card button.connect { background: #0d9488; color: #fff; border: 0; }
     .integration-card button.configure { background: transparent; color: #0d9488; border: 1px solid #99f6e4; }
+    .danger-btn { background: #dc2626; color: #fff; border: 0; padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; transition: background 0.12s; }
+    .danger-btn:hover { background: #b91c1c; }
+    .danger-btn:disabled { background: #94a3b8; cursor: not-allowed; }
     .api-key-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
     .api-key-row:last-child { border-bottom: 0; }
     .api-key-row .key-info { flex: 1; }

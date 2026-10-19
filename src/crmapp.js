@@ -1092,6 +1092,67 @@ export function registerCrm(app, prisma) {
     const user = await guard(req, reply); if (!user) return;
     return db.prepare('SELECT * FROM workspace WHERE tenantId = ?').get(user.tenantId) || { done: 0 };
   });
+
+  // ============================================================
+  // DELETE ACCOUNT — HubSpot-style permanent deletion
+  // Only OWNER can call. Requires typed workspace name confirmation.
+  // Hard-deletes ALL tenant data across every table.
+  // ============================================================
+  app.delete('/crm/api/account', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    if (user.role !== 'OWNER') return reply.code(403).send({ error: 'Only the workspace owner can permanently delete this account.' });
+    const wsRow = db.prepare('SELECT name, slug FROM crm_workspaces WHERE id = ?').get(user.tenantId);
+    if (!wsRow) return reply.code(404).send({ error: 'Workspace not found.' });
+    const expected = (wsRow.name || '').toLowerCase().trim();
+    const confirm = String(req.body?.confirm || '').toLowerCase().trim();
+    if (!expected || confirm !== expected) {
+      return reply.code(400).send({ error: 'Type your workspace name exactly as shown (' + (wsRow.name || '') + ') to confirm.' });
+    }
+    const reason = String(req.body?.reason || '').trim().slice(0, 500);
+    const ip = String(req.ip || '').slice(0, 80);
+    // Write audit BEFORE deleting (otherwise the audit row gets deleted too)
+    // Use a separate audit table outside tenantId scope... actually we'll just
+    // log to stdout for now since the audit table itself is tenant-scoped.
+    console.log('[DELETE ACCOUNT]', {
+      workspaceId: user.tenantId,
+      workspaceName: wsRow.name,
+      workspaceSlug: wsRow.slug,
+      accountId: user.sub,
+      reason: reason,
+      ip: ip,
+      when: new Date().toISOString(),
+    });
+    // Hard-delete from every table that has a tenantId column
+    const tables = [
+      'companies','contacts','leads','deals','activities','products','quotes','quote_lines',
+      'workspace','connections','tool_apps','tickets','ticket_replies','emails','targets',
+      'campaigns','notes','sequences','sequence_runs','objects','audit','fields','field_values',
+      'pipelines','stages','tags','record_tags','teams','team_members','workflows','workflow_runs',
+      'notifications','crm_sessions','crm_events','crm_permissions','crm_prefs','crm_api_keys','crm_webhooks'
+    ];
+    let deletedRows = 0;
+    const tx = db.prepare('BEGIN');
+    try {
+      tx.run();
+      for (const t of tables) {
+        try {
+          const result = db.prepare('DELETE FROM ' + t + ' WHERE tenantId = ?').run(user.tenantId);
+          deletedRows += (result.changes || 0);
+        } catch (e) { /* table may not have tenantId column — skip */ }
+      }
+      // Delete all user accounts for this workspace (including the OWNER)
+      const accResult = db.prepare('DELETE FROM crm_accounts WHERE workspaceId = ?').run(user.tenantId);
+      deletedRows += (accResult.changes || 0);
+      // Finally delete the workspace itself
+      const wsResult = db.prepare('DELETE FROM crm_workspaces WHERE id = ?').run(user.tenantId);
+      deletedRows += (wsResult.changes || 0);
+      db.prepare('COMMIT').run();
+    } catch (e) {
+      db.prepare('ROLLBACK').run();
+      return reply.code(500).send({ error: 'Could not delete account: ' + e.message });
+    }
+    return { ok: true, deletedRows: deletedRows, message: 'Workspace and all data permanently deleted.' };
+  });
   app.post('/crm/api/setup', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     const body = req.body || {};
