@@ -667,8 +667,20 @@ async function boot() {
   }
   enter().then(() => {
     if (resumeSetup) {
-      try { draft = Object.assign(draft || {}, JSON.parse(sessionStorage.getItem('crm-setup-draft') || '{}')); } catch {}
-      openSetup();
+      // User came back from OAuth connect (e.g., clicked Connect Gmail in the wizard).
+      // Clear the saved draft and reopen the wizard at the same step, advanced past connect_inbox.
+      try {
+        const saved = JSON.parse(sessionStorage.getItem('crm-setup-draft') || '{}');
+        sessionStorage.removeItem('crm-setup-draft');
+        if (typeof window.openOnboardingWizard === 'function' && saved && saved.step !== undefined) {
+          // Advance past the connect_inbox step so user lands on the confirm step
+          const wizardState = Object.assign({}, saved, { step: Math.max(saved.step || 0, 4) });
+          window.openOnboardingWizard(wizardState);
+        } else {
+          draft = Object.assign(draft || {}, saved);
+          openSetup();
+        }
+      } catch { openSetup(); }
     } else if (!(workspace && Number(workspace.done)) && typeof window.openOnboardingWizard === 'function') {
       // First login — open the modernized multi-step setup wizard.
       // User can skip; the sidebar "Finish setup" card still offers the

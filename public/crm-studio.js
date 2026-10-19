@@ -2247,10 +2247,10 @@
   // The chat wizard (openSetup in crm.html) is still available
   // via the "Use guided setup" link in the modal footer.
   // ============================================================
-  window.openOnboardingWizard = function () {
+  window.openOnboardingWizard = function (restoredState) {
     if (document.getElementById('wizardOverlay')) return;
 
-    const state = {
+    const state = restoredState || {
       step: 0,
       industry: workspace.industry || '',
       channel: workspace.channel || '',
@@ -2291,9 +2291,20 @@
           { value: 'Job delivery',       ico: '📦', label: 'Job delivery',       hint: 'Projects, fulfillment, milestones' },
         ],
       },
+      {
+        key: 'connect_inbox',
+        question: 'Connect your inbox',
+        sub: 'Send and log emails from Afri CRM. Connect Gmail, Google Calendar, or Outlook in one click. You can skip and do this later from the Integrations page.',
+        actions: [
+          { provider: 'gmail',    ico: '✉',  label: 'Connect Gmail',          hint: 'Sync emails, send from CRM, log conversations' },
+          { provider: 'calendar',  ico: '📅', label: 'Connect Google Calendar', hint: 'See meetings, sync tasks to calendar' },
+          { provider: 'outlook',   ico: '📧', label: 'Connect Outlook',        hint: 'Sync Outlook emails and calendar' },
+        ],
+        skipText: 'Skip — I\'ll do this later',
+      },
     ];
 
-    const TOTAL_STEPS = STEPS.length + 1; // 3 questions + confirm
+    const TOTAL_STEPS = STEPS.length + 1; // 4 steps + confirm
 
     function render() {
       const step = state.step;
@@ -2305,7 +2316,7 @@
         return `<i class="${cls}"></i>`;
       }).join('');
 
-      const choices = current ? current.choices.map((c) => {
+      const choices = current && current.choices ? current.choices.map((c) => {
         const on = state[current.key] === c.value ? ' on' : '';
         const safeVal = String(c.value).replace(/'/g, "\\'");
         return `<button type="button" class="wizard-choice${on}" onclick="window.__wizardPick('${current.key}','${safeVal}')">
@@ -2314,12 +2325,28 @@
         </button>`;
       }).join('') : '';
 
-      const body = current
-        ? `<h2>${esc(current.question)}</h2><p class="wizard-sub">${esc(current.sub)}</p><div class="wizard-choices">${choices}</div>`
-        : `<h2>Looks good.</h2><p class="wizard-sub">Industry: <b>${esc(state.industry || '—')}</b><br>Channel: <b>${esc(state.channel || '—')}</b><br>Goal: <b>${esc(state.goal || '—')}</b><br><br>Afri will use these to set your pipeline stages, lead scoring weights, and default tags. You can change them anytime from the sidebar.</p>`;
+      let body;
+      if (current) {
+        if (current.key === 'connect_inbox') {
+          // Special render: connection action buttons + skip
+          const actions = (current.actions || []).map((a) => {
+            return `<button type="button" class="wizard-choice" onclick="window.__wizardConnectInbox('${a.provider}')">
+              <div class="ico">${a.ico}</div>
+              <div class="label"><b>${esc(a.label)}</b><span>${esc(a.hint)}</span></div>
+            </button>`;
+          }).join('');
+          body = `<h2>${esc(current.question)}</h2><p class="wizard-sub">${esc(current.sub)}</p><div class="wizard-choices">${actions}</div>`;
+        } else {
+          body = `<h2>${esc(current.question)}</h2><p class="wizard-sub">${esc(current.sub)}</p><div class="wizard-choices">${choices}</div>`;
+        }
+      } else {
+        // Confirm step
+        body = `<h2>Looks good.</h2><p class="wizard-sub">Industry: <b>${esc(state.industry || '—')}</b><br>Channel: <b>${esc(state.channel || '—')}</b><br>Goal: <b>${esc(state.goal || '—')}</b><br><br>Afri will use these to set your pipeline stages, lead scoring weights, and default tags. You can change them anytime from the sidebar.</p>`;
+      }
 
-      const canNext = isLast || !!state[current.key];
-      const nextLabel = isLast ? 'Open the CRM' : (step === 0 ? 'Continue' : 'Continue');
+      // For connect_inbox step, Continue button means "skip" — always allowed
+      const canNext = isLast || !!state[current.key] || current.key === 'connect_inbox';
+      const nextLabel = isLast ? 'Open the CRM' : (current && current.key === 'connect_inbox' && !state.connect_inbox ? 'Skip for now' : 'Continue');
 
       document.getElementById('wizardBody').innerHTML = body;
       document.getElementById('wizardDots').innerHTML = dots;
@@ -2350,6 +2377,14 @@
     document.body.appendChild(overlay);
 
     window.__wizardPick = (key, value) => { state[key] = value; render(); };
+    window.__wizardConnectInbox = (provider) => {
+      // Save wizard state so it can be resumed after OAuth redirect
+      try {
+        sessionStorage.setItem('crm-setup-draft', JSON.stringify({ ...state, step: state.step }));
+      } catch {}
+      // Navigate to the OAuth start URL — server redirects to Google/Microsoft
+      window.location.href = '/crm/api/connect/' + provider;
+    };
     window.__wizardBack = () => { if (state.step > 0) { state.step--; render(); } };
     window.__wizardNext = async () => {
       if (state.step < STEPS.length) {
