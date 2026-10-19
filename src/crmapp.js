@@ -2240,7 +2240,7 @@ export function registerCrm(app, prisma) {
     notes.forEach(function(n) {
       db.prepare('INSERT INTO notes (id, tenantId, relatedType, relatedId, body, createdAt) VALUES (?,?,?,?,?,?)').run(crypto.randomUUID(), workspaceId, n[1], n[0], n[2], new Date().toISOString());
     });
-    db.prepare('INSERT OR REPLACE INTO workspace (tenantId, size, industry, goal, channel, done) VALUES (?,?,?,?,?,?)').run(workspaceId, '11-50', 'Services', 'Close deals', 'Phone & WhatsApp', 1);
+    db.prepare('INSERT OR REPLACE INTO workspace (tenantId, size, industry, goal, channel, done) VALUES (?,?,?,?,?,?)').run(workspaceId, '11-50', 'Services', 'Close deals', 'Phone & WhatsApp', 0);
   }
 
   // ============================================================
