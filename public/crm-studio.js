@@ -3566,7 +3566,7 @@
   window.__revokeSession = async function (id) { await api('/crm/api/sessions/' + id + '/revoke', { method: 'POST' }); toast('Revoked'); window.__settingsSessions(); };
   window.__settingsIntegrations = async function () {
     var el = document.getElementById('settingsContent');
-    el.innerHTML = '<div class="settings-section"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div><h3 style="margin:0">Integration Marketplace</h3><p class="hello" style="margin:4px 0 0">Connect Gmail, Calendar, Outlook in one click. Connect other tools with API keys.</p></div><button type="button" class="ghost" onclick="go(\'integrations\')" style="font-size:12px">Open full page ›</button></div><div id="intGrid" class="integration-grid">Loading...</div><div id="oauthSetupInline" style="margin-top:24px"></div><div id="apiKeySection" style="margin-top:24px"></div><div id="webhookSection" style="margin-top:24px"></div></div>';
+    el.innerHTML = '<div class="settings-section"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div><h3 style="margin:0">Integration Marketplace</h3><p class="hello" style="margin:4px 0 0">Connect Gmail, Calendar, Outlook in one click. Connect other tools with API keys.</p></div><button type="button" class="ghost" onclick="go(\'integrations\')" style="font-size:12px">Open full page ›</button></div><div id="oauthSetupInline" style="margin-bottom:24px"></div><div id="intGrid" class="integration-grid">Loading...</div><div id="apiKeySection" style="margin-top:24px"></div><div id="webhookSection" style="margin-top:24px"></div></div>';
     var data = await api('/crm/api/integrations');
     var grid = document.getElementById('intGrid');
     if (!data || data.error) { grid.innerHTML = '<p class="hello">Could not load integrations.</p>'; return; }
@@ -3584,7 +3584,7 @@
         else btn = '<button class="connect" onclick="go(\'integrations\')">Connect</button>';
       }
       else if (i.status === 'not_configured') {
-        if (i.id === 'gmail' || i.id === 'google_calendar' || i.id === 'outlook') btn = '<button class="configure" onclick="window.__showOAuthSetupInline()">Set up</button>';
+        if (i.id === 'gmail' || i.id === 'google_calendar' || i.id === 'outlook') btn = '<button class="configure" onclick="window.__showOAuthSetup({scroll:true})">Set up</button>';
         else if (i.id === 'whatsapp' || i.id === 'email' || i.id === 'flutterwave' || i.id === 'paystack' || i.id === 'gemini') btn = '<span style="font-size:11px;color:#94a3b8">Admin only</span>';
         else btn = '<button class="configure" onclick="go(\'integrations\')">Configure</button>';
       }
@@ -3592,8 +3592,8 @@
       else if (i.status === 'coming_soon') btn = '<span style="font-size:11px;color:#94a3b8">Notify me</span>';
       return '<div class="integration-card"><div class="top"><div class="ico">' + i.icon + '</div><div class="info"><b>' + esc(i.name) + '</b><span>' + esc(i.category) + '</span></div></div><p class="desc">' + esc(i.description) + '</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="status-badge ' + statusClass + '">' + statusLabel + '</span>' + btn + '</div></div>';
     }).join('');
-    // Render OAuth setup inline (uses oauthSetupInline container instead of oauthSetupSection)
-    window.__showOAuthSetupInline();
+    // Render OAuth setup panel (auto-detects container: oauthSetupSection on Integrations page, oauthSetupInline in Settings)
+    window.__showOAuthSetup();
     if (window.__showApiKeys) window.__showApiKeys();
     if (window.__showWebhooks) window.__showWebhooks();
   };
@@ -4577,7 +4577,7 @@
 
   window.drawIntegrations = async function () {
     var el = document.getElementById('view');
-    el.innerHTML = '<div class="board-head"><div><h1>Integrations</h1><p class="hello">Connect your apps to Afri CRM in one click</p></div></div><div id="intGrid" class="integration-grid">Loading...</div><div id="oauthSetupSection" style="margin-top:24px"></div><div id="apiKeySection" style="margin-top:24px"></div><div id="webhookSection" style="margin-top:24px"></div>';
+    el.innerHTML = '<div class="board-head"><div><h1>Integrations</h1><p class="hello">Connect your apps to Afri CRM in one click</p></div></div><div id="oauthSetupSection" style="margin-bottom:24px"></div><div id="intGrid" class="integration-grid">Loading...</div><div id="apiKeySection" style="margin-top:24px"></div><div id="webhookSection" style="margin-top:24px"></div>';
     var data = await api('/crm/api/integrations');
     var grid = document.getElementById('intGrid');
     if (!data || data.error) { grid.innerHTML = '<p class="hello">Could not load integrations.</p>'; return; }
@@ -4605,7 +4605,7 @@
       }
       else if (i.status === 'not_configured') {
         // For email/calendar/outlook: show "Set up" → opens setup panel
-        if (i.id === 'gmail' || i.id === 'google_calendar' || i.id === 'outlook') btn = '<button class="configure" onclick="window.__showOAuthSetup()">Set up</button>';
+        if (i.id === 'gmail' || i.id === 'google_calendar' || i.id === 'outlook') btn = '<button class="configure" onclick="window.__showOAuthSetup({scroll:true})">Set up</button>';
         else if (i.id === 'whatsapp' || i.id === 'email' || i.id === 'flutterwave' || i.id === 'paystack' || i.id === 'gemini') btn = '<span style="font-size:11px;color:#94a3b8">Admin only</span>';
         else btn = '<button class="configure" onclick="go(\'settings\')">Configure</button>';
       }
@@ -4654,23 +4654,38 @@
   };
 
   // OAuth setup panel — shows redirect URL + Railway env vars + console links
-  window.__showOAuthSetup = async function () {
-    var el = document.getElementById('oauthSetupSection');
+  // Works in BOTH contexts: Integrations page (oauthSetupSection) AND Settings tab (oauthSetupInline)
+  window.__showOAuthSetup = async function (opts) {
+    var el = document.getElementById('oauthSetupSection') || document.getElementById('oauthSetupInline');
     if (!el) return;
     var setup = await api('/crm/api/oauth/setup');
     if (!setup || setup.error) { el.innerHTML = ''; return; }
+    var anyEnabled = setup.providers.some(function(p) { return p.platform_enabled; });
+    var banner = anyEnabled
+      ? '<div style="background:#dcfce7;border:1px solid #86efac;border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;gap:10px;align-items:center"><span style="font-size:20px">✓</span><div><b style="color:#166534;font-size:13px">Platform OAuth enabled</b><p style="color:#15803d;font-size:12px;margin:2px 0 0">Users can click Connect Gmail/Outlook — Google will ask them to allow Afri CRM. No further setup needed.</p></div></div>'
+      : '<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;gap:10px;align-items:center"><span style="font-size:20px">⚠</span><div><b style="color:#92400e;font-size:13px">Action needed: enable one-click Connect</b><p style="color:#b45309;font-size:12px;margin:2px 0 0">You (workspace owner) need to register OAuth clients with Google and Microsoft, then add the env vars to Railway. The steps + redirect URLs are below — one-time setup.</p></div></div>';
     var cards = setup.providers.map(function(p) {
       var redirectHtml = p.redirect_urls.map(function(u) {
-        return '<code style="font-family:ui-monospace,monospace;font-size:11px;color:#0d9488;background:#f0fdfa;padding:4px 8px;border-radius:6px;word-break:break-all;display:block;margin:4px 0">' + esc(u) + '</code>';
+        return '<div style="display:flex;gap:6px;align-items:center;margin:4px 0"><code style="font-family:ui-monospace,monospace;font-size:11px;color:#0d9488;background:#f0fdfa;padding:4px 8px;border-radius:6px;word-break:break-all;flex:1">' + esc(u) + '</code><button type="button" class="ghost" style="font-size:10px;padding:4px 8px;flex-shrink:0" onclick="navigator.clipboard.writeText(\'' + esc(u) + '\').then(function(){toast(\'Redirect URL copied\')})">Copy</button></div>';
       }).join('');
-      var envHtml = '<code style="font-family:ui-monospace,monospace;font-size:11px;color:#1e40af;background:#dbeafe;padding:2px 6px;border-radius:4px">' + esc(p.env_vars.client_id) + '</code> <code style="font-family:ui-monospace,monospace;font-size:11px;color:#1e40af;background:#dbeafe;padding:2px 6px;border-radius:4px">' + esc(p.env_vars.client_secret) + '</code>';
+      var envHtml = '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px"><code style="font-family:ui-monospace,monospace;font-size:11px;color:#1e40af;background:#dbeafe;padding:2px 6px;border-radius:4px">' + esc(p.env_vars.client_id) + '</code><code style="font-family:ui-monospace,monospace;font-size:11px;color:#1e40af;background:#dbeafe;padding:2px 6px;border-radius:4px">' + esc(p.env_vars.client_secret) + '</code></div>';
       var statusBadge = p.platform_enabled
         ? '<span class="status-badge connected" style="background:#dcfce7;color:#166534">Enabled</span>'
         : '<span class="status-badge not_configured" style="background:#fef3c7;color:#92400e">Not enabled</span>';
       var stepsHtml = '<ol style="margin:8px 0 0 18px;padding:0;font-size:12px;color:#475569;line-height:1.7">' + p.steps.map(function(s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ol>';
-      return '<div style="border:1px solid #e8e6e1;border-radius:14px;padding:18px;margin-bottom:12px;background:var(--card,#fff)"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap"><div><b style="font-size:15px;color:#0f172a">' + esc(p.name) + '</b><div style="margin-top:4px">' + statusBadge + '</div></div><a href="' + esc(p.console_url) + '" target="_blank" rel="noopener" style="font-size:12px;background:#0d9488;color:#fff;padding:6px 12px;border-radius:8px;text-decoration:none">Open console →</a></div><div style="margin-top:12px"><b style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em">Authorized redirect URI</b>' + redirectHtml + '</div><div style="margin-top:12px"><b style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em">Railway env vars</b><div style="margin-top:4px">' + envHtml + '</div></div><div style="margin-top:12px"><b style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em">Steps</b>' + stepsHtml + '</div><details style="margin-top:12px"><summary style="font-size:12px;color:#0d9488;cursor:pointer;font-weight:600">Or use your own client (per-workspace)</summary><div style="margin-top:8px"><label style="font-size:12px;color:#475569">Client ID<input id="ownCred_' + p.id + '_id" placeholder="Paste client ID" style="margin-top:4px"></label><label style="font-size:12px;color:#475569;margin-top:8px;display:block">Client secret<input id="ownCred_' + p.id + '_secret" type="password" placeholder="Paste client secret" style="margin-top:4px"></label><button type="button" onclick="window.__saveOwnCred(\'' + p.id + '\')" style="margin-top:8px">Save credentials</button><button type="button" class="ghost" onclick="window.__removeOwnCred(\'' + p.id + '\')" style="margin-top:8px;margin-left:6px">Remove</button><div id="ownCredResult_' + p.id + '"></div></div></details></div>';
+      return '<div style="border:1px solid #e8e6e1;border-radius:14px;padding:18px;margin-bottom:12px;background:var(--card,#fff)" data-oauth-card="' + p.id + '"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap"><div><b style="font-size:15px;color:#0f172a">' + esc(p.name) + '</b><div style="margin-top:4px">' + statusBadge + '</div></div><a href="' + esc(p.console_url) + '" target="_blank" rel="noopener" style="font-size:12px;background:#0d9488;color:#fff;padding:6px 12px;border-radius:8px;text-decoration:none">Open console →</a></div><div style="margin-top:12px"><b style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em">Authorized redirect URI</b>' + redirectHtml + '</div><div style="margin-top:12px"><b style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em">Railway env vars</b>' + envHtml + '</div><div style="margin-top:12px"><b style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em">Steps</b>' + stepsHtml + '</div><details style="margin-top:12px"><summary style="font-size:12px;color:#0d9488;cursor:pointer;font-weight:600">Or use your own client (per-workspace)</summary><div style="margin-top:8px"><label style="font-size:12px;color:#475569">Client ID<input id="ownCred_' + p.id + '_id" placeholder="Paste client ID" style="margin-top:4px"></label><label style="font-size:12px;color:#475569;margin-top:8px;display:block">Client secret<input id="ownCred_' + p.id + '_secret" type="password" placeholder="Paste client secret" style="margin-top:4px"></label><button type="button" onclick="window.__saveOwnCred(\'' + p.id + '\')" style="margin-top:8px">Save credentials</button><button type="button" class="ghost" onclick="window.__removeOwnCred(\'' + p.id + '\')" style="margin-top:8px;margin-left:6px">Remove</button><div id="ownCredResult_' + p.id + '"></div></div></details></div>';
     }).join('');
-    el.innerHTML = '<div class="card"><h2>OAuth setup</h2><p class="hello" style="margin-bottom:12px">To enable one-click Connect for <b>Gmail</b>, <b>Google Calendar</b>, and <b>Outlook</b>, the workspace owner registers OAuth clients with Google and Microsoft. This is a one-time setup — after that, every user just clicks Connect.</p>' + cards + '</div>';
+    el.innerHTML = '<div class="card" id="oauthSetupCard"><h2>OAuth setup</h2>' + banner + '<p class="hello" style="margin-bottom:12px">To enable one-click Connect for <b>Gmail</b>, <b>Google Calendar</b>, and <b>Outlook</b>, the workspace owner registers OAuth clients with Google and Microsoft. This is a one-time setup — after that, every user just clicks Connect.</p>' + cards + '</div>';
+    // If requested, scroll to and highlight the panel
+    if (opts && opts.scroll) {
+      var card = document.getElementById('oauthSetupCard');
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.style.transition = 'box-shadow 0.3s';
+        card.style.boxShadow = '0 0 0 4px #14b8a6';
+        setTimeout(function() { card.style.boxShadow = ''; }, 1800);
+      }
+    }
   };
   window.__saveOwnCred = async function (provider) {
     var id = (document.getElementById('ownCred_' + provider + '_id') || {}).value;
