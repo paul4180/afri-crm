@@ -36,6 +36,11 @@ app.get('/crm', async (req, reply) => reply.sendFile('crm.html'));
 // Privacy Policy + Terms of Service — required by Google OAuth verification
 app.get('/privacy', async (req, reply) => reply.sendFile('privacy.html'));
 app.get('/terms', async (req, reply) => reply.sendFile('terms.html'));
+// Company pages — About, Blog, Careers, Press
+app.get('/about', async (req, reply) => reply.sendFile('about.html'));
+app.get('/blog', async (req, reply) => reply.sendFile('blog.html'));
+app.get('/careers', async (req, reply) => reply.sendFile('careers.html'));
+app.get('/press', async (req, reply) => reply.sendFile('press.html'));
 
 // ============================================================
 // Prisma — optional, for cross-product features only
@@ -85,7 +90,7 @@ app.addHook('onSend', async (req, reply) => {
   const url = req.url || '';
   if (url.endsWith('.js') || url.endsWith('.css') || url.endsWith('.svg') || url.endsWith('.png') || url.endsWith('.ico')) {
     reply.header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
-  } else if (url.endsWith('.html') || url === '/' || url === '/crm' || url === '/privacy' || url === '/terms') {
+  } else if (url.endsWith('.html') || url === '/' || url === '/crm' || url === '/privacy' || url === '/terms' || url === '/about' || url === '/blog' || url === '/careers' || url === '/press') {
     reply.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
   }
 });
