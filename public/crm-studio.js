@@ -5370,5 +5370,353 @@
     }
   };
 
+  // ============================================================
+  // MOBILE PHASE 1 — Mobile shell + bottom tab bar
+  // Auto-detects mobile viewport, renders a completely different
+  // navigation shell (bottom tab bar, compact top bar, FAB) instead
+  // of the desktop sidebar. The pages render the same content but
+  // with mobile-optimized CSS.
+  // ============================================================
+  function isMobileViewport() {
+    return window.matchMedia && window.matchMedia('(max-width: 880px)').matches;
+  }
+  function isTouchDevice() {
+    return ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  }
+  // We treat "mobile" as: small viewport OR touch device on small screen
+  function shouldUseMobileShell() {
+    if (!isMobileViewport()) return false;
+    // On tablets with wide viewport we still want desktop; mobile shell
+    // is for narrow viewports.
+    return true;
+  }
+
+  // Inject the mobile shell once DOM is ready
+  function injectMobileShell() {
+    if (!shouldUseMobileShell()) return;
+    if (document.getElementById('mobileShell')) return; // already injected
+    document.documentElement.setAttribute('data-shell', 'mobile');
+
+    // Build the mobile top bar (compact, sticky, white blur)
+    var topbar = document.createElement('header');
+    topbar.id = 'mobileTopbar';
+    topbar.className = 'm-topbar';
+    topbar.innerHTML =
+      '<button class="m-icon-btn" onclick="window.__toggleMobileSearch()" aria-label="Search">'
+      + '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>'
+      + '</button>'
+      + '<div class="m-brand" onclick="go(\'home\')">'
+      + '<img src="/logo.svg" alt="Afri OS" width="22" height="22">'
+      + '<span>Afri <b>OS</b></span>'
+      + '</div>'
+      + '<button class="m-icon-btn" id="mBell" onclick="window.__toggleMobileBell()" aria-label="Notifications">'
+      + '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>'
+      + '<span class="m-bell-count" id="mBellCount" style="display:none">0</span>'
+      + '</button>';
+    document.body.appendChild(topbar);
+
+    // Build the bottom tab bar (native-app style)
+    var tabbar = document.createElement('nav');
+    tabbar.id = 'mobileTabbar';
+    tabbar.className = 'm-tabbar';
+    tabbar.innerHTML =
+      '<button class="m-tab" data-tab="home" onclick="go(\'home\')">'
+      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>'
+      + '<span>Home</span>'
+      + '</button>'
+      + '<button class="m-tab" data-tab="contacts" onclick="go(\'contacts\')">'
+      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M3 22c0-5 4-7 6-7s6 2 6 7"/><circle cx="17" cy="9" r="3"/></svg>'
+      + '<span>Contacts</span>'
+      + '</button>'
+      + '<button class="m-tab" data-tab="deals" onclick="go(\'deals\')">'
+      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M7 7h4l2 5-2 5H7M13 7h4l2 5-2 5h-4"/></svg>'
+      + '<span>Deals</span>'
+      + '</button>'
+      + '<button class="m-tab" data-tab="tasks" onclick="go(\'tasks\')">'
+      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 11l2 2 4-4"/></svg>'
+      + '<span>Tasks</span>'
+      + '</button>'
+      + '<button class="m-tab" data-tab="profile" onclick="go(\'settings\')">'
+      + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M5 21c0-4 3-6 7-6s7 2 7 6"/></svg>'
+      + '<span>Profile</span>'
+      + '</button>';
+    document.body.appendChild(tabbar);
+
+    // Build the FAB (floating action button) — quick add
+    var fab = document.createElement('button');
+    fab.id = 'mobileFab';
+    fab.className = 'm-fab';
+    fab.innerHTML =
+      '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>';
+    fab.onclick = window.__openMobileQuickAdd;
+    document.body.appendChild(fab);
+
+    // Sync tab active state on navigation
+    window.__syncMobileTabs = function () {
+      var p = window.page || 'home';
+      var map = { home: 'home', contacts: 'contacts', companies: 'contacts', deals: 'deals', opportunities: 'deals', tasks: 'tasks', activities: 'tasks', settings: 'profile', integrations: 'profile', calendar: 'home', feed: 'home', forecast: 'home', dashboard: 'home' };
+      var tab = map[p] || 'home';
+      document.querySelectorAll('.m-tab').forEach(function (t) {
+        t.classList.toggle('on', t.dataset.tab === tab);
+      });
+    };
+    // Override go() to also sync tabs (without breaking the original)
+    var origGo = window.go;
+    if (typeof origGo === 'function' && !origGo.__mobileWrapped) {
+      window.go = function (p) {
+        var r = origGo.apply(this, arguments);
+        if (window.__syncMobileTabs) window.__syncMobileTabs();
+        return r;
+      };
+      window.go.__mobileWrapped = true;
+    }
+    setTimeout(window.__syncMobileTabs, 200);
+  }
+
+  // Mobile quick-add sheet (slides up from bottom — bottom-sheet pattern)
+  window.__openMobileQuickAdd = function () {
+    var sheet = document.getElementById('mobileQuickSheet');
+    if (sheet) { sheet.classList.add('on'); return; }
+    sheet = document.createElement('div');
+    sheet.id = 'mobileQuickSheet';
+    sheet.className = 'm-quick-sheet';
+    sheet.innerHTML =
+      '<div class="m-quick-backdrop" onclick="window.__closeMobileQuickAdd()"></div>'
+      + '<div class="m-quick-card">'
+      + '  <div class="m-quick-handle"></div>'
+      + '  <h3>Quick add</h3>'
+      + '  <div class="m-quick-grid">'
+      + '    <button onclick="window.__closeMobileQuickAdd(); if (typeof window.openSidePanel === \'function\') window.openSidePanel(\'new-contact\'); else go(\'contacts\');">'
+      + '      <div class="m-quick-ico teal"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M3 22c0-5 4-7 6-7s6 2 6 7"/><circle cx="17" cy="9" r="3"/></svg></div>'
+      + '      <span>Contact</span>'
+      + '    </button>'
+      + '    <button onclick="window.__closeMobileQuickAdd(); if (typeof window.openSidePanel === \'function\') window.openSidePanel(\'new-deal\'); else go(\'deals\');">'
+      + '      <div class="m-quick-ico violet"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M7 7h4l2 5-2 5H7M13 7h4l2 5-2 5h-4"/></svg></div>'
+      + '      <span>Deal</span>'
+      + '    </button>'
+      + '    <button onclick="window.__closeMobileQuickAdd(); if (typeof window.openSidePanel === \'function\') window.openSidePanel(\'new-task\'); else go(\'tasks\');">'
+      + '      <div class="m-quick-ico amber"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 11l2 2 4-4"/></svg></div>'
+      + '      <span>Task</span>'
+      + '    </button>'
+      + '    <button onclick="window.__closeMobileQuickAdd(); if (typeof window.__openScanCard === \'function\') window.__openScanCard();">'
+      + '      <div class="m-quick-ico rose"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></div>'
+      + '      <span>Scan card</span>'
+      + '    </button>'
+      + '  </div>'
+      + '  <button class="m-quick-cancel" onclick="window.__closeMobileQuickAdd()">Cancel</button>'
+      + '</div>';
+    document.body.appendChild(sheet);
+    setTimeout(function () { sheet.classList.add('on'); }, 10);
+  };
+  window.__closeMobileQuickAdd = function () {
+    var s = document.getElementById('mobileQuickSheet');
+    if (s) {
+      s.classList.remove('on');
+      setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 250);
+    }
+  };
+
+  // Mobile search + bell toggles (placeholder for Phase 2/6)
+  window.__toggleMobileSearch = function () {
+    // For Phase 1, route to home with focus on existing search input
+    if (typeof go === 'function') go('home');
+    setTimeout(function () {
+      var q = document.getElementById('q');
+      if (q) q.focus();
+    }, 200);
+  };
+  window.__toggleMobileBell = function () {
+    var bell = document.getElementById('bellList');
+    if (bell) {
+      var isVisible = bell.style.display === 'block';
+      bell.style.display = isVisible ? 'none' : 'block';
+    } else if (typeof loadBell === 'function') {
+      loadBell();
+    }
+  };
+
+  // Mobile shell CSS
+  style.textContent += `
+    /* ===== MOBILE SHELL (Phase 1) ===== */
+    /* Only applied when <html data-shell="mobile"> */
+    [data-shell="mobile"] body { padding-bottom: 64px !important; padding-top: 56px !important; }
+
+    /* Hide the desktop sidebar + header on mobile */
+    [data-shell="mobile"] #nav,
+    [data-shell="mobile"] aside,
+    [data-shell="mobile"] .app > header,
+    [data-shell="mobile"] header:not(.m-topbar) { display: none !important; }
+
+    /* Adjust the main app grid to full-width single column */
+    [data-shell="mobile"] .app,
+    [data-shell="mobile"] .app.rail { grid-template-columns: 1fr !important; }
+
+    /* Top bar — compact, sticky, white blur */
+    .m-topbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      height: 56px; padding: 0 12px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(20px) saturate(180%);
+      border-bottom: 1px solid #e2e8f0;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+    [data-theme="dark"] .m-topbar { background: rgba(15, 23, 42, 0.92); border-bottom-color: #1e293b; }
+    .m-icon-btn {
+      width: 38px; height: 38px; border-radius: 10px;
+      background: transparent; border: 0; color: #0f172a;
+      display: grid; place-items: center; cursor: pointer;
+      transition: background 0.15s; position: relative;
+    }
+    [data-theme="dark"] .m-icon-btn { color: #e2e8f0; }
+    .m-icon-btn:active { background: #f1f5f9; transform: scale(0.95); }
+    [data-theme="dark"] .m-icon-btn:active { background: #1e293b; }
+    .m-bell-count {
+      position: absolute; top: 4px; right: 4px;
+      min-width: 16px; height: 16px; padding: 0 4px;
+      border-radius: 99px; background: #ef4444; color: #fff;
+      font-size: 10px; font-weight: 700; display: grid; place-items: center;
+      border: 2px solid #fff;
+    }
+    [data-theme="dark"] .m-bell-count { border-color: #0f172a; }
+    .m-brand {
+      display: flex; align-items: center; gap: 8px;
+      font-family: 'Fraunces', serif; font-size: 18px; font-weight: 700;
+      color: #0f172a; cursor: pointer;
+    }
+    .m-brand b { color: #0d9488; font-weight: 700; }
+    [data-theme="dark"] .m-brand { color: #fff; }
+    .m-brand img { display: block; }
+
+    /* Bottom tab bar — native-app style */
+    .m-tabbar {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+      height: 64px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px) saturate(180%);
+      border-top: 1px solid #e2e8f0;
+      display: flex; align-items: stretch; justify-content: space-around;
+      padding: 0 4px;
+      box-shadow: 0 -2px 12px rgba(15, 23, 42, 0.05);
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+    [data-theme="dark"] .m-tabbar { background: rgba(15, 23, 42, 0.95); border-top-color: #1e293b; }
+    .m-tab {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+      background: transparent; border: 0; color: #94a3b8; font-size: 10px; font-weight: 600; cursor: pointer;
+      transition: color 0.15s, transform 0.1s; padding: 4px;
+    }
+    [data-theme="dark"] .m-tab { color: #64748b; }
+    .m-tab:active { transform: scale(0.92); }
+    .m-tab.on { color: #0d9488; }
+    [data-theme="dark"] .m-tab.on { color: #2dd4bf; }
+    .m-tab svg { display: block; }
+    .m-tab span { line-height: 1; }
+
+    /* FAB — floating action button, teal gradient */
+    .m-fab {
+      position: fixed; bottom: 80px; right: 16px; z-index: 99;
+      width: 56px; height: 56px; border-radius: 50%;
+      background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+      color: #fff; border: 0; cursor: pointer;
+      display: grid; place-items: center;
+      box-shadow: 0 8px 24px rgba(13, 148, 136, 0.4), 0 0 0 4px rgba(13, 148, 136, 0.08);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .m-fab:active { transform: scale(0.92); }
+    .m-fab:hover { transform: translateY(-2px) scale(1.04); box-shadow: 0 12px 28px rgba(13, 148, 136, 0.5), 0 0 0 6px rgba(13, 148, 136, 0.1); }
+
+    /* Mobile quick-add bottom sheet */
+    .m-quick-sheet { position: fixed; inset: 0; z-index: 200; pointer-events: none; }
+    .m-quick-sheet.on { pointer-events: auto; }
+    .m-quick-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.6); opacity: 0; transition: opacity 0.25s; }
+    .m-quick-sheet.on .m-quick-backdrop { opacity: 1; }
+    .m-quick-card {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: #fff; border-radius: 24px 24px 0 0;
+      padding: 12px 20px 24px; padding-bottom: max(24px, env(safe-area-inset-bottom, 0));
+      box-shadow: 0 -20px 50px rgba(15, 23, 42, 0.2);
+      transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    [data-theme="dark"] .m-quick-card { background: #0f172a; }
+    .m-quick-sheet.on .m-quick-card { transform: translateY(0); }
+    .m-quick-handle { width: 40px; height: 4px; background: #cbd5e1; border-radius: 99px; margin: 0 auto 16px; }
+    [data-theme="dark"] .m-quick-handle { background: #334155; }
+    .m-quick-card h3 { font-family: 'Fraunces', serif; font-size: 18px; font-weight: 700; color: #0f172a; margin: 0 0 16px; text-align: center; }
+    [data-theme="dark"] .m-quick-card h3 { color: #fff; }
+    .m-quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+    .m-quick-grid button {
+      background: transparent; border: 0; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      font-size: 12px; font-weight: 600; color: #475569; padding: 8px 4px;
+    }
+    [data-theme="dark"] .m-quick-grid button { color: #94a3b8; }
+    .m-quick-ico {
+      width: 52px; height: 52px; border-radius: 16px;
+      display: grid; place-items: center;
+      transition: transform 0.15s;
+    }
+    .m-quick-grid button:active .m-quick-ico { transform: scale(0.9); }
+    .m-quick-ico.teal { background: linear-gradient(135deg, #ccfbf1, #5eead4); color: #0f766e; }
+    .m-quick-ico.violet { background: linear-gradient(135deg, #ede9fe, #c4b5fd); color: #5b21b6; }
+    .m-quick-ico.amber { background: linear-gradient(135deg, #fef3c7, #fcd34d); color: #92400e; }
+    .m-quick-ico.rose { background: linear-gradient(135deg, #fce7f3, #fbcfe8); color: #9f1239; }
+    .m-quick-cancel {
+      display: block; width: 100%; padding: 14px; border-radius: 12px;
+      background: #f1f5f9; border: 0; color: #475569; font-size: 15px; font-weight: 700; cursor: pointer;
+      font-family: inherit;
+    }
+    [data-theme="dark"] .m-quick-cancel { background: #1e293b; color: #e2e8f0; }
+
+    /* Hide desktop elements that don't make sense on mobile */
+    [data-shell="mobile"] .nav-mobile-btn,
+    [data-shell="mobile"] .helper,
+    [data-shell="mobile"] .ask-fab,
+    [data-shell="mobile"] #moreBtn,
+    [data-shell="mobile"] .navfoot { display: none !important; }
+
+    /* Make the existing content area scroll nicely on mobile */
+    [data-shell="mobile"] #view,
+    [data-shell="mobile"] .view {
+      padding: 12px !important;
+    }
+
+    /* On very small screens (<400px), reduce padding more */
+    @media (max-width: 400px) {
+      [data-shell="mobile"] #view,
+      [data-shell="mobile"] .view { padding: 8px !important; }
+      .m-fab { width: 52px; height: 52px; bottom: 76px; right: 12px; }
+      .m-fab svg { width: 22px; height: 22px; }
+    }
+  `;
+
+  // Auto-inject on first paint + on resize (in case user rotates device or
+  // resizes window across the breakpoint)
+  function syncMobileShell() {
+    if (shouldUseMobileShell()) {
+      injectMobileShell();
+    } else {
+      // Remove mobile shell if user went back to desktop
+      var shell = document.getElementById('mobileShell');
+      if (shell) shell.remove();
+      var topbar = document.getElementById('mobileTopbar');
+      if (topbar) topbar.remove();
+      var tabbar = document.getElementById('mobileTabbar');
+      if (tabbar) tabbar.remove();
+      var fab = document.getElementById('mobileFab');
+      if (fab) fab.remove();
+      document.documentElement.removeAttribute('data-shell');
+    }
+  }
+
+  // Wait for boot to complete, then check
+  setTimeout(syncMobileShell, 1500);
+  // Also re-check on viewport changes (orientation, resize across breakpoint)
+  var resizeTimer = null;
+  window.addEventListener('resize', function () {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(syncMobileShell, 200);
+  });
+
 })();
 
