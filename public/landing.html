@@ -612,6 +612,276 @@
     margin: 0;
   }
 
+  /* === HOW IT WORKS (Step 4) === */
+  .how-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    position: relative;
+    margin-bottom: 48px;
+  }
+  .step-connector {
+    position: absolute;
+    top: 36px;  /* aligns with the .step-number */
+    left: 16.67%;  /* center of col 1 */
+    right: 16.67%;  /* center of col 3 */
+    height: 2px;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .step-connector span {
+    position: absolute;
+    top: 0; height: 2px;
+    background-image: linear-gradient(to right, var(--teal) 50%, transparent 50%);
+    background-size: 10px 2px;
+    background-repeat: repeat-x;
+    opacity: 0.5;
+  }
+  .step-connector span:first-child { left: 0; width: 50%; }
+  .step-connector span:last-child  { right: 0; width: 50%; }
+  .step-card {
+    position: relative;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px 20px 20px;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    z-index: 1;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .step-card.in-view {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .step-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+  }
+  .step-card.in-view:hover { transform: translateY(-4px); }
+  .step-number {
+    position: absolute;
+    top: -16px; left: 50%;
+    transform: translateX(-50%);
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--teal) 0%, var(--teal-dark) 100%);
+    color: #fff;
+    font-family: 'Fraunces', serif;
+    font-size: 22px; font-weight: 800;
+    display: grid; place-items: center;
+    box-shadow: 0 8px 24px rgba(13, 148, 136, 0.35), 0 0 0 6px var(--warm);
+    z-index: 2;
+  }
+  .step-mockup {
+    margin: 16px 0 20px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12), 0 4px 8px rgba(15, 23, 42, 0.06);
+    border: 1px solid var(--border);
+    background: #fff;
+  }
+  .mockup-chrome {
+    background: #f1f5f9;
+    padding: 8px 12px;
+    display: flex; align-items: center; gap: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .mockup-chrome .dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .mockup-chrome .dot.red { background: #ef4444; }
+  .mockup-chrome .dot.yellow { background: #f59e0b; }
+  .mockup-chrome .dot.green { background: #10b981; }
+  .mockup-chrome .mockup-url {
+    flex: 1; margin-left: 8px;
+    font-size: 10px; color: var(--text-muted);
+    font-family: ui-monospace, monospace;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    background: #fff; padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  .mockup-body {
+    padding: 16px;
+    background: var(--warm);
+  }
+  .mockup-screen {
+    background: #fff;
+    border-radius: 8px;
+    padding: 14px;
+    display: flex; flex-direction: column;
+    gap: 8px;
+    min-height: 180px;
+  }
+  /* Login page mockup */
+  .mockup-screen .mockup-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .mockup-logo {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 4px;
+  }
+  .mockup-text { display: flex; flex-direction: column; gap: 6px; }
+  .mockup-google-btn {
+    display: flex; align-items: center; gap: 8px;
+    background: #fff; border: 1px solid var(--border);
+    padding: 8px 12px; border-radius: 8px;
+    margin: 4px 0;
+  }
+  .mockup-google-btn span {
+    width: 18px; height: 18px;
+    background: linear-gradient(135deg, #4285F4, #34A853, #FBBC05, #EA4335);
+    border-radius: 4px;
+    font-weight: 800;
+    color: #fff;
+    font-size: 12px;
+    display: grid; place-items: center;
+    font-family: 'Inter', sans-serif;
+  }
+  /* Wizard mockup */
+  .mockup-screen.wizard {
+    background: linear-gradient(135deg, #f0fdfa, #ede9fe);
+  }
+  .mockup-wizard-eyebrow {
+    width: 60px; height: 8px;
+    background: var(--teal);
+    border-radius: 99px;
+    opacity: 0.4;
+  }
+  .mockup-choice {
+    display: flex; align-items: center; gap: 10px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    position: relative;
+  }
+  .mockup-choice.on {
+    border-color: var(--teal);
+    background: #ecfdf5;
+  }
+  .mockup-choice-ico {
+    width: 22px; height: 22px; border-radius: 6px;
+    background: #f1f5f9; flex-shrink: 0;
+  }
+  .mockup-choice-ico.teal { background: linear-gradient(135deg, #ccfbf1, #99f6e4); }
+  .mockup-choice-ico.violet { background: linear-gradient(135deg, #ede9fe, #ddd6fe); }
+  .mockup-choice-ico.rose { background: linear-gradient(135deg, #fce7f3, #fbcfe8); }
+  .mockup-check {
+    position: absolute; top: 6px; right: 6px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--teal); color: #fff;
+    font-size: 10px; font-weight: 700;
+    display: grid; place-items: center;
+  }
+  /* Dashboard mockup */
+  .mockup-screen.dashboard { gap: 10px; }
+  .mockup-row {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .mockup-stats {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .mockup-stat {
+    background: #f8fafc;
+    border-radius: 6px;
+    padding: 8px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .mockup-meetings {
+    display: flex; flex-direction: column; gap: 6px;
+    background: linear-gradient(135deg, #ecfdf5, #f0fdfa);
+    border: 1px solid #99f6e4;
+    border-radius: 6px;
+    padding: 8px;
+  }
+  .mockup-meeting {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .mockup-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .mockup-dot.teal { background: var(--teal); }
+  .mockup-dot.violet { background: var(--violet); }
+  .mockup-deal-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .mockup-deal {
+    height: 20px;
+    border-radius: 4px;
+    background: #f1f5f9;
+  }
+  .mockup-deal.teal { background: linear-gradient(180deg, #5eead4, #14b8a6); }
+  .mockup-deal.violet { background: linear-gradient(180deg, #c4b5fd, #8b5cf6); }
+  .mockup-deal.amber { background: linear-gradient(180deg, #fcd34d, #f97316); }
+  /* Generic mockup helpers */
+  .mockup-line {
+    height: 8px;
+    background: var(--border);
+    border-radius: 99px;
+    display: block;
+  }
+  .mockup-line.w20 { width: 20%; }
+  .mockup-line.w30 { width: 30%; }
+  .mockup-line.w40 { width: 40%; }
+  .mockup-line.w50 { width: 50%; }
+  .mockup-line.w55 { width: 55%; }
+  .mockup-line.w60 { width: 60%; }
+  .mockup-line.w80 { width: 80%; }
+  .mockup-line.w90 { width: 90%; }
+  .mockup-line.muted { background: #e2e8f0; }
+  .mockup-line.small { height: 6px; }
+  .mockup-line.inline { display: inline-block; vertical-align: middle; }
+  .step-content { text-align: left; }
+  .step-content h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 19px; font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.015em;
+    margin-bottom: 6px;
+    line-height: 1.2;
+  }
+  .step-content p {
+    color: var(--text-muted);
+    font-size: 13.5px;
+    line-height: 1.55;
+    margin: 0;
+  }
+  .how-cta {
+    text-align: center;
+    margin-top: 40px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+  }
+  .how-trust {
+    margin-top: 14px;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+  @media (max-width: 1024px) {
+    .how-grid { grid-template-columns: 1fr; max-width: 480px; margin: 0 auto 48px; }
+    .step-connector { display: none; }
+    .step-card { padding: 24px 20px 20px; }
+  }
+  @media (max-width: 640px) {
+    .step-card { padding: 20px 16px 16px; }
+    .step-mockup { margin: 12px 0 16px; }
+    .step-content h3 { font-size: 18px; }
+    .step-content p { font-size: 13px; }
+  }
+
   /* === FOOTER (skeleton for now — Step 5 fills it in) === */
   .footer {
     background: var(--navy-deep);
@@ -949,6 +1219,145 @@
   </div>
 </section>
 
+<!-- ===== HOW IT WORKS (Step 4) ===== -->
+<section class="section section-tinted" id="how">
+  <div class="section-head">
+    <div class="eyebrow">Start in minutes, not weeks</div>
+    <h2>How Afri OS works</h2>
+    <p>Three steps from "never heard of it" to "I just closed my first deal". No setup calls, no consultants, no implementation team.</p>
+  </div>
+  <div class="how-grid">
+    <div class="step-connector" aria-hidden="true">
+      <span></span>
+      <span></span>
+    </div>
+    <article class="step-card" data-step="1">
+      <div class="step-number">1</div>
+      <div class="step-mockup">
+        <div class="mockup-chrome">
+          <span class="dot red"></span>
+          <span class="dot yellow"></span>
+          <span class="dot green"></span>
+          <span class="mockup-url">afri-crm-production.up.railway.app</span>
+        </div>
+        <div class="mockup-body">
+          <div class="mockup-screen">
+            <div class="mockup-card">
+              <div class="mockup-logo"><img src="/logo.svg" alt="" width="20" height="20"></div>
+              <div class="mockup-text">
+                <div class="mockup-line w60"></div>
+                <div class="mockup-line w80"></div>
+              </div>
+              <div class="mockup-google-btn">
+                <span>G</span>
+                <div class="mockup-line w40 inline"></div>
+              </div>
+              <div class="mockup-line w30 muted"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="step-content">
+        <h3>Sign up with Google</h3>
+        <p>Click "Continue with Google" on the login page. Pick your account. Click Allow. You're in — calendar auto-connected, no password to remember, no email verification loop.</p>
+      </div>
+    </article>
+
+    <article class="step-card" data-step="2">
+      <div class="step-number">2</div>
+      <div class="step-mockup">
+        <div class="mockup-chrome">
+          <span class="dot red"></span>
+          <span class="dot yellow"></span>
+          <span class="dot green"></span>
+          <span class="mockup-url">afri-crm-production.up.railway.app/crm</span>
+        </div>
+        <div class="mockup-body">
+          <div class="mockup-screen wizard">
+            <div class="mockup-wizard-eyebrow"></div>
+            <div class="mockup-line w50"></div>
+            <div class="mockup-line w90 muted small"></div>
+            <div class="mockup-choice">
+              <div class="mockup-choice-ico teal"></div>
+              <div class="mockup-line w50 small"></div>
+            </div>
+            <div class="mockup-choice">
+              <div class="mockup-choice-ico violet"></div>
+              <div class="mockup-line w60 small"></div>
+            </div>
+            <div class="mockup-choice on">
+              <div class="mockup-choice-ico rose"></div>
+              <div class="mockup-line w55 small"></div>
+              <div class="mockup-check">✓</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="step-content">
+        <h3>Connect your inbox</h3>
+        <p>Onboarding wizard prompts you to connect Gmail, Calendar, or Outlook. One click each — Google asks for consent, you click Allow. From now on, emails you send from CRM are logged automatically.</p>
+      </div>
+    </article>
+
+    <article class="step-card" data-step="3">
+      <div class="step-number">3</div>
+      <div class="step-mockup">
+        <div class="mockup-chrome">
+          <span class="dot red"></span>
+          <span class="dot yellow"></span>
+          <span class="dot green"></span>
+          <span class="mockup-url">afri-crm-production.up.railway.app/crm</span>
+        </div>
+        <div class="mockup-body">
+          <div class="mockup-screen dashboard">
+            <div class="mockup-row">
+              <div class="mockup-line w30"></div>
+              <div class="mockup-line w20 muted small"></div>
+            </div>
+            <div class="mockup-stats">
+              <div class="mockup-stat">
+                <div class="mockup-line w40 small"></div>
+                <div class="mockup-line w60 teal small"></div>
+              </div>
+              <div class="mockup-stat">
+                <div class="mockup-line w40 small"></div>
+                <div class="mockup-line w60 violet small"></div>
+              </div>
+            </div>
+            <div class="mockup-meetings">
+              <div class="mockup-meeting">
+                <div class="mockup-dot teal"></div>
+                <div class="mockup-line w60 small"></div>
+              </div>
+              <div class="mockup-meeting">
+                <div class="mockup-dot violet"></div>
+                <div class="mockup-line w50 small"></div>
+              </div>
+            </div>
+            <div class="mockup-deal-row">
+              <div class="mockup-deal teal"></div>
+              <div class="mockup-deal violet"></div>
+              <div class="mockup-deal amber"></div>
+              <div class="mockup-deal teal"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="step-content">
+        <h3>Start closing deals</h3>
+        <p>Your home dashboard shows today's calendar meetings, pipeline value, and tasks due. Drag deals across stages. Open a contact to see their email history. Send an email right from the contact record.</p>
+      </div>
+    </article>
+  </div>
+  <div class="how-cta">
+    <a href="/crm" class="btn btn-primary">
+      Get started free — no credit card
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+    </a>
+    <p class="how-trust">Free forever · 1-click Gmail &amp; Calendar · Mobile responsive</p>
+  </div>
+</section>
+
 <!-- ===== FOOTER (Step 5 will expand this) ===== -->
 <footer class="footer">
   <div class="footer-inner">
@@ -984,6 +1393,25 @@
     }
     window.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
+  })();
+
+  // Scroll-triggered reveal for step cards
+  (function() {
+    if (!('IntersectionObserver' in window)) {
+      document.querySelectorAll('.step-card').forEach(function(c) { c.classList.add('in-view'); });
+      return;
+    }
+    var io = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry, i) {
+        if (entry.isIntersecting) {
+          // Stagger reveal based on data-step
+          var step = parseInt(entry.target.dataset.step || '1', 10);
+          setTimeout(function() { entry.target.classList.add('in-view'); }, (step - 1) * 150);
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.15, rootMargin: '0px 0px -60px 0px' });
+    document.querySelectorAll('.step-card').forEach(function(card) { io.observe(card); });
   })();
 </script>
 
