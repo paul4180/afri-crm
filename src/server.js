@@ -33,6 +33,9 @@ await app.register(fastifyStatic, {
 app.get('/', async (req, reply) => reply.sendFile('crm.html'));
 // Backward compat: /crm also serves crm.html (for old bookmarks / ERP cross-links)
 app.get('/crm', async (req, reply) => reply.sendFile('crm.html'));
+// Privacy Policy + Terms of Service — required by Google OAuth verification
+app.get('/privacy', async (req, reply) => reply.sendFile('privacy.html'));
+app.get('/terms', async (req, reply) => reply.sendFile('terms.html'));
 
 // ============================================================
 // Prisma — optional, for cross-product features only

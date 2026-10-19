@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy · Afri CRM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #faf9f7; color: #0f172a; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  .hero { background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f766e 100%); padding: 80px 24px 100px; color: #fff; position: relative; overflow: hidden; }
+  .hero::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 20% 30%, rgba(13, 148, 136, 0.3), transparent 40%), radial-gradient(circle at 80% 70%, rgba(124, 58, 237, 0.25), transparent 40%); pointer-events: none; }
+  .hero-inner { max-width: 800px; margin: 0 auto; position: relative; }
+  .hero .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #5eead4; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .hero .eyebrow::before { content: ''; width: 24px; height: 2px; background: #5eead4; border-radius: 99px; }
+  .hero h1 { font-family: 'Fraunces', serif; font-size: 44px; font-weight: 800; margin-bottom: 16px; letter-spacing: -0.02em; line-height: 1.1; }
+  .hero p { font-size: 16px; color: #cbd5e1; max-width: 600px; }
+  .hero .meta { margin-top: 32px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .hero .meta span { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); padding: 8px 14px; border-radius: 99px; font-size: 12px; color: #e2e8f0; backdrop-filter: blur(8px); }
+  .container { max-width: 800px; margin: -60px auto 80px; padding: 40px; background: #fff; border-radius: 24px; box-shadow: 0 30px 80px rgba(15, 23, 42, 0.08), 0 8px 24px rgba(15, 23, 42, 0.04); position: relative; }
+  h2 { font-size: 22px; font-weight: 700; margin: 36px 0 12px; color: #0f172a; padding-top: 24px; border-top: 1px solid #f1f5f9; }
+  h2:first-of-type { border-top: 0; padding-top: 0; }
+  h3 { font-size: 16px; font-weight: 600; margin: 24px 0 8px; color: #334155; }
+  p { margin-bottom: 14px; color: #475569; font-size: 15px; }
+  ul { margin: 0 0 14px 20px; padding: 0; color: #475569; font-size: 15px; }
+  ul li { margin-bottom: 6px; }
+  a { color: #0d9488; text-decoration: none; font-weight: 500; }
+  a:hover { text-decoration: underline; }
+  .scope-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+  .scope-table th, .scope-table td { padding: 10px 12px; text-align: left; border: 1px solid #e2e8f0; }
+  .scope-table th { background: #f8fafc; font-weight: 600; color: #475569; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .scope-table td code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 12px; color: #0d9488; }
+  .callout { background: #f0fdfa; border: 1px solid #99f6e4; border-left: 4px solid #0d9488; padding: 16px 18px; border-radius: 12px; margin: 16px 0; }
+  .callout b { color: #0f766e; }
+  .footer { text-align: center; padding: 24px; color: #94a3b8; font-size: 13px; }
+  .footer a { color: #64748b; }
+  @media (max-width: 640px) {
+    .hero { padding: 60px 20px 80px; }
+    .hero h1 { font-size: 32px; }
+    .container { margin: -40px 12px 40px; padding: 24px; border-radius: 18px; }
+    h2 { font-size: 19px; }
+  }
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="hero-inner">
+    <div class="eyebrow">AFRI CRM · LEGAL</div>
+    <h1>Privacy Policy</h1>
+    <p>How Afri CRM collects, uses, and protects your data. Plain language, no surprises.</p>
+    <div class="meta">
+      <span>Effective: October 19, 2026</span>
+      <span>Owner: Afri CRM</span>
+      <span>Contact: privacy@afri-crm-production.up.railway.app</span>
+    </div>
+  </div>
+</div>
+<div class="container">
+  <p>This Privacy Policy describes how Afri CRM ("we", "us", "our") collects, uses, and shares your information when you use our customer relationship management platform (the "Service"). By creating an account or using the Service, you agree to the practices described here.</p>
+
+  <h2>1. Information We Collect</h2>
+  <h3>1.1 Information you provide</h3>
+  <ul>
+    <li><b>Account information</b> — your name, email address, and password (hashed with bcrypt) when you sign up using email/password. If you sign up using Google Sign-In, we receive your name, email, and profile picture from Google.</li>
+    <li><b>Workspace information</b> — your business name, industry, sales channel, and primary goal that you provide during the onboarding wizard.</li>
+    <li><b>CRM records you create</b> — contacts, companies, deals, activities, notes, tasks, and any other records you add to your workspace.</li>
+    <li><b>Optional feedback</b> — if you choose to provide a reason when permanently deleting your workspace, we log that feedback to improve the product.</li>
+  </ul>
+  <h3>1.2 Information from connected services</h3>
+  <p>When you (or your workspace owner, in the case of platform OAuth) connect a third-party service like Google or Microsoft, we receive and store the OAuth access and refresh tokens that service returns. We use these tokens only to make API calls you explicitly authorize — for example, fetching today's calendar events or sending emails on your behalf from the CRM.</p>
+
+  <h2>2. Google API Data Use & Disclosure</h2>
+  <p>Afri CRM uses Google APIs to provide core CRM functionality. The scopes we request are limited to what is strictly necessary for the features you use:</p>
+  <table class="scope-table">
+    <thead>
+      <tr><th>Scope</th><th>What it lets us do</th><th>Used for</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>openid</code></td>
+        <td>Verify your identity via Google Sign-In</td>
+        <td>Account creation and sign-in</td>
+      </tr>
+      <tr>
+        <td><code>email</code></td>
+        <td>Read your Google account email address</td>
+        <td>Account creation, sign-in, contact email</td>
+      </tr>
+      <tr>
+        <td><code>profile</code></td>
+        <td>Read your name and profile picture</td>
+        <td>Account creation, displaying your name in the CRM</td>
+      </tr>
+      <tr>
+        <td><code>calendar.readonly</code></td>
+        <td>See and download your primary Google Calendar events</td>
+        <td>Display today's meetings on the home dashboard (auto-connected during Google SSO signup)</td>
+      </tr>
+      <tr>
+        <td><code>gmail.send</code></td>
+        <td>Send emails on your behalf through your Gmail account</td>
+        <td>Send emails from contact records and sequences</td>
+      </tr>
+      <tr>
+        <td><code>gmail.readonly</code></td>
+        <td>Read your Gmail messages and labels</td>
+        <td>Display email history for a contact on their record page</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="callout">
+    <b>We do NOT:</b>
+    <ul style="margin-top: 8px">
+      <li>Use your Google data for advertising purposes</li>
+      <li>Sell your Google data to third parties</li>
+      <li>Share your Google data with third parties except as required by law or to provide the Service</li>
+      <li>Use your Google data to train machine learning models</li>
+      <li>Transfer your Google data to any other application or service</li>
+    </ul>
+  </div>
+  <p>All Google API scopes Afri CRM requests comply with the Google API Services User Data Policy, including the Limited Use requirements. We access Google data solely to provide the features you explicitly enabled.</p>
+
+  <h2>3. How We Use Your Information</h2>
+  <ul>
+    <li>To provide, maintain, and improve the Service's features (CRM records, pipelines, automations, integrations)</li>
+    <li>To authenticate you and secure your account</li>
+    <li>To send you service-related emails (account confirmation, security alerts, billing)</li>
+    <li>To display your connected calendar and email data inside the CRM (only when you have explicitly connected those services)</li>
+    <li>To analyze and improve product features (using aggregated, non-personal data)</li>
+    <li>To comply with legal obligations</li>
+  </ul>
+
+  <h2>4. How We Share Your Information</h2>
+  <p>We do not sell your data. We share data only in these limited cases:</p>
+  <ul>
+    <li><b>With infrastructure providers</b> — Railway (hosting), Google Cloud (OAuth provider), Cloudflare (DNS/CDN). These providers process data on our behalf under their own data protection agreements.</li>
+    <li><b>With your team members</b> — when you invite users to your workspace, they can see CRM records that you share with them. Workspace owners can manage team member access at any time from Settings → Team.</li>
+    <li><b>To comply with legal obligations</b> — if required by law, court order, or government request, we may disclose information necessary to comply.</li>
+    <li><b>With your consent</b> — for any other sharing, we ask for your explicit consent first.</li>
+  </ul>
+
+  <h2>5. Data Security</h2>
+  <ul>
+    <li>Passwords are hashed with bcrypt (no plaintext passwords stored)</li>
+    <li>JWT tokens expire after 8 hours; refresh requires re-authentication</li>
+    <li>OAuth tokens are stored in the database and only used for API calls you explicitly authorize</li>
+    <li>HTTPS enforced on all connections</li>
+    <li>Content Security Policy headers restrict script and style sources</li>
+    <li>Workspace owners can permanently delete all data at any time from Settings → Workspace → Danger Zone</li>
+  </ul>
+
+  <h2>6. Data Retention</h2>
+  <p>We retain your data for as long as your workspace is active. When a workspace owner permanently deletes the workspace (Settings → Workspace → Danger Zone), we hard-delete all data within 24 hours — including:</p>
+  <ul>
+    <li>All CRM records (contacts, companies, deals, activities, notes, emails, pipelines, tags, automations)</li>
+    <li>All user accounts and sessions for that workspace</li>
+    <li>All OAuth tokens for that workspace</li>
+    <li>All API keys and webhooks for that workspace</li>
+    <li>The workspace itself</li>
+  </ul>
+  <p>We do not maintain backups of deleted workspace data — deletion is permanent and irreversible.</p>
+
+  <h2>7. Your Rights</h2>
+  <p>You have the right to:</p>
+  <ul>
+    <li><b>Access</b> your data — sign in and view your CRM records at any time</li>
+    <li><b>Export</b> your data — via the Integrations page API or by exporting individual record types</li>
+    <li><b>Delete</b> your data — Settings → Workspace → Danger Zone → Permanently delete workspace</li>
+    <li><b>Revoke OAuth access</b> — disconnect Gmail, Calendar, or Outlook at any time from the Integrations page; revoke Afri CRM's access entirely from your Google Account settings at https://myaccount.google.com/permissions</li>
+    <li><b>Object to processing</b> — for legitimate reasons, contact us at privacy@afri-crm-production.up.railway.app</li>
+  </ul>
+
+  <h2>8. International Data Transfers</h2>
+  <p>Afri CRM is hosted on Railway, with infrastructure primarily in the United States and Europe. Your data may be processed in these regions. By using the Service, you consent to these transfers.</p>
+
+  <h2>9. Children's Privacy</h2>
+  <p>The Service is not directed to children under 13 (or the relevant age in your jurisdiction). We do not knowingly collect personal information from children. If you believe a child has provided us data, contact us at privacy@afri-crm-production.up.railway.app and we will delete it.</p>
+
+  <h2>10. Changes to this Policy</h2>
+  <p>We may update this Privacy Policy from time to time. We will notify you of material changes by posting a notice in the CRM or sending you an email. The "Effective" date above indicates when this version was last updated.</p>
+
+  <h2>11. Contact</h2>
+  <p>If you have questions about this Privacy Policy or your data, contact us at:</p>
+  <ul>
+    <li>Email: privacy@afri-crm-production.up.railway.app</li>
+    <li>Workspace owner portal: Sign in → Settings → Workspace</li>
+  </ul>
+</div>
+<div class="footer">
+  <p>© 2026 Afri CRM · <a href="/">Back to Afri CRM</a> · <a href="/terms">Terms of Service</a></p>
+</div>
+</body>
+</html>
