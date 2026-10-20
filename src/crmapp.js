@@ -793,6 +793,209 @@ function scoreLeadV2(lead, activities, deals) {
   };
 }
 
+// ============================================================
+// SMART SEQUENCE SUGGESTIONS — Phase 2 Part 2 AI Foundation
+// Given a lead's score + activity history + workspace context,
+// suggest the next 3 touchpoints (channel + day + subject + rationale).
+//
+// Inputs:
+//   - lead          : the lead row (id, firstName, email, phone, source, rating)
+//   - activities    : all activities for this tenant (filtered for this lead)
+//   - deals         : all deals (to find related deal)
+//   - workspace     : { channel, goal } — preferred comms + sales goal
+//   - leadScore     : output of scoreLeadV2() — uses score + nextAction
+//
+// Output:
+//   {
+//     urgency: 'high'|'medium'|'low'|'nurture',
+//     suggestions: [
+//       { channel, dayName, scheduledAt (ISO), offsetDays,
+//         subject, rationale, type }
+//     ],
+//     basedOn: { score, confidence, workspaceChannel, lastChannel,
+//                lastActivityAt }
+//   }
+//
+// Rules:
+//   urgency = high   if score>=75  → touch days 1, 3, 7  (CALL/EMAIL/MEETING)
+//   urgency = medium if score>=55  → touch days 3, 7, 14
+//   urgency = low    if score>=35  → touch days 5, 10, 21
+//   urgency = nurture otherwise    → touch days 7, 14, 30
+//
+// Channel selection considers:
+//   - workspace.channel (Phone&WhatsApp / Email / Mixed / In-person)
+//   - lead has email / phone
+//   - last activity channel (avoid repeating the same channel twice in a row)
+//
+// Not ML — rule-based intelligence. ML model would need closed-won
+// data to learn "channel X converts Y% better". That's Phase 3+.
+// ============================================================
+function suggestSequence(lead, activities, deals, workspace, leadScore) {
+  const w = workspace || {};
+  const preferredChannel = String(w.channel || 'Phone & WhatsApp').toLowerCase();
+  const hasEmail = !!lead.email;
+  const hasPhone = !!(lead.phone || lead.mobile);
+
+  // Determine urgency from score
+  let urgency;
+  if (leadScore.score >= 75) urgency = 'high';
+  else if (leadScore.score >= 55) urgency = 'medium';
+  else if (leadScore.score >= 35) urgency = 'low';
+  else urgency = 'nurture';
+
+  // Look at last activity (for channel diversification)
+  const leadActivities = activities
+    .filter((a) => a.relatedId === lead.id || a.relatedId === lead.contactId)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const lastActivity = leadActivities[0];
+  const lastChannel = lastActivity ? String(lastActivity.type).toUpperCase() : null;
+  const lastActivityAt = lastActivity ? lastActivity.createdAt : null;
+
+  // Determine touch offsets (in days)
+  const offsetByUrgency = {
+    high:    [1, 3, 7],
+    medium:  [3, 7, 14],
+    low:     [5, 10, 21],
+    nurture: [7, 14, 30],
+  };
+  const offsets = offsetByUrgency[urgency];
+
+  // Channel mix selection
+  const channels = pickChannels(urgency, preferredChannel, hasEmail, hasPhone, lastChannel);
+
+  // Build 3 suggestions
+  const now = new Date();
+  const suggestions = [];
+  for (let i = 0; i < 3; i++) {
+    const channel = channels[i];
+    const offset = offsets[i];
+    const scheduled = new Date(now.getTime() + offset * 86400000);
+    // Skip weekends — push to Monday if Sat/Sun
+    const dow = scheduled.getDay();
+    if (dow === 6) scheduled.setDate(scheduled.getDate() + 2); // Sat → Mon
+    else if (dow === 0) scheduled.setDate(scheduled.getDate() + 1); // Sun → Mon
+    // Default time-of-day per channel (CALL=9am, EMAIL=2pm, MEETING=11am, TASK=5pm)
+    const hours = { CALL: 9, EMAIL: 14, MEETING: 11, TASK: 17, WHATSAPP: 13 }[channel] || 10;
+    scheduled.setHours(hours, 0, 0, 0);
+
+    suggestions.push({
+      channel,
+      type: channelToType(channel),
+      dayName: scheduled.toLocaleDateString('en-US', { weekday: 'long' }),
+      scheduledAt: scheduled.toISOString(),
+      offsetDays: offset,
+      subject: generateSubject(channel, lead, urgency, i),
+      rationale: generateRationale(channel, lead, leadScore, urgency, i, lastChannel),
+    });
+  }
+
+  return {
+    urgency,
+    suggestions,
+    basedOn: {
+      score: leadScore.score,
+      confidence: leadScore.confidence,
+      workspaceChannel: w.channel || null,
+      workspaceGoal: w.goal || null,
+      lastChannel,
+      lastActivityAt,
+      hasEmail,
+      hasPhone,
+      nextAction: leadScore.nextAction,
+    },
+  };
+}
+
+function pickChannels(urgency, preferred, hasEmail, hasPhone, lastChannel) {
+  // Build channel palette based on what's available + workspace pref
+  const canCall = hasPhone;
+  const canEmail = hasEmail;
+  // Workspace preference tweaks the order
+  const whatsappFirst = /whatsapp/.test(preferred);
+  const emailFirst = /email/i.test(preferred) && !whatsappFirst;
+
+  if (urgency === 'high') {
+    // High intent: most direct channels first
+    // First: CALL if can, else WHATSAPP if phone, else EMAIL
+    const first = canCall ? 'CALL' : (canEmail ? 'EMAIL' : 'TASK');
+    const second = canEmail ? 'EMAIL' : (canCall ? 'CALL' : 'TASK');
+    const third = 'MEETING';
+    return [first, second, third].filter((c, i, arr) => arr.indexOf(c) === i).concat('TASK').slice(0, 3);
+  }
+  if (urgency === 'medium') {
+    if (whatsappFirst) return ['CALL', 'EMAIL', 'WHATSAPP'];
+    if (emailFirst) return ['EMAIL', 'CALL', 'EMAIL'];
+    return ['CALL', 'EMAIL', 'TASK'];
+  }
+  if (urgency === 'low') {
+    if (canEmail && (!canCall || emailFirst)) return ['EMAIL', 'CALL', 'TASK'];
+    return ['CALL', 'EMAIL', 'TASK'];
+  }
+  // nurture
+  return ['EMAIL', 'TASK', 'EMAIL'];
+}
+
+function channelToType(channel) {
+  // Map suggestion channel to activities.type (CALL/EMAIL/MEETING/TASK/WHATSAPP)
+  if (channel === 'WHATSAPP') return 'TASK'; // WhatsApp has no row in activities.type — log as TASK
+  return channel; // CALL/EMAIL/MEETING/TASK all map directly
+}
+
+function generateSubject(channel, lead, urgency, idx) {
+  const firstName = lead.firstName || 'there';
+  const company = lead.companyName || 'your team';
+  if (channel === 'CALL') {
+    return [
+      'Discovery call with ' + firstName,
+      'Follow-up call re: ' + company,
+      'Check-in call with ' + firstName,
+    ][idx] || ('Call with ' + firstName);
+  }
+  if (channel === 'EMAIL') {
+    return [
+      'Quick question for ' + firstName,
+      'Following up — Afri CRM + ' + company,
+      'Next steps for ' + firstName,
+    ][idx] || ('Email to ' + firstName);
+  }
+  if (channel === 'MEETING') {
+    return [
+      '30-min demo with ' + firstName,
+      'Solution walkthrough for ' + company,
+      'Onboarding discussion with ' + firstName,
+    ][idx] || ('Meeting with ' + firstName);
+  }
+  if (channel === 'WHATSAPP') {
+    return [
+      'WhatsApp ' + firstName + ' — quick check-in',
+      'Send ' + firstName + ' pricing on WhatsApp',
+      'WhatsApp follow-up with ' + firstName,
+    ][idx] || ('WhatsApp ' + firstName);
+  }
+  // TASK
+  return [
+    'Add ' + firstName + ' to nurture sequence',
+    'Internal note on ' + firstName + ' (low priority)',
+    'Re-evaluate ' + firstName + ' in 2 weeks',
+  ][idx] || ('Note on ' + firstName);
+}
+
+function generateRationale(channel, lead, score, urgency, idx, lastChannel) {
+  const baseScore = `Lead scored ${score.score}/100 (${score.confidence}% confidence)`;
+  if (urgency === 'high') {
+    const steps = ['First touch — direct channel to convert high intent.', 'Reinforce with info/email.', 'Push for meeting commitment.'];
+    return `${baseScore}. High urgency. Channel: ${channel}. ${steps[idx]} ${lastChannel ? `Last touch was ${lastChannel}.` : 'No prior touch.'}`;
+  }
+  if (urgency === 'medium') {
+    const steps = ['Open the conversation.', 'Provide value/proof.', 'Test commitment.'];
+    return `${baseScore}. Medium urgency — warming up. Channel: ${channel}. ${steps[idx]}`;
+  }
+  if (urgency === 'low') {
+    return `${baseScore}. Low urgency — keep warm without pressure. Channel: ${channel}.`;
+  }
+  return `${baseScore}. Nurture only — low-pressure ${channel} to stay top-of-mind.`;
+}
+
 function modelWeights(tenantId) {
   const workspace = db.prepare('SELECT * FROM workspace WHERE tenantId = ?').get(tenantId) || {};
   const weights = { email: 15, phone: 10, hot: 30, warm: 12, touch: 18, referral: 10, amount: 8, stale: 20 };
@@ -2086,6 +2289,61 @@ export function registerCrm(app, prisma) {
     } catch (e) {
       log.error('leads.auto-rate.failed', { err: e.message, leadId: req.params.id });
       reply.code(500).send({ error: 'Auto-rate failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  // ============================================================
+  // SMART SEQUENCE SUGGESTIONS — Phase 2 Part 2
+  // GET /crm/api/leads/:id/suggestions — get 3 suggested touchpoints
+  //   (channel + day/time + subject + rationale) based on lead score
+  //   + activity history + workspace channel preference.
+  //   Returns: { urgency, suggestions[3], basedOn: {...} }
+  // POST /crm/api/leads/:id/suggestions/apply — turn the 3 suggestions
+  //   into actual activity rows (status=PLANNED). Returns the 3 created
+  //   activity ids. Idempotent — re-calling adds duplicates (intentional,
+  //   users may want to refresh the sequence after new context).
+  // ============================================================
+  app.get('/crm/api/leads/:id/suggestions', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      const lead = one('leads', user.tenantId, req.params.id);
+      if (!lead) return reply.code(404).send({ error: 'Lead not found' });
+      const activities = list('activities', user.tenantId);
+      const deals = list('deals', user.tenantId);
+      const leadScore = scoreLeadV2(lead, activities, deals);
+      const workspace = db.prepare('SELECT * FROM workspace WHERE tenantId = ?').get(user.tenantId) || {};
+      const suggestions = suggestSequence(lead, activities, deals, workspace, leadScore);
+      return suggestions;
+    } catch (e) {
+      log.error('leads.suggestions.failed', { err: e.message, leadId: req.params.id });
+      reply.code(500).send({ error: 'Suggestions failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  app.post('/crm/api/leads/:id/suggestions/apply', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+      const lead = one('leads', user.tenantId, req.params.id);
+      if (!lead) return reply.code(404).send({ error: 'Lead not found' });
+      const activities = list('activities', user.tenantId);
+      const deals = list('deals', user.tenantId);
+      const leadScore = scoreLeadV2(lead, activities, deals);
+      const workspace = db.prepare('SELECT * FROM workspace WHERE tenantId = ?').get(user.tenantId) || {};
+      const { suggestions } = suggestSequence(lead, activities, deals, workspace, leadScore);
+      const created = suggestions.map((s) => {
+        const id = crypto.randomUUID();
+        // Convert scheduledAt ISO to YYYY-MM-DD for dueAt column
+        const dueAt = s.scheduledAt.slice(0, 10);
+        db.prepare('INSERT INTO activities (id, tenantId, type, subject, relatedType, relatedId, dueAt, status, ownerId, notes, priority) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+          .run(id, user.tenantId, s.type, s.subject, 'lead', lead.id, dueAt, 'PLANNED', user.sub, s.rationale, 'NORMAL');
+        return { id, ...s };
+      });
+      writeAudit(user.tenantId, user.sub, 'suggested-sequence-applied', 'leads', lead.id, `created ${created.length} planned activities`);
+      log.info('leads.suggestions.applied', { leadId: lead.id, count: created.length, tenantId: user.tenantId });
+      return { ok: true, created };
+    } catch (e) {
+      log.error('leads.suggestions.apply.failed', { err: e.message, leadId: req.params.id });
+      reply.code(500).send({ error: 'Apply suggestions failed: ' + (e.message || 'unknown error') });
     }
   });
 
