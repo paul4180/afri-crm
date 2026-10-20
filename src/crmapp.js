@@ -1906,6 +1906,67 @@ export function registerCrm(app, prisma) {
     }
   });
 
+  // ============================================================
+  // ADMIN WIPE ALL — emergency endpoint to delete EVERYTHING
+  // POST /crm/api/admin/wipe-all  body: { secret, confirm: 'WIPE' }
+  //
+  // Deletes ALL rows from ALL tables — accounts, workspaces,
+  // contacts, deals, leads, activities, notes, sequences,
+  // workflows, audit, notifications, etc.
+  // Schema is preserved (tables still exist, just empty).
+  //
+  // Protected by:
+  //   - secret token (RECOVERY_SECRET env, fallback hardcoded)
+  //   - body.confirm must equal the string 'WIPE' (extra safety
+  //     against accidental calls)
+  //
+  // Returns: { ok, tablesWiped, totalRowsDeleted }
+  // ============================================================
+  app.post('/crm/api/admin/wipe-all', async (req, reply) => {
+    try {
+      const secret = String(req.body?.secret || '');
+      const confirm = String(req.body?.confirm || '');
+      const expectedSecret = process.env.RECOVERY_SECRET || 'afri-crm-emergency-recover-2026';
+      if (secret !== expectedSecret) {
+        log.warn('admin.wipe-all.bad-secret', {});
+        return reply.code(403).send({ error: 'Invalid secret' });
+      }
+      if (confirm !== 'WIPE') {
+        return reply.code(400).send({ error: 'Confirmation required. Send body.confirm = "WIPE" to confirm.' });
+      }
+      // Get all table names from sqlite_master (exclude sqlite_ internal tables)
+      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all().map((r) => r.name);
+      const summary = [];
+      let totalDeleted = 0;
+      for (const table of tables) {
+        try {
+          const before = db.prepare('SELECT COUNT(*) AS n FROM ' + table).get().n;
+          if (before > 0) {
+            db.prepare('DELETE FROM ' + table).run();
+            summary.push({ table, deleted: before });
+            totalDeleted += before;
+          }
+        } catch (e) {
+          // Some FTS5 virtual tables can't be DELETEd from directly — try TRUNCATE-like approach
+          summary.push({ table, error: e.message });
+        }
+      }
+      // VACUUM to shrink the file
+      try { db.exec('VACUUM'); } catch {}
+      log.error('admin.wipe-all.executed', { tablesWiped: summary.length, totalRowsDeleted: totalDeleted });
+      return {
+        ok: true,
+        message: 'All data wiped. Database is now empty. You can sign up fresh.',
+        tablesWiped: summary.length,
+        totalRowsDeleted: totalDeleted,
+        details: summary,
+      };
+    } catch (e) {
+      log.error('admin.wipe-all.failed', { err: e.message });
+      reply.code(500).send({ error: 'Wipe failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
   app.get('/crm/api/me', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     const account = db.prepare('SELECT id, email, fullName, role, workspaceId FROM crm_accounts WHERE id = ?').get(user.sub);
