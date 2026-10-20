@@ -6486,45 +6486,135 @@
   // sheets on mobile (full-width, slide up from bottom)
   // ============================================================
   style.textContent += `
-    [data-shell="mobile"] .side-panel-overlay { z-index: 200; }
+    [data-shell="mobile"] .side-panel-overlay { z-index: 200; background: rgba(2,6,23,0.5); }
     [data-shell="mobile"] .side-panel {
       top: auto !important; bottom: 0 !important; right: 0 !important; left: 0 !important;
       width: 100% !important; max-width: 100% !important;
-      max-height: 88vh; border-radius: 20px 20px 0 0 !important;
+      max-height: 90vh; border-radius: 24px 24px 0 0 !important;
       transform: translateY(100%) !important;
-      box-shadow: 0 -8px 40px rgba(15,23,42,0.2) !important;
+      box-shadow: 0 -8px 40px rgba(15,23,42,0.25) !important;
+      background: #fff !important;
     }
+    [data-theme="dark"][data-shell="mobile"] .side-panel { background: #0f172a !important; }
     [data-shell="mobile"] .side-panel.open { transform: translateY(0) !important; }
+
+    /* Header — drag handle + title + close */
     [data-shell="mobile"] .side-panel-head {
-      border-radius: 20px 20px 0 0;
-      padding: 16px 20px 12px;
+      border-radius: 24px 24px 0 0;
+      padding: 12px 20px 14px;
       position: relative;
+      border-bottom: 1px solid #f1f5f9 !important;
+      flex-shrink: 0;
     }
+    [data-theme="dark"][data-shell="mobile"] .side-panel-head { border-bottom-color: #1e293b !important; }
     [data-shell="mobile"] .side-panel-head::before {
       content: ''; position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
       width: 36px; height: 4px; background: #cbd5e1; border-radius: 99px;
     }
+    [data-shell="mobile"] .side-panel-head h2 {
+      font-family: 'Fraunces', serif;
+      font-size: 18px !important; font-weight: 700;
+      padding-top: 8px;
+      letter-spacing: -0.015em;
+    }
+    [data-shell="mobile"] .side-panel-close {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: #f1f5f9 !important; padding: 0 !important;
+      display: grid; place-items: center;
+    }
+    [data-theme="dark"][data-shell="mobile"] .side-panel-close { background: #1e293b !important; }
+
+    /* Body — scrollable form area */
     [data-shell="mobile"] .side-panel-body {
-      padding: 16px 20px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: 20px; overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      flex: 1;
     }
-    [data-shell="mobile"] .side-panel-foot {
-      padding: 12px 20px max(16px, env(safe-area-inset-bottom, 0));
-      border-top: 1px solid #f1f5f9;
+
+    /* Form labels — above inputs, clear and readable */
+    [data-shell="mobile"] .side-panel-body label {
+      font-size: 13px; font-weight: 700; color: #475569;
+      margin-bottom: 6px; display: block;
+      text-transform: none; letter-spacing: -0.005em;
     }
-    [data-shell="mobile"] .field-row { flex-direction: column; gap: 10px; }
-    [data-shell="mobile"] .field-row label { width: 100% !important; }
+    [data-theme="dark"][data-shell="mobile"] .side-panel-body label { color: #94a3b8; }
+
+    /* Form inputs — large, clear, touch-friendly */
     [data-shell="mobile"] .side-panel-body input,
     [data-shell="mobile"] .side-panel-body select,
     [data-shell="mobile"] .side-panel-body textarea {
       font-size: 16px !important; /* prevents iOS zoom on focus */
-      padding: 12px 14px !important;
-      border-radius: 10px !important;
+      padding: 14px 16px !important;
+      border-radius: 12px !important;
+      width: 100% !important;
+      border: 1.5px solid #e2e8f0 !important;
+      background: #fff !important;
+      color: #0f172a !important;
+      margin-bottom: 16px !important;
+      box-sizing: border-box !important;
+      -webkit-appearance: none;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
-    [data-shell="mobile"] .side-panel-body label { font-size: 13px; font-weight: 600; color: var(--m-text-muted); margin-bottom: 4px; display: block; }
-    [data-shell="mobile"] .side-panel-body input,
-    [data-shell="mobile"] .side-panel-body select { width: 100%; border: 1px solid var(--m-border); background: var(--m-surface); color: var(--m-text); margin-bottom: 12px; }
+    [data-theme="dark"][data-shell="mobile"] .side-panel-body input,
+    [data-theme="dark"][data-shell="mobile"] .side-panel-body select,
+    [data-theme="dark"][data-shell="mobile"] .side-panel-body textarea {
+      background: #1e293b !important;
+      border-color: #334155 !important;
+      color: #f1f5f9 !important;
+    }
+    [data-shell="mobile"] .side-panel-body input:focus,
+    [data-shell="mobile"] .side-panel-body select:focus,
+    [data-shell="mobile"] .side-panel-body textarea:focus {
+      border-color: #0d9488 !important;
+      box-shadow: 0 0 0 3px rgba(13,148,136,0.12) !important;
+    }
+    [data-shell="mobile"] .side-panel-body input::placeholder { color: #94a3b8; }
+
+    /* Select dropdown arrow */
+    [data-shell="mobile"] .side-panel-body select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") !important;
+      background-repeat: no-repeat !important;
+      background-position: right 14px center !important;
+      padding-right: 40px !important;
+    }
+
+    /* Field rows — stack vertically on mobile */
+    [data-shell="mobile"] .field-row { flex-direction: column; gap: 0; }
+    [data-shell="mobile"] .field-row label { width: 100% !important; }
+    [data-shell="mobile"] .field-row label:last-child { margin-bottom: 16px; }
+
+    /* Checkboxes */
+    [data-shell="mobile"] .side-panel-body .check {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 0; font-size: 14px; color: #0f172a;
+    }
+    [data-shell="mobile"] .side-panel-body .check input {
+      width: 20px !important; height: 20px !important; margin: 0 !important;
+    }
+
+    /* Footer — sticky buttons at bottom */
+    [data-shell="mobile"] .side-panel-foot {
+      padding: 12px 20px max(16px, env(safe-area-inset-bottom, 0));
+      border-top: 1px solid #f1f5f9;
+      flex-shrink: 0;
+      display: flex; gap: 8px; flex-wrap: wrap;
+    }
+    [data-theme="dark"][data-shell="mobile"] .side-panel-foot { border-top-color: #1e293b; }
     [data-shell="mobile"] .side-panel-foot button {
-      padding: 12px 20px; border-radius: 10px; font-size: 14px; font-weight: 700;
+      padding: 13px 20px; border-radius: 12px; font-size: 14px; font-weight: 700;
+      flex: 1; min-width: 100px;
+    }
+    [data-shell="mobile"] .side-panel-foot button:not(.ghost) {
+      background: linear-gradient(135deg, #0d9488, #0f766e) !important;
+      color: #fff !important; border: 0 !important;
+      box-shadow: 0 4px 12px rgba(13,148,136,0.25);
+    }
+    [data-shell="mobile"] .side-panel-foot button.ghost {
+      background: #f1f5f9 !important; color: #475569 !important; border: 0 !important;
+    }
+    [data-theme="dark"][data-shell="mobile"] .side-panel-foot button.ghost {
+      background: #1e293b !important; color: #94a3b8 !important;
     }
   `;
 
