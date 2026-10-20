@@ -1463,7 +1463,7 @@ export function registerCrm(app, prisma) {
     if (url.startsWith('/crm/api/login') || url.startsWith('/crm/api/sso/')) {
       cap = 60; windowMs = 60 * 1000; // 60/min — very lenient
     } else if (url.startsWith('/crm/api/signup')) {
-      cap = 10; windowMs = 60 * 60 * 1000; // 10/hour — strict anti-spam
+      cap = 200; windowMs = 60 * 60 * 1000; // 200/hour — was 10/hour (way too strict, blocked legit users trying to recover accounts)
     } else {
       cap = 600; windowMs = 60 * 1000; // 600/min for general API
     }
