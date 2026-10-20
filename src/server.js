@@ -91,7 +91,7 @@ app.addHook('onSend', async (req, reply) => {
   if (url.endsWith('.js') || url.endsWith('.css') || url.endsWith('.svg') || url.endsWith('.png') || url.endsWith('.ico')) {
     reply.header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
   } else if (url.endsWith('.html') || url === '/' || url === '/crm' || url === '/privacy' || url === '/terms' || url === '/about' || url === '/blog' || url === '/careers' || url === '/press') {
-    reply.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
+    reply.header('Cache-Control', 'no-cache, must-revalidate');
   }
 });
 
