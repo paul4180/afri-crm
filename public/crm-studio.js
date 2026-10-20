@@ -1157,10 +1157,13 @@
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
     }
-    /* Login/signup gate also gets the wallpaper */
+    /* Login/signup gate also gets the wallpaper.
+       NOTE: NO !important on display — boot() sets display:none on the
+       gate element when user logs in. Using !important would override
+       that and keep the login form visible forever (which is the bug
+       that was breaking signup). */
     .gate, .setup {
       min-height: 100vh !important;
-      display: grid !important;
       place-items: center !important;
       padding: 32px 16px !important;
     }
