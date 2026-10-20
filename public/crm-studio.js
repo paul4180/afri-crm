@@ -1117,9 +1117,53 @@
        - Beautiful environment → layered depth, breathing room
        ============================================================ */
 
-    /* Softer global background — warm off-white instead of pure white */
-    body { background: #faf9f7 !important; color: #1e293b; }
-    [data-theme="dark"] body { background: #0b1220 !important; color: #e2e8f0; }
+    /* Softer global background — now uses the Outlook-style mountain-lake
+       night-sky wallpaper as the page background, with frosted-glass
+       panels on top (glassmorphism). Same effect as Outlook on Windows 11. */
+    body {
+      background: url('/wallpaper.jpg') no-repeat center center fixed !important;
+      background-size: cover !important;
+      color: #1e293b;
+      min-height: 100vh;
+    }
+    [data-theme="dark"] body {
+      background: url('/wallpaper.jpg') no-repeat center center fixed !important;
+      background-size: cover !important;
+      color: #e2e8f0;
+    }
+    /* Make the main app shell + content panels semi-transparent so the
+       wallpaper shows through with a frosted-glass blur effect. */
+    #app, #view, .gate, .setup {
+      background: rgba(250, 249, 247, 0.78) !important;
+      backdrop-filter: blur(20px) saturate(140%);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+    }
+    [data-theme="dark"] #app, [data-theme="dark"] #view,
+    [data-theme="dark"] .gate, [data-theme="dark"] .setup {
+      background: rgba(11, 18, 32, 0.78) !important;
+      backdrop-filter: blur(20px) saturate(140%);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+    }
+    /* Cards inside the view get their own subtle frosted layer */
+    .card, .leadcard, .today-stat, .dealboard .col, .leadcol {
+      background: rgba(255, 255, 255, 0.85) !important;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    [data-theme="dark"] .card, [data-theme="dark"] .leadcard,
+    [data-theme="dark"] .today-stat, [data-theme="dark"] .dealboard .col,
+    [data-theme="dark"] .leadcol {
+      background: rgba(30, 41, 59, 0.78) !important;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    /* Login/signup gate also gets the wallpaper */
+    .gate, .setup {
+      min-height: 100vh !important;
+      display: grid !important;
+      place-items: center !important;
+      padding: 32px 16px !important;
+    }
 
     /* Reduce typography bold globally — was 700-800, now 600 max */
     h1, h2, h3, b, strong { font-weight: 600 !important; letter-spacing: -0.015em; }
