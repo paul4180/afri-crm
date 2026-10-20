@@ -1685,24 +1685,9 @@ export function registerCrm(app, prisma) {
   });
 
   // ============================================================
-  // SEARCH — full-text search across contacts, companies, deals
-  // Uses SQLite LIKE with proper indexing (FTS5 to come in Phase 2)
+  // SEARCH — handled by the unified /crm/api/search endpoint
+  // further below (returns { hits: [{kind,id,title,detail}] })
   // ============================================================
-  app.get('/crm/api/search', async (req, reply) => {
-    try {
-      const user = await guard(req, reply); if (!user) return;
-      const q = String(req.query.q || '').trim().slice(0, 100);
-      if (!q || q.length < 2) return { contacts: [], companies: [], deals: [], activities: [] };
-      const like = '%' + q.replace(/[%_]/g, function (c) { return '\\' + c; }) + '%';
-      const contacts = db.prepare("SELECT * FROM contacts WHERE tenantId = ? AND (firstName LIKE ? ESCAPE '\\' OR lastName LIKE ? ESCAPE '\\' OR email LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\') ORDER BY createdAt DESC LIMIT 20").all(user.tenantId, like, like, like, like);
-      const companies = db.prepare("SELECT * FROM companies WHERE tenantId = ? AND (name LIKE ? ESCAPE '\\' OR email LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\') ORDER BY createdAt DESC LIMIT 20").all(user.tenantId, like, like, like);
-      const deals = db.prepare("SELECT * FROM deals WHERE tenantId = ? AND (name LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\') ORDER BY createdAt DESC LIMIT 20").all(user.tenantId, like, like);
-      const activities = db.prepare("SELECT * FROM activities WHERE tenantId = ? AND (subject LIKE ? ESCAPE '\\' OR notes LIKE ? ESCAPE '\\') ORDER BY createdAt DESC LIMIT 10").all(user.tenantId, like, like);
-      return { contacts, companies, deals, activities, total: contacts.length + companies.length + deals.length + activities.length };
-    } catch (e) {
-      reply.code(500).send({ error: 'Search failed: ' + (e.message || 'unknown error') });
-    }
-  });
 
   app.get('/crm/api/brain', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
@@ -2162,18 +2147,24 @@ export function registerCrm(app, prisma) {
     return { ok: true, id: leadId };
   });
   app.get('/crm/api/search', async (req, reply) => {
-    const user = await guard(req, reply); if (!user) return;
-    const q = String(req.query?.q || '').trim().toLowerCase();
-    if (q.length < 2) return { hits: [] };
-    const like = '%' + q + '%';
-    const hits = [];
-    const push = (kind, id, title, detail) => { if (hits.length < 30) hits.push({ kind, id, title, detail }); };
-    for (const row of db.prepare('SELECT id, firstName, lastName, email FROM contacts WHERE tenantId = ? AND (lower(firstName) LIKE ? OR lower(lastName) LIKE ? OR lower(ifnull(email,\'\')) LIKE ?) LIMIT 12').all(user.tenantId, like, like, like)) push('contact', row.id, ((row.firstName || '') + ' ' + (row.lastName || '')).trim(), row.email || '');
-    for (const row of db.prepare('SELECT id, name, industry FROM companies WHERE tenantId = ? AND lower(name) LIKE ? LIMIT 8').all(user.tenantId, like)) push('company', row.id, row.name, row.industry || '');
-    for (const row of db.prepare('SELECT id, firstName, lastName, companyName FROM leads WHERE tenantId = ? AND (lower(firstName) LIKE ? OR lower(ifnull(lastName,\'\')) LIKE ? OR lower(ifnull(companyName,\'\')) LIKE ?) LIMIT 8').all(user.tenantId, like, like, like)) push('lead', row.id, ((row.firstName || '') + ' ' + (row.lastName || '')).trim(), row.companyName || '');
-    for (const row of db.prepare('SELECT id, name, stage FROM deals WHERE tenantId = ? AND lower(name) LIKE ? LIMIT 8').all(user.tenantId, like)) push('deal', row.id, row.name, row.stage || '');
-    for (const row of db.prepare('SELECT id, name, code FROM products WHERE tenantId = ? AND (lower(name) LIKE ? OR lower(ifnull(code,\'\')) LIKE ?) LIMIT 8').all(user.tenantId, like, like)) push('product', row.id, row.name, row.code || '');
-    return { hits };
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      const q = String(req.query?.q || '').trim().toLowerCase().slice(0, 100);
+      if (q.length < 2) return { hits: [] };
+      // Escape SQL LIKE wildcards so users can't inject % or _
+      const escQ = q.replace(/[%_]/g, (c) => '\\' + c);
+      const like = '%' + escQ + '%';
+      const hits = [];
+      const push = (kind, id, title, detail) => { if (hits.length < 30) hits.push({ kind, id, title, detail }); };
+      for (const row of db.prepare("SELECT id, firstName, lastName, email FROM contacts WHERE tenantId = ? AND (lower(firstName) LIKE ? ESCAPE '\\' OR lower(lastName) LIKE ? ESCAPE '\\' OR lower(ifnull(email,'')) LIKE ? ESCAPE '\\') LIMIT 12").all(user.tenantId, like, like, like)) push('contact', row.id, ((row.firstName || '') + ' ' + (row.lastName || '')).trim(), row.email || '');
+      for (const row of db.prepare("SELECT id, name, industry FROM companies WHERE tenantId = ? AND lower(name) LIKE ? ESCAPE '\\' LIMIT 8").all(user.tenantId, like)) push('company', row.id, row.name, row.industry || '');
+      for (const row of db.prepare("SELECT id, firstName, lastName, companyName FROM leads WHERE tenantId = ? AND (lower(firstName) LIKE ? ESCAPE '\\' OR lower(ifnull(lastName,'')) LIKE ? ESCAPE '\\' OR lower(ifnull(companyName,'')) LIKE ? ESCAPE '\\') LIMIT 8").all(user.tenantId, like, like, like)) push('lead', row.id, ((row.firstName || '') + ' ' + (row.lastName || '')).trim(), row.companyName || '');
+      for (const row of db.prepare("SELECT id, name, stage FROM deals WHERE tenantId = ? AND lower(name) LIKE ? ESCAPE '\\' LIMIT 8").all(user.tenantId, like)) push('deal', row.id, row.name, row.stage || '');
+      for (const row of db.prepare("SELECT id, name, code FROM products WHERE tenantId = ? AND (lower(name) LIKE ? ESCAPE '\\' OR lower(ifnull(code,'')) LIKE ? ESCAPE '\\') LIMIT 8").all(user.tenantId, like, like)) push('product', row.id, row.name, row.code || '');
+      return { hits };
+    } catch (e) {
+      reply.code(500).send({ error: 'Search failed: ' + (e.message || 'unknown error') });
+    }
   });
   app.get('/crm/api/events', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
