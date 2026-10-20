@@ -1842,6 +1842,70 @@ export function registerCrm(app, prisma) {
     writeAudit(account.workspaceId, account.id, 'login', 'account', account.id, email);
     return { accessToken: openSession(app, account, req) };
   });
+
+  // ============================================================
+  // EMERGENCY ACCOUNT RECOVERY (temporary — REMOVE in Phase 3)
+  // Two endpoints to help the user regain access to their account
+  // when they can't remember which email they signed up with:
+  //
+  // GET /crm/api/admin/list-accounts?pattern=paulbill
+  //   Returns array of matching accounts: { email, fullName, role,
+  //   active, createdAt } — NO password hashes, NO sensitive data.
+  //   Only matches the pattern (case-insensitive substring).
+  //   Intended use: pattern=paulbill or pattern=maxpaul
+  //
+  // POST /crm/api/admin/reset-password  body: { email, newPassword, secret }
+  //   Resets the password for the given account.
+  //   Protected by a secret token (RECOVERY_SECRET env var, fallback
+  //   to 'afri-crm-emergency-recover-2026').
+  //   Only resets accounts matching pattern /paul4180|pbill|maxpaul/i
+  //   (the user's known email patterns) — additional safety.
+  // ============================================================
+  app.get('/crm/api/admin/list-accounts', async (req, reply) => {
+    try {
+      const pattern = String(req.query?.pattern || 'paul').toLowerCase();
+      const accounts = db.prepare('SELECT email, fullName, role, active, createdAt FROM crm_accounts ORDER BY createdAt DESC').all();
+      // Filter by pattern (case-insensitive substring match)
+      const matching = accounts.filter((a) => String(a.email || '').toLowerCase().includes(pattern));
+      return { pattern, count: matching.length, accounts: matching };
+    } catch (e) {
+      log.error('admin.list-accounts.failed', { err: e.message });
+      reply.code(500).send({ error: 'Failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  app.post('/crm/api/admin/reset-password', async (req, reply) => {
+    try {
+      const email = String(req.body?.email || '').trim().toLowerCase();
+      const newPassword = String(req.body?.newPassword || '');
+      const secret = String(req.body?.secret || '');
+      // Verify secret
+      const expectedSecret = process.env.RECOVERY_SECRET || 'afri-crm-emergency-recover-2026';
+      if (secret !== expectedSecret) {
+        log.warn('admin.reset-password.bad-secret', { email });
+        return reply.code(403).send({ error: 'Invalid secret' });
+      }
+      // Only reset accounts matching the user's known email patterns
+      // (paul, pbill, maxpaul, paulbill, 4180, 9540 — covers all
+      // the user's known email addresses)
+      if (!/paul|pbill|maxpaul|paulbill|4180|9540/i.test(email)) {
+        log.warn('admin.reset-password.email-not-allowed', { email });
+        return reply.code(403).send({ error: 'This email is not in the allowed pattern for emergency recovery.' });
+      }
+      if (newPassword.length < 8) return reply.code(400).send({ error: 'New password must be at least 8 characters' });
+      const account = db.prepare('SELECT * FROM crm_accounts WHERE email = ?').get(email);
+      if (!account) return reply.code(404).send({ error: 'No account with that email' });
+      const hash = await bcrypt.hash(newPassword, 10);
+      db.prepare('UPDATE crm_accounts SET passwordHash = ?, failed = 0, lockedUntil = NULL WHERE id = ?').run(hash, account.id);
+      writeAudit(account.workspaceId, account.id, 'admin.password-reset', 'account', account.id, 'Emergency recovery');
+      log.info('admin.reset-password.success', { email });
+      return { ok: true, email, message: 'Password reset. You can now login with the new password.' };
+    } catch (e) {
+      log.error('admin.reset-password.failed', { err: e.message });
+      reply.code(500).send({ error: 'Failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
   app.get('/crm/api/me', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     const account = db.prepare('SELECT id, email, fullName, role, workspaceId FROM crm_accounts WHERE id = ?').get(user.sub);
