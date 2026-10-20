@@ -1987,10 +1987,9 @@
   paintNav = function () {
     basePaint();
     const scroll = document.querySelector('#nav .navscroll');
-    if (!scroll) return;
-    // REPLACE navscroll content entirely — no duplicates with basePaint's items
-    scroll.innerHTML =
-      navItem('home', 'Home', svg('<path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/>')) +
+    const home = scroll && scroll.querySelector('button[data-page="home"]');
+    if (!home) return;
+    home.insertAdjacentHTML('afterend',
       '<div class="nav-section-header">Selling</div>' +
       navItem('leads', 'Leads', svg('<path d="M4 7h16M4 12h10M4 17h7"/>')) +
       navItem('deals', 'Deals', svg('<path d="M3 8h18v8H3z"/><path d="M3 12h18"/>')) +
@@ -2001,13 +2000,18 @@
       '<div class="nav-section-header">Work</div>' +
       navItem('tasks', 'Tasks', svg('<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>')) +
       navItem('calendar', 'Calendar', svg('<path d="M3 5h18v16H3z"/><path d="M3 9h18M8 3v4M16 3v4"/>')) +
+      navItem('dial', 'Call list', svg('<path d="M7 3h3l2 5-2 1a12 12 0 0 0 5 5l1-2 5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 5 5a2 2 0 0 1 2-2z"/>')) +
       '<div class="nav-section-header">Insights</div>' +
-      navItem('dashboard', 'Dashboard', svg('<path d="M4 19V5M4 19h16"/><path d="M8 16v-5M12 16V8M16 16v-3"/>')) +
+      navItem('analytics', 'Analytics', svg('<path d="M4 19V5M4 19h16"/><path d="M8 16v-5M12 16V8M16 16v-3"/>')) +
       navItem('forecast', 'Forecast', svg('<path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/>')) +
-      '<div class="nav-section-header">Platform</div>' +
-      navItem('automation', 'Automation', svg('<path d="M13 2 3 14h8l-1 8 10-12h-8z"/>')) +
-      navItem('integrations', 'Integrations', svg('<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>')) +
-      navItem('guide', 'Start guide', svg('<path d="M5 21V4M5 4h10l-1.5 3L15 10H5"/>'));
+      '<div class="nav-section-header">Automation</div>' +
+      navItem('flow', 'Workflow', svg('<circle cx="6" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="M8 7h6a4 4 0 0 1 4 4v5"/>')) +
+      navItem('sequences', 'Sequences', svg('<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="8" cy="18" r="2"/>')) +
+      '<div class="nav-section-header">Setup</div>' +
+      navItem('teams', 'Access', svg('<path d="M12 3 4 7v5c0 5 3.5 7.5 8 9 4.5-1.5 8-4 8-9V7z"/>')) +
+      navItem('audit', 'Organization', svg('<circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>')) +
+      navItem('settings', 'Settings', svg('<circle cx="12" cy="12" r="3"/><path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>'))
+    );
     document.querySelectorAll('#nav button').forEach((el) => el.classList.toggle('on', el.dataset.page === page));
   };
 
