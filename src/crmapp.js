@@ -24,7 +24,43 @@ function crmPath() {
 const dbFile = crmPath();
 const legacyFile = path.join(localDir, 'crm.sqlite');
 if (!fs.existsSync(dbFile) && fs.existsSync(legacyFile) && path.resolve(dbFile) !== path.resolve(legacyFile)) fs.copyFileSync(legacyFile, dbFile);
-const db = new DatabaseSync(dbFile);
+
+// Crash recovery: if database is corrupted, delete and recreate
+let db;
+function openDb() {
+  db = new DatabaseSync(dbFile);
+  db.exec('PRAGMA journal_mode = WAL');
+  // Test if database is functional
+  try {
+    db.exec('PRAGMA integrity_check;');
+    return true;
+  } catch (e) {
+    console.error('Database corrupted:', e.message);
+    return false;
+  }
+}
+
+if (!openDb()) {
+  console.error('Database recovery failed — deleting corrupted database and starting fresh');
+  try {
+    // Close the corrupted database
+    try { db.close(); } catch {}
+    // Delete the corrupted file and its journal
+    try { fs.unlinkSync(dbFile); } catch {}
+    try { fs.unlinkSync(dbFile + '-wal'); } catch {}
+    try { fs.unlinkSync(dbFile + '-shm'); } catch {}
+    try { fs.unlinkSync(dbFile + '-journal'); } catch {}
+    // Create a fresh database
+    db = new DatabaseSync(dbFile);
+    db.exec('PRAGMA journal_mode = WAL');
+    console.log('Fresh database created at', dbFile);
+  } catch (e2) {
+    console.error('FATAL: Cannot create database:', e2.message);
+    // Last resort: use in-memory database
+    db = new DatabaseSync(':memory:');
+    console.error('Using in-memory database (data will not persist)');
+  }
+}
 export function crmDatabaseFile() { return dbFile; }
 
 const hits = new Map();
@@ -35,22 +71,6 @@ function limited(key, max, windowMs) {
   fresh.push(now);
   hits.set(key, fresh);
   return false;
-}
-db.exec('PRAGMA journal_mode = WAL');
-// Crash recovery: if database is corrupted, try to repair it
-try {
-  db.exec('PRAGMA integrity_check;');
-} catch (e) {
-  console.error('Database integrity check failed, attempting recovery:', e.message);
-  try {
-    db.exec('PRAGMA journal_mode = DELETE;'); // Reset journal mode
-    db.exec('VACUUM;'); // Rebuild database file
-    db.exec('PRAGMA journal_mode = WAL;'); // Restore WAL
-    console.log('Database recovery successful');
-  } catch (e2) {
-    console.error('Database recovery failed:', e2.message);
-    // Continue anyway — tables will be created with IF NOT EXISTS
-  }
 }
 try {
 db.exec(`
