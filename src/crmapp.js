@@ -702,6 +702,144 @@ function levenshtein(a, b) {
   return prev[n];
 }
 
+// ============================================================
+// PIPELINE FORECAST — Phase 2 Part 5
+// forecastPipeline(tenantId, months) — predicts next month's
+// closed-won revenue based on historical closed-won deals + the
+// current open pipeline (weighted by probability).
+//
+// Returns:
+//   {
+//     nextMonth: { value, low, high, confidence, method },
+//     history: [{ month, value, count }],  // last N months of closed-won
+//     openPipeline: { weightedValue, count, byStage },
+//     method: 'weighted-moving-average' | 'fallback',
+//     dataPoints: number,  // how many months of history used
+//     warnings: string[]   // e.g. "Not enough history for confident forecast"
+//   }
+//
+// Algorithm:
+//   1. Pull all CLOSED_WON deals, group by YYYY-MM close date.
+//   2. Calculate monthly totals for last 12 months.
+//   3. Predict next month = weighted moving average:
+//        lastMonth × 0.5 + 2monthsAgo × 0.3 + 3monthsAgo × 0.2
+//      This weights recent months more heavily (recency bias).
+//   4. Confidence based on:
+//        - Data points (more months = higher confidence)
+//        - Variance (low variance = higher confidence)
+//      confidence = clamp(30 + dataPoints * 10 - variance_penalty, 0, 95)
+//   5. low/high = ±(100 - confidence)% around the prediction
+//   6. openPipeline = sum(open deals × probability / 100)
+//   7. If <2 months of history → fallback to openPipeline × 0.3
+//      (rough estimate: 30% of open pipeline typically closes)
+// ============================================================
+function forecastPipeline(tenantId, monthsBack = 12) {
+  const allDeals = list('deals', tenantId, { limit: 500 });
+  const closedWon = allDeals.filter((d) => String(d.stage || '').startsWith('CLOSED_WON'));
+  const open = allDeals.filter((d) => !String(d.stage || '').startsWith('CLOSED'));
+
+  // Group closed-won by YYYY-MM
+  const monthlyTotals = {};
+  for (const deal of closedWon) {
+    const month = String(deal.closeDate || deal.createdAt || '').slice(0, 7);
+    if (/^\d{4}-\d{2}$/.test(month)) {
+      monthlyTotals[month] = (monthlyTotals[month] || 0) + Number(deal.amount || 0);
+    }
+  }
+
+  // Build sorted history array (last N months including current)
+  const now = new Date();
+  const history = [];
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = d.toISOString().slice(0, 7);
+    const value = monthlyTotals[key] || 0;
+    const count = closedWon.filter((deal) => String(deal.closeDate || deal.createdAt || '').slice(0, 7) === key).length;
+    history.push({ month: key, value: Math.round(value), count });
+  }
+
+  // Last 3 months with non-zero data (most recent first)
+  const nonZeroRecent = [...history].reverse().filter((h) => h.value > 0).slice(0, 3);
+  const dataPoints = nonZeroRecent.length;
+  const warnings = [];
+
+  let nextMonthValue, confidence, method;
+
+  if (dataPoints >= 3) {
+    // Weighted moving average: most recent × 0.5, then 0.3, then 0.2
+    const [m1, m2, m3] = nonZeroRecent;
+    nextMonthValue = Math.round(m1.value * 0.5 + m2.value * 0.3 + m3.value * 0.2);
+    method = 'weighted-moving-average';
+
+    // Variance penalty: if months vary wildly, lower confidence
+    const values = nonZeroRecent.map((m) => m.value);
+    const avg = values.reduce((s, v) => s + v, 0) / values.length;
+    const variance = values.reduce((s, v) => s + Math.pow(v - avg, 2), 0) / values.length;
+    const cv = avg > 0 ? Math.sqrt(variance) / avg : 1; // coefficient of variation
+    const variancePenalty = Math.min(cv * 30, 40); // up to 40 point penalty for high variance
+
+    confidence = Math.max(20, Math.min(95, 30 + dataPoints * 10 - Math.round(variancePenalty)));
+    if (cv > 0.5) warnings.push('High variance in historical revenue — forecast is less reliable.');
+    if (dataPoints < 6) warnings.push('Only ' + dataPoints + ' months of history — confidence is lower.');
+  } else if (dataPoints >= 1) {
+    // Fallback: use the average of available months
+    const avgValue = nonZeroRecent.reduce((s, m) => s + m.value, 0) / nonZeroRecent.length;
+    nextMonthValue = Math.round(avgValue);
+    method = 'simple-average';
+    confidence = Math.max(15, 25 + dataPoints * 5);
+    warnings.push('Limited history (' + dataPoints + ' month(s)) — forecast is a rough estimate.');
+  } else {
+    // No history at all — fallback to 30% of open pipeline (industry avg)
+    const openWeighted = open.reduce((sum, d) => sum + Number(d.amount || 0) * Number(d.probability || 50) / 100, 0);
+    nextMonthValue = Math.round(openWeighted * 0.3);
+    method = 'pipeline-fallback';
+    confidence = 10;
+    warnings.push('No closed-won history yet. Forecast is 30% of open pipeline (industry average).');
+  }
+
+  // Confidence interval (low / high)
+  const spread = (100 - confidence) / 100;
+  const low = Math.round(nextMonthValue * (1 - spread));
+  const high = Math.round(nextMonthValue * (1 + spread));
+
+  // Open pipeline breakdown by stage
+  const byStage = {};
+  for (const deal of open) {
+    const stage = deal.stage || 'UNKNOWN';
+    if (!byStage[stage]) byStage[stage] = { count: 0, value: 0, weighted: 0 };
+    byStage[stage].count++;
+    byStage[stage].value += Number(deal.amount || 0);
+    byStage[stage].weighted += Number(deal.amount || 0) * Number(deal.probability || 50) / 100;
+  }
+  // Round the weighted values
+  for (const stage of Object.keys(byStage)) {
+    byStage[stage].value = Math.round(byStage[stage].value);
+    byStage[stage].weighted = Math.round(byStage[stage].weighted);
+  }
+
+  const openWeightedTotal = Math.round(open.reduce((sum, d) => sum + Number(d.amount || 0) * Number(d.probability || 50) / 100, 0));
+
+  return {
+    nextMonth: {
+      value: nextMonthValue,
+      low,
+      high,
+      confidence,
+      method,
+    },
+    history,
+    openPipeline: {
+      weightedValue: openWeightedTotal,
+      count: open.length,
+      totalValue: Math.round(open.reduce((s, d) => s + Number(d.amount || 0), 0)),
+      byStage,
+    },
+    dataPoints,
+    warnings,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 const DEFAULT_SEQUENCES = [
   ['First reply', 'INITIAL_CONTACT', 'Call them again', 1],
   ['Proposal follow-up', 'PROPOSAL_SENT', 'Follow up the proposal', 2],
@@ -1285,16 +1423,67 @@ export function registerCrm(app, prisma) {
   // a baseline protection; a proper Redis-backed limiter is a Phase 5
   // task. Bypassed entirely during tests so vitest stays fast.
   // ============================================================
+  // ============================================================
+  // RATE LIMITING — Phase 1 Part 2 (REBUILT for usability)
+  // OLD: 20 req/min on /login + /signup + /sso/* + 120 req/min on
+  //      other API → blocked users from logging in normally.
+  // NEW: tiered caps per route. Failed-logins tracked separately
+  //      by IP — 5 failed attempts in 15 min → 15 min IP lockout.
+  //      Successful logins CLEAR the IP's failed counter.
+  // Caps (per IP):
+  //   /crm/api/login    40/min  (was 20 — too aggressive)
+  //   /crm/api/sso/*    40/min  (was 20)
+  //   /crm/api/signup   10/hour (stricter — anti-spam)
+  //   everything else  300/min  (was 120 — too low for normal use)
+  // ============================================================
+  function failLockoutKey(ip) { return 'fail:' + ip; }
+  function isIpLockedOut(ip) {
+    // Just CHECK without incrementing (don't use limited() — that increments)
+    const now = Date.now();
+    const fresh = (hits.get(failLockoutKey(ip)) || []).filter((time) => now - time < 15 * 60 * 1000);
+    return fresh.length >= 5;
+  }
+  function recordFailedLogin(ip) {
+    // Increment the failed-attempt counter (always)
+    const key = failLockoutKey(ip);
+    const now = Date.now();
+    const fresh = (hits.get(key) || []).filter((time) => now - time < 15 * 60 * 1000);
+    fresh.push(now);
+    hits.set(key, fresh);
+  }
+  function clearFailedLogins(ip) {
+    // Clear the failed-attempt counter on successful login
+    hits.delete(failLockoutKey(ip));
+  }
   app.addHook('onRequest', async (req, reply) => {
     if (process.env.NODE_ENV === 'test') return;
     const url = req.url || '';
     if (!url.startsWith('/crm/api/')) return;
     const ip = String(req.headers['x-forwarded-for'] || req.ip || 'unknown').split(',')[0].trim();
-    const isAuth = url.startsWith('/crm/api/login') || url.startsWith('/crm/api/signup') || url.startsWith('/crm/api/sso/');
-    const cap = isAuth ? 20 : 120;
-    if (limited('rl:' + ip, cap, 60 * 1000)) {
+
+    // Check for brute-force lockout (only on auth routes)
+    if (url.startsWith('/crm/api/login') || url.startsWith('/crm/api/sso/')) {
+      if (isIpLockedOut(ip)) {
+        log.warn('rate-limit.lockout', { ip, path: url });
+        reply.code(429).header('Retry-After', '900').send({ error: 'Too many failed attempts. Try again in 15 minutes.' });
+        return reply;
+      }
+    }
+
+    // Tiered caps by route (per-minute)
+    let cap, windowMs;
+    if (url.startsWith('/crm/api/login') || url.startsWith('/crm/api/sso/')) {
+      cap = 40; windowMs = 60 * 1000;
+    } else if (url.startsWith('/crm/api/signup')) {
+      cap = 10; windowMs = 60 * 60 * 1000;
+    } else {
+      cap = 300; windowMs = 60 * 1000;
+    }
+    const rateKey = 'rl:' + ip + ':' + (url.startsWith('/crm/api/login') ? 'login' : url.startsWith('/crm/api/signup') ? 'signup' : url.startsWith('/crm/api/sso/') ? 'sso' : 'api');
+    if (limited(rateKey, cap, windowMs)) {
       log.warn('rate-limit.hit', { ip, path: url, cap });
-      reply.code(429).header('Retry-After', '60').send({ error: 'Too many requests. Slow down.' });
+      const retryAfter = Math.ceil(windowMs / 1000);
+      reply.code(429).header('Retry-After', String(retryAfter)).send({ error: 'Too many requests. Try again in ' + Math.ceil(retryAfter / 60) + ' minute(s).' });
       return reply;
     }
   });
@@ -1436,8 +1625,12 @@ export function registerCrm(app, prisma) {
     const pipelineValue = open.reduce((sum, row) => sum + Number(row.amount || 0), 0);
     const wonValue = wonThisMonth.reduce((sum, row) => sum + Number(row.amount || 0), 0);
     const closed = won.length + lost.length;
-    const stageDistribution = stages.map(([id, label, color, chance]) => {
-      const inStage = deals.filter((row) => stageOf(row) === id);
+    const stageDistribution = stages.map((stage) => {
+      const id = stage.id;
+      const label = stage.name || stage.code;
+      const color = stage.color || '#6b7280';
+      const chance = stage.probability || 0;
+      const inStage = deals.filter((row) => String(row.stage) === String(id) || String(row.stage) === String(stage.code));
       return {
         stage: id, label, color, chance,
         count: inStage.length,
@@ -1643,12 +1836,14 @@ export function registerCrm(app, prisma) {
     return reply.code(201).send({ accessToken, slug, fullName, email });
   });
   app.post('/crm/api/login', async (req, reply) => {
-    if (limited('crm-login:' + (req.ip || 'unknown'), 12, 15 * 60 * 1000)) return reply.code(429).send({ error: 'Too many tries. Wait 15 minutes.' });
+    const ip = String(req.headers['x-forwarded-for'] || req.ip || 'unknown').split(',')[0].trim();
     const email = String(req.body?.email || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
     const account = email ? db.prepare('SELECT * FROM crm_accounts WHERE email = ?').get(email) : null;
     const locked = account && account.lockedUntil && account.lockedUntil > new Date().toISOString();
     if (!account || locked || !(await bcrypt.compare(password, account.passwordHash))) {
+      // Record failed login by IP (for IP-based lockout)
+      recordFailedLogin(ip);
       if (account && !locked) {
         const failed = Number(account.failed || 0) + 1;
         const until = failed >= 8 ? new Date(Date.now() + 15 * 60 * 1000).toISOString() : null;
@@ -1658,6 +1853,8 @@ export function registerCrm(app, prisma) {
       return reply.code(401).send({ error: 'Email or password is wrong.' });
     }
     if (Number(account.active) === 0) return reply.code(401).send({ error: 'This account is switched off.' });
+    // Successful login — clear failed-attempt counters for this IP
+    clearFailedLogins(ip);
     db.prepare('UPDATE crm_accounts SET failed = 0, lockedUntil = NULL WHERE id = ?').run(account.id);
     writeAudit(account.workspaceId, account.id, 'login', 'account', account.id, email);
     return { accessToken: openSession(app, account, req) };
@@ -2279,6 +2476,34 @@ export function registerCrm(app, prisma) {
     } catch (e) {
       log.error('duplicates.scan.failed', { err: e.message });
       reply.code(500).send({ error: 'Scan failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  // ============================================================
+  // PIPELINE FORECAST — Phase 2 Part 5
+  // GET /crm/api/forecast/ai?months=12 — predict next month's closed-won
+  //   revenue based on historical closed-won deals + current open
+  //   pipeline weighted by probability.
+  //   Returns: {
+  //     nextMonth: { value, low, high, confidence, method },
+  //     history: [{ month, value, count }],  // last N months
+  //     openPipeline: { weightedValue, count, totalValue, byStage },
+  //     dataPoints, warnings, generatedAt
+  //   }
+  // Note: legacy /crm/api/forecast endpoint stays untouched (returns
+  // current pipeline stats, not a forecast). Frontend can opt in to
+  // the AI forecast via this new endpoint.
+  // ============================================================
+  app.get('/crm/api/forecast/ai', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      const months = Math.min(Math.max(Number(req.query?.months || 12), 3), 24);
+      const forecast = forecastPipeline(user.tenantId, months);
+      log.info('forecast.generated', { tenantId: user.tenantId, value: forecast.nextMonth.value, confidence: forecast.nextMonth.confidence });
+      return forecast;
+    } catch (e) {
+      log.error('forecast.failed', { err: e.message });
+      reply.code(500).send({ error: 'Forecast failed: ' + (e.message || 'unknown error') });
     }
   });
 
