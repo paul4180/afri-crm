@@ -84,6 +84,10 @@ CREATE TABLE IF NOT EXISTS quote_lines (
 CREATE INDEX IF NOT EXISTS ix_crm_leads ON leads(tenantId, status);
 CREATE INDEX IF NOT EXISTS ix_crm_deals ON deals(tenantId, stage);
 CREATE INDEX IF NOT EXISTS ix_crm_act ON activities(tenantId, status);
+CREATE INDEX IF NOT EXISTS ix_contacts_tenant ON contacts(tenantId);
+CREATE INDEX IF NOT EXISTS ix_companies_tenant ON companies(tenantId);
+CREATE INDEX IF NOT EXISTS ix_deals_tenant ON deals(tenantId);
+CREATE INDEX IF NOT EXISTS ix_activities_tenant ON activities(tenantId);
 CREATE TABLE IF NOT EXISTS workspace (
   tenantId TEXT PRIMARY KEY, size TEXT, industry TEXT, goal TEXT, tools TEXT, done INTEGER DEFAULT 0
 );
@@ -1651,6 +1655,26 @@ export function registerCrm(app, prisma) {
     if (q.includes('task') || q.includes('today') || q.includes('due')) answer = due.length ? due.map((row) => row.type + ' · ' + row.subject + (row.dueAt ? ' · ' + row.dueAt : '')).join('\n') : 'Nothing is due.';
     else if (q.includes('deal') || q.includes('pipeline') || q.includes('forecast')) answer = deals.length ? deals.map((row) => row.name + ' · NGN ' + Number(row.amount || 0).toLocaleString('en-NG') + ' · ' + row.stage).join('\n') + '\nWeighted NGN ' + Math.round(weighted).toLocaleString('en-NG') : 'No open deal.';
     return { answer, source: 'records' };
+  });
+
+  // ============================================================
+  // SEARCH — full-text search across contacts, companies, deals
+  // Uses SQLite LIKE with proper indexing (FTS5 to come in Phase 2)
+  // ============================================================
+  app.get('/crm/api/search', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      const q = String(req.query.q || '').trim().slice(0, 100);
+      if (!q || q.length < 2) return { contacts: [], companies: [], deals: [], activities: [] };
+      const like = '%' + q.replace(/[%_]/g, function (c) { return '\\' + c; }) + '%';
+      const contacts = db.prepare("SELECT * FROM contacts WHERE tenantId = ? AND (firstName LIKE ? ESCAPE '\\' OR lastName LIKE ? ESCAPE '\\' OR email LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\') ORDER BY createdAt DESC LIMIT 20").all(user.tenantId, like, like, like, like);
+      const companies = db.prepare("SELECT * FROM companies WHERE tenantId = ? AND (name LIKE ? ESCAPE '\\' OR email LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\') ORDER BY createdAt DESC LIMIT 20").all(user.tenantId, like, like, like);
+      const deals = db.prepare("SELECT * FROM deals WHERE tenantId = ? AND (name LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\') ORDER BY createdAt DESC LIMIT 20").all(user.tenantId, like, like);
+      const activities = db.prepare("SELECT * FROM activities WHERE tenantId = ? AND (subject LIKE ? ESCAPE '\\' OR notes LIKE ? ESCAPE '\\') ORDER BY createdAt DESC LIMIT 10").all(user.tenantId, like, like);
+      return { contacts, companies, deals, activities, total: contacts.length + companies.length + deals.length + activities.length };
+    } catch (e) {
+      reply.code(500).send({ error: 'Search failed: ' + (e.message || 'unknown error') });
+    }
   });
 
   app.get('/crm/api/brain', async (req, reply) => {
