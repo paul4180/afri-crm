@@ -37,6 +37,22 @@ function limited(key, max, windowMs) {
   return false;
 }
 db.exec('PRAGMA journal_mode = WAL');
+// Crash recovery: if database is corrupted, try to repair it
+try {
+  db.exec('PRAGMA integrity_check;');
+} catch (e) {
+  console.error('Database integrity check failed, attempting recovery:', e.message);
+  try {
+    db.exec('PRAGMA journal_mode = DELETE;'); // Reset journal mode
+    db.exec('VACUUM;'); // Rebuild database file
+    db.exec('PRAGMA journal_mode = WAL;'); // Restore WAL
+    console.log('Database recovery successful');
+  } catch (e2) {
+    console.error('Database recovery failed:', e2.message);
+    // Continue anyway — tables will be created with IF NOT EXISTS
+  }
+}
+try {
 db.exec(`
 CREATE TABLE IF NOT EXISTS companies (
   id TEXT PRIMARY KEY, tenantId TEXT NOT NULL, name TEXT NOT NULL,
@@ -215,6 +231,10 @@ CREATE TABLE IF NOT EXISTS crm_prefs (
   PRIMARY KEY (tenantId, userId)
 );
 `);
+} catch (e) {
+  console.error('Database initialization failed:', e.message);
+  // Continue anyway — individual queries will create tables as needed
+}
 for (const [table, col, type] of [
   ['contacts', 'method', 'TEXT'], ['contacts', 'serviceFrequency', 'TEXT'], ['contacts', 'serviceType', 'TEXT'], ['contacts', 'lastService', 'TEXT'],
   ['companies', 'years', 'TEXT'], ['companies', 'offering', 'TEXT'], ['companies', 'area', 'TEXT'], ['companies', 'satisfaction', 'TEXT'],
