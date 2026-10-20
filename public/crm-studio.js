@@ -5458,12 +5458,17 @@
       max-width: 100% !important;
       margin: 0 !important;
       min-height: calc(100vh - var(--m-topbar-h) - var(--m-tabbar-h) - 24px);
-      -webkit-overflow-scrolling: touch;
-      contain: layout style;
     }
     [data-shell="mobile"] * {
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+    [data-shell="mobile"] body {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
     }
 
     /* ===== MOBILE TOP BAR ===== */
@@ -5476,8 +5481,6 @@
       border-bottom: 0.5px solid var(--m-border);
       display: flex; align-items: center; justify-content: space-between; gap: 10px;
       box-sizing: border-box;
-      will-change: transform;
-      transform: translateZ(0);
     }
     [data-theme="dark"] .m-topbar { background: rgba(15,23,42,0.98); }
     .m-icon-btn {
@@ -5516,8 +5519,6 @@
       border-top: 0.5px solid var(--m-border);
       display: flex; align-items: stretch; justify-content: space-around;
       box-sizing: border-box;
-      will-change: transform;
-      transform: translateZ(0);
     }
     [data-theme="dark"] .m-tabbar { background: rgba(15,23,42,0.98); }
     .m-tab {
@@ -5879,12 +5880,15 @@
     try { day = await api('/crm/api/day'); } catch (e) { day = null; }
     var meetings = (day && day.events) ? day.events.slice(0, 3) : [];
 
-    // Fetch home stats
-    var stats = bag && bag.home ? bag.home : {};
-    var openDeals = stats.open || 0;
-    var pipelineVal = stats.pipeline || 0;
-    var tasksDue = stats.tasks || 0;
-    var hotLeads = stats.hot || 0;
+    // Compute stats from actual bag data (bag.home is never populated by refresh())
+    var todayStr = new Date().toISOString().slice(0, 10);
+    var allDeals = bag.deals || [];
+    var openDeals = allDeals.filter(function(d) { return d.stage !== 'WON' && d.stage !== 'LOST'; }).length;
+    var pipelineVal = allDeals.filter(function(d) { return d.stage !== 'WON' && d.stage !== 'LOST'; }).reduce(function(s, d) { return s + (Number(d.amount) || 0); }, 0);
+    var allTasks = bag.activities || [];
+    var tasksDue = allTasks.filter(function(t) { return t.dueAt && t.dueAt <= todayStr && t.status !== 'HELD' && t.status !== 'DONE'; }).length;
+    var allLeads = bag.leads || [];
+    var hotLeads = allLeads.filter(function(l) { return (Number(l.score) || 0) >= 70; }).length;
 
     // Recent contacts (top 3 from bag)
     var recentContacts = (bag.contacts || []).slice(0, 3);
