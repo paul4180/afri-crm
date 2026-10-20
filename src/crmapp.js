@@ -25,40 +25,27 @@ const dbFile = crmPath();
 const legacyFile = path.join(localDir, 'crm.sqlite');
 if (!fs.existsSync(dbFile) && fs.existsSync(legacyFile) && path.resolve(dbFile) !== path.resolve(legacyFile)) fs.copyFileSync(legacyFile, dbFile);
 
-// Crash recovery: if database is corrupted, delete and recreate
+// Crash-proof database opening: try → recover → delete+recreate → in-memory
 let db;
-function openDb() {
+try {
   db = new DatabaseSync(dbFile);
   db.exec('PRAGMA journal_mode = WAL');
-  // Test if database is functional
-  try {
-    db.exec('PRAGMA integrity_check;');
-    return true;
-  } catch (e) {
-    console.error('Database corrupted:', e.message);
-    return false;
+  db.exec('PRAGMA integrity_check;');
+  console.log('Database opened successfully at', dbFile);
+} catch (e) {
+  console.error('Database open failed, attempting recovery:', e.message);
+  try { db && db.close(); } catch {}
+  // Delete all database files
+  for (const suffix of ['', '-wal', '-shm', '-journal']) {
+    try { fs.unlinkSync(dbFile + suffix); } catch {}
   }
-}
-
-if (!openDb()) {
-  console.error('Database recovery failed — deleting corrupted database and starting fresh');
   try {
-    // Close the corrupted database
-    try { db.close(); } catch {}
-    // Delete the corrupted file and its journal
-    try { fs.unlinkSync(dbFile); } catch {}
-    try { fs.unlinkSync(dbFile + '-wal'); } catch {}
-    try { fs.unlinkSync(dbFile + '-shm'); } catch {}
-    try { fs.unlinkSync(dbFile + '-journal'); } catch {}
-    // Create a fresh database
     db = new DatabaseSync(dbFile);
     db.exec('PRAGMA journal_mode = WAL');
     console.log('Fresh database created at', dbFile);
   } catch (e2) {
-    console.error('FATAL: Cannot create database:', e2.message);
-    // Last resort: use in-memory database
+    console.error('FATAL: Cannot create database file, using in-memory:', e2.message);
     db = new DatabaseSync(':memory:');
-    console.error('Using in-memory database (data will not persist)');
   }
 }
 export function crmDatabaseFile() { return dbFile; }
