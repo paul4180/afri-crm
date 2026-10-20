@@ -1,11 +1,6 @@
 node_modules/
-.env
-*.log
-dev.log
-server.log
 data/
+*.sqlite
 *.db
-*.db-journal
-*.db-shm
-*.db-wal
+.env
 .DS_Store
