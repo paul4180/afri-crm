@@ -189,6 +189,26 @@ CREATE TABLE IF NOT EXISTS sequences (
 CREATE TABLE IF NOT EXISTS sequence_runs (
   id TEXT PRIMARY KEY, tenantId TEXT NOT NULL, sequenceId TEXT NOT NULL, dealId TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS inbox_emails (
+  id TEXT PRIMARY KEY,
+  tenantId TEXT NOT NULL,
+  folder TEXT NOT NULL DEFAULT 'inbox',
+  fromName TEXT,
+  fromEmail TEXT,
+  toEmail TEXT,
+  subject TEXT,
+  preview TEXT,
+  body TEXT,
+  receivedAt TEXT NOT NULL,
+  isRead INTEGER DEFAULT 0,
+  isFlagged INTEGER DEFAULT 0,
+  isStarred INTEGER DEFAULT 0,
+  category TEXT,
+  matchedContactId TEXT,
+  hasAttachment INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS ix_inbox_tenant_folder ON inbox_emails(tenantId, folder, receivedAt);
+CREATE INDEX IF NOT EXISTS ix_inbox_tenant_unread ON inbox_emails(tenantId, isRead);
 CREATE TABLE IF NOT EXISTS objects (
   id TEXT PRIMARY KEY, tenantId TEXT NOT NULL, kind TEXT NOT NULL, name TEXT NOT NULL,
   body TEXT, status TEXT DEFAULT 'OPEN', amount REAL DEFAULT 0, meta TEXT,
@@ -557,6 +577,129 @@ function sameContact(tenantId, data, exceptId) {
   if (!email && !phone) return null;
   return db.prepare('SELECT id, firstName, lastName, email, phone FROM contacts WHERE tenantId = ?').all(tenantId)
     .find((row) => row.id !== exceptId && ((email && String(row.email || '').toLowerCase() === email) || (phone && row.phone === phone))) || null;
+}
+
+// ============================================================
+// AI DUPLICATE DETECTION — Phase 2 Part 4
+// detectDuplicateContacts(target, allContacts) — finds contacts
+// that look like the same person as `target`. Uses 4 signals:
+//   1. EXACT EMAIL MATCH        (+50) — strongest signal
+//   2. EXACT PHONE MATCH        (+50) — strongest signal
+//   3. SAME EMAIL LOCAL PART    (+20) — "ada" matches "ada.smith"
+//   4. FUZZY NAME SIMILARITY    (+30 / +15) — Levenshtein distance
+//      >=90% similarity → +30
+//      >=70% similarity → +15
+//   5. SAME COMPANY              (+10) — weak signal alone
+// Returns: array of { contact, score, signals[] } sorted by score desc.
+// Only returns duplicates with score >= 30 (anything below = noise).
+// ============================================================
+function detectDuplicateContacts(target, allContacts) {
+  if (!target || !Array.isArray(allContacts)) return [];
+  const duplicates = [];
+
+  // Normalize target fields
+  const tEmail = String(target.email || '').trim().toLowerCase();
+  const tPhone = String(target.phone || target.mobile || '').replace(/\D/g, '').slice(-10);
+  const tName = ((target.firstName || '') + ' ' + (target.lastName || '')).trim().toLowerCase();
+  const tCompany = target.companyId || null;
+
+  for (const contact of allContacts) {
+    if (!contact || contact.id === target.id) continue;
+    const signals = [];
+    let score = 0;
+
+    // 1. Email match
+    const cEmail = String(contact.email || '').trim().toLowerCase();
+    if (tEmail && cEmail) {
+      if (tEmail === cEmail) {
+        score += 50;
+        signals.push('Exact email match');
+      } else if (tEmail.split('@')[0] === cEmail.split('@')[0]) {
+        // Same local part (before @), different domain — could be the same person
+        score += 20;
+        signals.push('Same email local part (different domain)');
+      }
+    }
+
+    // 2. Phone match (last 10 digits, ignore formatting)
+    const cPhone = String(contact.phone || contact.mobile || '').replace(/\D/g, '').slice(-10);
+    if (tPhone && cPhone && tPhone === cPhone) {
+      score += 50;
+      signals.push('Exact phone match (last 10 digits)');
+    }
+
+    // 3. Name similarity (Levenshtein distance)
+    const cName = ((contact.firstName || '') + ' ' + (contact.lastName || '')).trim().toLowerCase();
+    if (tName && cName && tName.length > 2 && cName.length > 2) {
+      const distance = levenshtein(tName, cName);
+      const maxLen = Math.max(tName.length, cName.length);
+      const similarity = 1 - (distance / maxLen);
+      if (similarity >= 0.9) {
+        score += 30;
+        signals.push('Very similar name (' + Math.round(similarity * 100) + '%)');
+      } else if (similarity >= 0.7) {
+        score += 15;
+        signals.push('Similar name (' + Math.round(similarity * 100) + '%)');
+      }
+      // Also check just first name match
+      const tFirst = (target.firstName || '').toLowerCase();
+      const cFirst = (contact.firstName || '').toLowerCase();
+      if (tFirst && cFirst && tFirst === cFirst && similarity < 0.7) {
+        score += 5;
+        signals.push('Same first name (' + tFirst + ')');
+      }
+    }
+
+    // 4. Same company (weak signal — don't merge on this alone)
+    if (tCompany && contact.companyId && tCompany === contact.companyId) {
+      score += 10;
+      signals.push('Same company');
+    }
+
+    // Only include if score >= 30 (above the noise floor)
+    if (score >= 30) {
+      duplicates.push({
+        contact: {
+          id: contact.id,
+          firstName: contact.firstName,
+          lastName: contact.lastName,
+          email: contact.email,
+          phone: contact.phone,
+          companyId: contact.companyId,
+          ownerId: contact.ownerId,
+          source: contact.source,
+          status: contact.status,
+          createdAt: contact.createdAt,
+        },
+        score,
+        signals,
+        recommendation: score >= 75 ? 'very_likely' : score >= 50 ? 'likely' : 'possible',
+      });
+    }
+  }
+  return duplicates.sort((a, b) => b.score - a.score);
+}
+
+// Standard Levenshtein distance — used by detectDuplicateContacts
+// for fuzzy name matching. Pure functions, no external deps.
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a) return b.length;
+  if (!b) return a.length;
+  const m = a.length, n = b.length;
+  // Use 2 rows (current + previous) instead of full matrix — O(m*n) time, O(n) space
+  let prev = new Array(n + 1);
+  let curr = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[n];
 }
 
 const DEFAULT_SEQUENCES = [
@@ -1495,6 +1638,7 @@ export function registerCrm(app, prisma) {
     writeAudit(workspaceId, accountId, 'signup', 'account', accountId, email);
     publishEvent(workspaceId, 'account.created', { id: accountId });
     seedDemo(workspaceId, accountId);
+    seedInbox(workspaceId, accountId);
     const accessToken = openSession(app, { id: accountId, workspaceId, role: 'OWNER' }, req);
     return reply.code(201).send({ accessToken, slug, fullName, email });
   });
@@ -1596,6 +1740,7 @@ export function registerCrm(app, prisma) {
       writeAudit(workspaceId, accountId, 'signup', 'account', accountId, 'SSO Google: ' + email);
       publishEvent(workspaceId, 'account.created', { id: accountId });
       seedDemo(workspaceId, accountId);
+    seedInbox(workspaceId, accountId);
       account = db.prepare('SELECT * FROM crm_accounts WHERE id = ?').get(accountId);
       isNew = true;
     } else if (Number(account.active) === 0) {
@@ -2051,6 +2196,92 @@ export function registerCrm(app, prisma) {
     return { id: keep.id, merged: dropped };
   });
 
+  // ============================================================
+  // AI DUPLICATE DETECTION — Phase 2 Part 4
+  // GET /crm/api/contacts/:id/duplicates — find contacts that look
+  //   like the same person as this contact. Returns:
+  //   { duplicates: [{ contact, score, signals[], recommendation }],
+  //     target: {id, name, email, phone}, total }
+  // GET /crm/api/duplicates/scan — scan ALL contacts for duplicates,
+  //   return pairs. Heavy operation (O(n²)) so capped at 500 contacts.
+  //   Returns: { pairs: [{a, b, score, signals[], recommendation}], total }
+  // GET /crm/api/leads/:id/duplicates — same as contacts but for leads
+  //   (a lead may have a duplicate contact already in the system).
+  // ============================================================
+  app.get('/crm/api/contacts/:id/duplicates', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      const target = one('contacts', user.tenantId, req.params.id);
+      if (!target) return reply.code(404).send({ error: 'Contact not found' });
+      const allContacts = list('contacts', user.tenantId, { limit: 500 });
+      const duplicates = detectDuplicateContacts(target, allContacts);
+      return {
+        target: {
+          id: target.id,
+          name: ((target.firstName || '') + ' ' + (target.lastName || '')).trim(),
+          email: target.email,
+          phone: target.phone,
+        },
+        duplicates,
+        total: duplicates.length,
+      };
+    } catch (e) {
+      log.error('duplicates.contact.failed', { err: e.message, contactId: req.params.id });
+      reply.code(500).send({ error: 'Duplicate detection failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  app.get('/crm/api/leads/:id/duplicates', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      const lead = one('leads', user.tenantId, req.params.id);
+      if (!lead) return reply.code(404).send({ error: 'Lead not found' });
+      // Check against ALL contacts (lead might match an existing contact)
+      const allContacts = list('contacts', user.tenantId, { limit: 500 });
+      const duplicates = detectDuplicateContacts(lead, allContacts);
+      return {
+        target: {
+          id: lead.id,
+          name: ((lead.firstName || '') + ' ' + (lead.lastName || '')).trim(),
+          email: lead.email,
+          phone: lead.phone,
+        },
+        duplicates,
+        total: duplicates.length,
+      };
+    } catch (e) {
+      log.error('duplicates.lead.failed', { err: e.message, leadId: req.params.id });
+      reply.code(500).send({ error: 'Duplicate detection failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  app.get('/crm/api/duplicates/scan', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      const allContacts = list('contacts', user.tenantId, { limit: 500 });
+      // O(n²) pairwise scan — capped at 500 to keep response time sane
+      const pairs = [];
+      for (let i = 0; i < allContacts.length; i++) {
+        const matches = detectDuplicateContacts(allContacts[i], allContacts.slice(i + 1));
+        for (const m of matches) {
+          pairs.push({
+            a: { id: allContacts[i].id, name: ((allContacts[i].firstName || '') + ' ' + (allContacts[i].lastName || '')).trim(), email: allContacts[i].email, phone: allContacts[i].phone },
+            b: { id: m.contact.id, name: ((m.contact.firstName || '') + ' ' + (m.contact.lastName || '')).trim(), email: m.contact.email, phone: m.contact.phone },
+            score: m.score,
+            signals: m.signals,
+            recommendation: m.recommendation,
+          });
+        }
+      }
+      // Sort by score desc, cap at 50 pairs in response
+      pairs.sort((a, b) => b.score - a.score);
+      return { pairs: pairs.slice(0, 50), total: pairs.length, scannedContacts: allContacts.length };
+    } catch (e) {
+      log.error('duplicates.scan.failed', { err: e.message });
+      reply.code(500).send({ error: 'Scan failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
   app.get('/crm/api/target', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     const month = /^\d{4}-\d{2}$/.test(req.query?.month || '') ? req.query.month : new Date().toISOString().slice(0, 7);
@@ -2292,6 +2523,213 @@ export function registerCrm(app, prisma) {
       reply.code(500).send({ error: 'Auto-rate failed: ' + (e.message || 'unknown error') });
     }
   });
+
+  // ============================================================
+  // INBOX — Outlook-style email UI integrated into the CRM
+  // GET /crm/api/inbox/folders → folder list with unread + total counts
+  // GET /crm/api/inbox/emails?folder=inbox → emails in folder
+  //   optional ?unread=true filters to unread only
+  //   optional ?q=search filters by subject/from
+  // GET /crm/api/inbox/emails/:id → single email (marks as read on first open)
+  // PATCH /crm/api/inbox/emails/:id → { isRead?, isFlagged?, category? }
+  // POST /crm/api/inbox/emails/:id/move → body { folder }
+  // POST /crm/api/inbox/emails/:id/reply → body { body } (logs only)
+  // POST /crm/api/inbox/emails/:id/create-contact → creates CRM contact from sender
+  // GET /crm/api/inbox/duplicates → scans inbox for senders matching CRM contacts
+  // POST /crm/api/contacts/detect-duplicates → body { name, email, phone?, companyName? }
+  //   Returns { match: { contactId, name, email, phone, score, reasons, runnerUp } | null }
+  // ============================================================
+  app.get('/crm/api/inbox/folders', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      const rows = db.prepare('SELECT folder, COUNT(*) AS total, SUM(CASE WHEN isRead = 0 THEN 1 ELSE 0 END) AS unread FROM inbox_emails WHERE tenantId = ? GROUP BY folder').all(user.tenantId);
+      const counts = {};
+      for (const r of rows) counts[r.folder] = { total: r.total, unread: r.unread || 0 };
+      const order = ['inbox', 'junk', 'drafts', 'sent', 'deleted', 'archive'];
+      const folders = order.map((f) => ({ id: f, name: f.charAt(0).toUpperCase() + f.slice(1), ...((counts[f] || { total: 0, unread: 0 })) }));
+      return { folders };
+    } catch (e) {
+      log.error('inbox.folders.failed', { err: e.message });
+      reply.code(500).send({ error: 'Failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  app.get('/crm/api/inbox/emails', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      const folder = String(req.query?.folder || 'inbox').slice(0, 20);
+      const q = String(req.query?.q || '').trim().slice(0, 100);
+      const limit = Math.min(Math.max(Number(req.query?.limit || 50), 1), 200);
+      let sql = 'SELECT id, folder, fromName, fromEmail, toEmail, subject, preview, receivedAt, isRead, isFlagged, isStarred, category, matchedContactId, hasAttachment FROM inbox_emails WHERE tenantId = ? AND folder = ?';
+      const params = [user.tenantId, folder];
+      if (q) {
+        sql += ' AND (lower(subject) LIKE ? ESCAPE \'\\\' OR lower(fromName) LIKE ? ESCAPE \'\\\' OR lower(fromEmail) LIKE ? ESCAPE \'\\\')';
+        const like = '%' + q.replace(/[%_]/g, (c) => '\\' + c) + '%';
+        params.push(like, like, like);
+      }
+      sql += ' ORDER BY receivedAt DESC LIMIT ?';
+      params.push(limit);
+      return { emails: db.prepare(sql).all(...params) };
+    } catch (e) {
+      log.error('inbox.emails.failed', { err: e.message });
+      reply.code(500).send({ error: 'Failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  app.get('/crm/api/inbox/emails/:id', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      const email = db.prepare('SELECT * FROM inbox_emails WHERE tenantId = ? AND id = ?').get(user.tenantId, req.params.id);
+      if (!email) return reply.code(404).send({ error: 'Email not found' });
+      // Mark as read on first view
+      if (!email.isRead) {
+        db.prepare('UPDATE inbox_emails SET isRead = 1 WHERE id = ? AND tenantId = ?').run(email.id, user.tenantId);
+        email.isRead = 1;
+      }
+      // Attach duplicate match info if any
+      let match = null;
+      if (email.matchedContactId) {
+        const c = db.prepare('SELECT id, firstName, lastName, email, phone FROM contacts WHERE tenantId = ? AND id = ?').get(user.tenantId, email.matchedContactId);
+        if (c) match = { contactId: c.id, name: ((c.firstName || '') + ' ' + (c.lastName || '')).trim(), email: c.email || '', phone: c.phone || '' };
+      }
+      return { email, match };
+    } catch (e) {
+      log.error('inbox.email.failed', { err: e.message });
+      reply.code(500).send({ error: 'Failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  app.patch('/crm/api/inbox/emails/:id', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+      const email = db.prepare('SELECT id FROM inbox_emails WHERE tenantId = ? AND id = ?').get(user.tenantId, req.params.id);
+      if (!email) return reply.code(404).send({ error: 'Email not found' });
+      const updates = [];
+      const params = [];
+      if (typeof req.body?.isRead === 'boolean') { updates.push('isRead = ?'); params.push(req.body.isRead ? 1 : 0); }
+      if (typeof req.body?.isFlagged === 'boolean') { updates.push('isFlagged = ?'); params.push(req.body.isFlagged ? 1 : 0); }
+      if (typeof req.body?.isStarred === 'boolean') { updates.push('isStarred = ?'); params.push(req.body.isStarred ? 1 : 0); }
+      if (typeof req.body?.category === 'string') { updates.push('category = ?'); params.push(String(req.body.category).slice(0, 30)); }
+      if (!updates.length) return reply.code(400).send({ error: 'No valid fields to update' });
+      params.push(req.params.id, user.tenantId);
+      db.prepare('UPDATE inbox_emails SET ' + updates.join(', ') + ' WHERE id = ? AND tenantId = ?').run(...params);
+      return { ok: true };
+    } catch (e) {
+      log.error('inbox.patch.failed', { err: e.message });
+      reply.code(500).send({ error: 'Failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  app.post('/crm/api/inbox/emails/:id/move', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+      const folder = String(req.body?.folder || '').slice(0, 20);
+      const valid = ['inbox', 'junk', 'drafts', 'sent', 'deleted', 'archive'];
+      if (!valid.includes(folder)) return reply.code(400).send({ error: 'Invalid folder. Use: ' + valid.join(', ') });
+      const result = db.prepare('UPDATE inbox_emails SET folder = ? WHERE id = ? AND tenantId = ?').run(folder, req.params.id, user.tenantId);
+      if (result.changes === 0) return reply.code(404).send({ error: 'Email not found' });
+      writeAudit(user.tenantId, user.sub, 'email-moved', 'inbox', req.params.id, 'to ' + folder);
+      return { ok: true, folder };
+    } catch (e) {
+      log.error('inbox.move.failed', { err: e.message });
+      reply.code(500).send({ error: 'Failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  app.post('/crm/api/inbox/emails/:id/reply', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+      const email = db.prepare('SELECT * FROM inbox_emails WHERE tenantId = ? AND id = ?').get(user.tenantId, req.params.id);
+      if (!email) return reply.code(404).send({ error: 'Email not found' });
+      const replyBody = String(req.body?.body || '').slice(0, 4000);
+      if (!replyBody.trim()) return reply.code(400).send({ error: 'Reply body cannot be empty' });
+      // Log reply as a sent email in the Sent folder
+      const id = crypto.randomUUID();
+      db.prepare('INSERT INTO inbox_emails (id, tenantId, folder, fromName, fromEmail, toEmail, subject, preview, body, receivedAt, isRead, isFlagged, category, hasAttachment) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .run(id, user.tenantId, 'sent', 'Me', user.email || 'me@afri.os', email.fromEmail, 'Re: ' + email.subject, replyBody.slice(0, 200), replyBody, new Date().toISOString(), 1, 0, 'work', 0);
+      writeAudit(user.tenantId, user.sub, 'email-replied', 'inbox', req.params.id, 'to ' + email.fromEmail);
+      return { ok: true, sentId: id };
+    } catch (e) {
+      log.error('inbox.reply.failed', { err: e.message });
+      reply.code(500).send({ error: 'Failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  app.post('/crm/api/inbox/emails/:id/create-contact', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+      const email = db.prepare('SELECT * FROM inbox_emails WHERE tenantId = ? AND id = ?').get(user.tenantId, req.params.id);
+      if (!email) return reply.code(404).send({ error: 'Email not found' });
+      if (email.matchedContactId) return reply.code(409).send({ error: 'Sender already matches a contact', contactId: email.matchedContactId });
+      // Parse sender name into first/last
+      const parts = String(email.fromName || '').split(/\s+/);
+      const firstName = parts[0] || 'Unknown';
+      const lastName = parts.slice(1).join(' ');
+      // Create contact
+      const contactId = crypto.randomUUID();
+      db.prepare('INSERT INTO contacts (id, tenantId, firstName, lastName, email, ownerId, source, status, createdAt) VALUES (?,?,?,?,?,?,?,?,?)')
+        .run(contactId, user.tenantId, firstName, lastName || '', email.fromEmail || '', user.sub, 'Inbox import', 'ACTIVE', new Date().toISOString());
+      // Update the email's matchedContactId
+      db.prepare('UPDATE inbox_emails SET matchedContactId = ? WHERE id = ? AND tenantId = ?').run(contactId, email.id, user.tenantId);
+      writeAudit(user.tenantId, user.sub, 'created', 'contacts', contactId, 'From email: ' + email.fromEmail);
+      log.info('inbox.contact.created', { emailId: email.id, contactId, tenantId: user.tenantId });
+      // FTS5 index the new contact
+      ftsUpsert('contacts', contactId, user.tenantId, { firstName, lastName: lastName || '', email: email.fromEmail || '', phone: '', company: '' });
+      return { ok: true, contactId, firstName, lastName, email: email.fromEmail };
+    } catch (e) {
+      log.error('inbox.create-contact.failed', { err: e.message });
+      reply.code(500).send({ error: 'Failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  app.get('/crm/api/inbox/duplicates', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      const emails = db.prepare('SELECT id, fromName, fromEmail, subject, matchedContactId FROM inbox_emails WHERE tenantId = ? AND folder = ? ORDER BY receivedAt DESC LIMIT 100').all(user.tenantId, 'inbox');
+      const contacts = db.prepare('SELECT id, firstName, lastName, email, phone FROM contacts WHERE tenantId = ?').all(user.tenantId);
+      const withMatches = [];
+      const withoutMatches = [];
+      for (const e of emails) {
+        if (e.matchedContactId) {
+          const c = contacts.find((c) => c.id === e.matchedContactId);
+          if (c) {
+            withMatches.push({ emailId: e.id, fromName: e.fromName, fromEmail: e.fromEmail, subject: e.subject, matchedContactId: c.id, matchedName: ((c.firstName || '') + ' ' + (c.lastName || '')).trim(), score: 100, reasons: ['Exact email match (seeded)'] });
+          }
+        } else {
+          const m = detectContactDuplicate({ name: e.fromName, email: e.fromEmail }, contacts);
+          if (m) {
+            withMatches.push({ emailId: e.id, fromName: e.fromName, fromEmail: e.fromEmail, subject: e.subject, matchedContactId: m.contactId, matchedName: m.name, score: m.score, reasons: m.reasons });
+          } else {
+            withoutMatches.push({ emailId: e.id, fromName: e.fromName, fromEmail: e.fromEmail, subject: e.subject });
+          }
+        }
+      }
+      return { matches: withMatches, newSenders: withoutMatches, scanned: emails.length };
+    } catch (e) {
+      log.error('inbox.duplicates.failed', { err: e.message });
+      reply.code(500).send({ error: 'Failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  app.post('/crm/api/contacts/detect-duplicates', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      const candidate = {
+        name: String(req.body?.name || '').trim().slice(0, 120),
+        email: String(req.body?.email || '').trim().slice(0, 120),
+        phone: String(req.body?.phone || '').trim().slice(0, 40),
+        companyName: String(req.body?.companyName || '').trim().slice(0, 120),
+      };
+      if (!candidate.name && !candidate.email) return reply.code(400).send({ error: 'Name or email required' });
+      const contacts = db.prepare('SELECT id, firstName, lastName, email, phone, mobile FROM contacts WHERE tenantId = ?').all(user.tenantId);
+      const match = detectContactDuplicate(candidate, contacts);
+      return { match };
+    } catch (e) {
+      log.error('contacts.detect-duplicates.failed', { err: e.message });
+      reply.code(500).send({ error: 'Failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
 
   // ============================================================
   // SMART SEQUENCE SUGGESTIONS — Phase 2 Part 2
@@ -3157,6 +3595,146 @@ export function registerCrm(app, prisma) {
     } catch (e) {
       log.error('seedDemo.failed', { err: e.message, tenantId: workspaceId });
     }
+  }
+
+  // ============================================================
+  // INBOX SEED — sample emails for the Outlook-style UI.
+  // Senders match existing demo contacts so the AI duplicate
+  // detection has real matches to find. Plus a few newsletters
+  // and spam for the Junk Email folder, like the screenshot.
+  // ============================================================
+  function seedInbox(workspaceId, ownerId) {
+    try {
+      if (db.prepare('SELECT COUNT(*) AS n FROM inbox_emails WHERE tenantId = ?').get(workspaceId).n > 0) return;
+      const contacts = db.prepare('SELECT id, firstName, lastName, email, phone, companyId FROM contacts WHERE tenantId = ?').all(workspaceId);
+      const companies = db.prepare('SELECT id, name, email FROM companies WHERE tenantId = ?').all(workspaceId);
+      const ownerEmail = db.prepare('SELECT email FROM crm_accounts WHERE id = ?').get(ownerId)?.email || 'me@afri.os';
+      const now = Date.now();
+      const hourAgo = (h) => new Date(now - h * 3600000).toISOString();
+      const dayAgo = (d) => new Date(now - d * 86400000).toISOString();
+      const insert = db.prepare('INSERT INTO inbox_emails (id, tenantId, folder, fromName, fromEmail, toEmail, subject, preview, body, receivedAt, isRead, isFlagged, category, matchedContactId, hasAttachment) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+      const seedEmail = (folder, fromName, fromEmail, subject, preview, body, hoursAgo, isRead, isFlagged, category, hasAttachment) => {
+        const id = crypto.randomUUID();
+        const matched = detectContactDuplicate({ name: fromName, email: fromEmail }, contacts);
+        insert.run(id, workspaceId, folder, fromName, fromEmail, ownerEmail, subject, preview, body, hourAgo(hoursAgo), isRead ? 1 : 0, isFlagged ? 1 : 0, category || null, matched?.contactId || null, hasAttachment ? 1 : 0);
+      };
+      // Inbox — emails from existing demo contacts (so dedupe finds matches)
+      if (contacts[0]) seedEmail('inbox', (contacts[0].firstName + ' ' + contacts[0].lastName).trim(), contacts[0].email, 'Re: Software implementation proposal', 'Hi, I reviewed the proposal and I think we can move forward. Can we schedule a call this week?', 'Hi,\n\nI reviewed the proposal and I think we can move forward. The pricing looks fair and the timeline works for us. Can we schedule a call this week to go over the implementation plan?\n\nAlso, I shared it with my team and they have a few questions about the API integration. Please share the technical docs when you can.\n\nBest regards,\n' + contacts[0].firstName, 2, false, true, 'work', true);
+      if (contacts[1]) seedEmail('inbox', (contacts[1].firstName + ' ' + contacts[1].lastName).trim(), contacts[1].email, 'Pilot program — 5 users', 'We would like to start with a 5-user pilot before committing to the annual contract.', 'Hello,\n\nWe would like to start with a 5-user pilot before committing to the annual contract. This will help us evaluate the platform with our actual data and workflows.\n\nCould you send over the pilot agreement? Also, what does onboarding look like for 5 users?\n\nThanks,\n' + contacts[1].firstName, 5, false, false, 'work', false);
+      if (contacts[2]) seedEmail('inbox', (contacts[2].firstName + ' ' + contacts[2].lastName).trim(), contacts[2].email, 'Re: Hardware upgrade package', 'Following up on the hardware upgrade package. We need this deployed by end of Q4.', 'Hi,\n\nFollowing up on the hardware upgrade package. We need this deployed by end of Q4 to align with our fiscal year. The budget is approved at NGN 800,000.\n\nWhat is the earliest delivery date? Also, can you include installation and training?\n\nRegards,\n' + contacts[2].firstName, 26, true, false, 'work', true);
+      if (contacts[3]) seedEmail('inbox', (contacts[3].firstName + ' ' + contacts[3].lastName).trim(), contacts[3].email, 'Savannah Trading retainer — proposal', 'As discussed, here is the proposal for the consulting retainer.', 'Hi,\n\nAs discussed, here is the proposal for the consulting retainer. We are expanding to 3 new branches and need multi-branch inventory management.\n\nThe proposal covers:\n• Monthly consulting (8 hours)\n• Quarterly on-site visits\n• Priority support response (4 hours)\n• Training for new staff\n\nTotal: NGN 3,000,000 for 12 months.\n\nLet me know if you would like to adjust any line items.\n\nBest,\n' + contacts[3].firstName, 49, true, false, 'work', false);
+      if (contacts[7]) seedEmail('inbox', (contacts[7].firstName + ' ' + contacts[7].lastName).trim(), contacts[7].email, 'Welcome call follow-up', 'Thank you for the welcome call yesterday. Excited to be working with your team.', 'Hi,\n\nThank you for the welcome call yesterday. Excited to be working with your team. As mentioned, we are a small but growing trading company and looking forward to leveraging your platform.\n\nI have shared the login details with my operations team. We will start using it this week.\n\nBest regards,\n' + contacts[7].firstName, 72, true, false, 'work', false);
+      // Newsletter-style emails in inbox (legitimate but not contacts)
+      seedEmail('inbox', 'TechCabal Weekly', 'news@techcabal.com', 'This week in African tech: fintech raises $40M', 'African fintech startups raised $40M this week. Read the full breakdown.', 'African fintech startups raised $40M this week across 3 deals. The largest was a $25M Series B for a Lagos-based payments company. Read the full breakdown on our site.', 8, true, false, 'newsletter', false);
+      seedEmail('inbox', 'Noreply LinkedIn', 'invitations@linkedin.com', 'You have 3 new invitations', 'Ada Okafor, Bola Adeyemi, and 1 other want to connect.', 'You have 3 new invitations pending. View them on LinkedIn.', 30, true, false, null, false);
+      // Junk Email — spam (matching the screenshot pattern)
+      seedEmail('junk', 'NiubiStar Support Team', 'market@mcpcnserver.com', 'Developer marketing plan — reply within 48 hours', 'We are offering developer marketing services at 50% discount this week only.', 'Dear Developer,\n\nWe are offering developer marketing services at 50% discount this week only. Reply within 48 hours to claim this offer.\n\nLimited slots available.', 3, false, false, 'spam', false);
+      seedEmail('junk', 'The Washington Post', 'info@nl.mail.washingtonpost.com', 'The Post Most: U.S. official breaks down the latest numbers', 'Read today\'s top stories from The Washington Post.', 'Read today\'s top stories:\n\n1. U.S. official breaks down the latest numbers\n2. Markets close mixed amid rate concerns\n3. Climate summit enters final day', 5, false, false, 'newsletter', false);
+      seedEmail('junk', 'Daily Mail | Morning Mail', 'newsletter@news.dailymail.com', 'Budget to be worse than expected, says analyst', 'Read today\'s top story and more from Daily Mail.', 'Read today\'s top story: Budget to be worse than expected, says analyst. Plus 4 more stories inside.', 16, false, false, 'newsletter', false);
+      seedEmail('junk', 'AI/ML API', 'help@aimlapi.com', 'DeepSeek V4.1 Flash is here', 'Try our new model with 2x faster inference and 30% lower cost.', 'DeepSeek V4.1 Flash is here. Try our new model with 2x faster inference and 30% lower cost compared to V4.0.', 36, true, false, 'spam', false);
+      // Sent folder
+      seedEmail('sent', 'Me', ownerEmail, 'Re: Software implementation proposal', 'Thanks Ada. I will send over the technical docs this afternoon.', 'Thanks Ada.\n\nI will send over the technical docs this afternoon. Looking forward to the call on Tuesday at 2pm.\n\nBest,\nMe', 1, true, false, 'work', false);
+      seedEmail('sent', 'Me', ownerEmail, 'Welcome to Afri CRM!', 'Hi Fatima, welcome to Afri CRM. Let me know if you need help getting started.', 'Hi Fatima,\n\nWelcome to Afri CRM. Let me know if you need help getting started.\n\nBest,\nMe', 28, true, false, 'work', false);
+      // Drafts
+      seedEmail('drafts', 'Me', ownerEmail, 'Re: Pilot program — 5 users', 'Hi Bola, the pilot agreement is attached. Let me know if you need any adjustments...', 'Hi Bola,\n\nThe pilot agreement is attached. Let me know if you need any adjustments to the terms. Onboarding takes about 2 business days for 5 users and we will schedule a kickoff call once you sign.\n\nBest,\nMe', 0, true, false, null, true);
+      log.info('inbox.seeded', { tenantId: workspaceId, count: db.prepare('SELECT COUNT(*) AS n FROM inbox_emails WHERE tenantId = ?').get(workspaceId).n });
+    } catch (e) {
+      log.error('seedInbox.failed', { err: e.message, tenantId: workspaceId });
+    }
+  }
+
+  // ============================================================
+  // AI DUPLICATE DETECTION — Phase 2 Part 4
+  // detectContactDuplicate(candidate, contacts) returns the best
+  // matching existing contact (if any) with confidence + reason.
+  //
+  // Matching signals (highest wins):
+  //   1. EXACT EMAIL (100%) — email lowercased matches contact.email
+  //   2. EXACT PHONE (98%)  — phone digits match contact.phone/mobile
+  //   3. NAME + DOMAIN (85%) — first+last name match AND email
+  //      domain matches (e.g. ada@zenithfoods.ng matches Ada at
+  //      Zenith Foods company)
+  //   4. NAME FUZZY (70%)    — Levenshtein distance < 3 between full
+  //      name and contact.firstName+lastName
+  //   5. EMAIL PREFIX (60%) — email username (before @) contains
+  //      first or last name
+  //
+  // Returns null if no candidate scores >= 50 (the "match" threshold).
+  // Also returns runnerUp so UI can show "2 potential matches".
+  // ============================================================
+  function detectContactDuplicate(candidate, contacts) {
+    if (!candidate || !Array.isArray(contacts) || !contacts.length) return null;
+    const candEmail = String(candidate.email || '').toLowerCase().trim();
+    const candPhone = String(candidate.phone || candidate.mobile || '').replace(/\D/g, '');
+    const candName = String(candidate.name || ((candidate.firstName || '') + ' ' + (candidate.lastName || '')).trim()).toLowerCase().trim();
+    const candFirst = String(candidate.firstName || candName.split(/\s+/)[0] || '').toLowerCase().trim();
+    const candLast = String(candidate.lastName || candName.split(/\s+/).slice(1).join(' ') || '').toLowerCase().trim();
+    const candDomain = candEmail.split('@')[1] || '';
+
+    let best = null;
+    let runner = null;
+    for (const c of contacts) {
+      const cEmail = String(c.email || '').toLowerCase().trim();
+      const cPhone1 = String(c.phone || '').replace(/\D/g, '');
+      const cPhone2 = String(c.mobile || '').replace(/\D/g, '');
+      const cFirst = String(c.firstName || '').toLowerCase().trim();
+      const cLast = String(c.lastName || '').toLowerCase().trim();
+      const cName = (cFirst + ' ' + cLast).trim();
+      const cDomain = cEmail ? cEmail.split('@')[1] : '';
+
+      let score = 0;
+      const reasons = [];
+      // 1. Exact email
+      if (candEmail && cEmail && candEmail === cEmail) { score = 100; reasons.push('Exact email match'); }
+      // 2. Exact phone
+      else if (candPhone && ((cPhone1 && candPhone === cPhone1) || (cPhone2 && candPhone === cPhone2))) { score = 98; reasons.push('Exact phone match'); }
+      // 3. Name + domain
+      else if (candDomain && cDomain && candDomain === cDomain && candName && (candFirst === cFirst || candLast === cLast || levDist(candName, cName) <= 2)) {
+        score = 85; reasons.push('Same email domain and name matches');
+      }
+      // 4. Name fuzzy (Levenshtein)
+      else if (candName && cName && levDist(candName, cName) <= 2 && candName.length >= 4) {
+        score = 70; reasons.push('Name is very similar (fuzzy match)');
+      }
+      // 5. Email prefix contains first/last name
+      else if (candEmail && candFirst) {
+        const prefix = candEmail.split('@')[0] || '';
+        if (prefix.includes(candFirst) || (candLast && prefix.includes(candLast))) {
+          if (cEmail === candEmail) { /* already handled above */ }
+          else if (candFirst === cFirst || candLast === cLast) { score = 60; reasons.push('Email username pattern + name match'); }
+        }
+      }
+
+      if (score >= 50) {
+        const match = { contactId: c.id, name: cName, email: c.email || '', phone: c.phone || '', score, reasons };
+        if (!best || score > best.score) {
+          if (best) runner = best;
+          best = match;
+        } else if (!runner || score > runner.score) {
+          runner = match;
+        }
+      }
+    }
+    if (!best) return null;
+    return { ...best, runnerUp: runner };
+  }
+
+  // Levenshtein distance — for fuzzy name matching
+  function levDist(a, b) {
+    if (!a || !b) return Math.max((a || '').length, (b || '').length);
+    if (a === b) return 0;
+    const m = a.length, n = b.length;
+    if (Math.abs(m - n) > 4) return Math.max(m, n); // quick bail for very different lengths
+    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+      }
+    }
+    return dp[m][n];
   }
 
   // ============================================================
