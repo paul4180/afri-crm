@@ -24,8 +24,9 @@ const TIME_REGEX = /\b(\d{1,2}(:\d{2})?\s*(am|pm|AM|PM))\b/g;
  */
 export async function summarizeConversation(text, opts = {}) {
   const cleanedText = String(text || '').slice(0, 12000); // cap at 12k chars
+  const wordCount = (cleanedText.match(/\S+/g) || []).length;
 
-  if (cleanedText.length < 20) {
+  if (cleanedText.length < 20 || wordCount < 5) {
     return {
       summary: ['Text too short to summarize.'],
       keyPoints: [],
@@ -35,15 +36,16 @@ export async function summarizeConversation(text, opts = {}) {
       entities: {},
       method: 'rule',
       tokens: 0,
+      wordCount,
     };
   }
 
   // Try Gemini first
   const aiResult = await summarizeWithGemini(cleanedText, opts);
-  if (aiResult) return { ...aiResult, method: 'gemini' };
+  if (aiResult) return { ...aiResult, method: 'gemini', wordCount };
 
   // Fallback to rule-based
-  return { ...summarizeRuleBased(cleanedText), method: 'rule' };
+  return { ...summarizeRuleBased(cleanedText), method: 'rule', wordCount };
 }
 
 async function summarizeWithGemini(text, opts) {
@@ -59,7 +61,7 @@ Summarize this conversation and return ONLY valid JSON (no markdown, no code fen
   "summary": ["bullet 1 (max 15 words)", "bullet 2", "bullet 3"],
   "keyPoints": ["important fact 1", "important fact 2"],
   "actionItems": ["specific action 1 with owner if mentioned", "action 2"],
-  "sentiment": "positive" | "neutral" | "negative",
+  "sentiment": "positive" | "neutral" | "negative" | "concerned",
   "nextAction": "one-sentence recommended next step for the sales rep",
   "entities": {
     "dates": ["any dates mentioned"],
@@ -73,7 +75,7 @@ Rules:
 - summary must have exactly 3 bullets, each max 15 words
 - keyPoints: 0-5 factual observations
 - actionItems: 0-5 things someone needs to do
-- sentiment: one of "positive", "neutral", "negative"
+- sentiment: one of "positive", "neutral", "negative", "concerned"
 - nextAction: single sentence, concrete recommendation
 - entities: only include arrays that have values
 
@@ -95,7 +97,7 @@ ${text}
       summary: Array.isArray(parsed.summary) ? parsed.summary.slice(0, 5) : [],
       keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints.slice(0, 5) : [],
       actionItems: Array.isArray(parsed.actionItems) ? parsed.actionItems.slice(0, 5) : [],
-      sentiment: ['positive', 'neutral', 'negative'].includes(parsed.sentiment) ? parsed.sentiment : 'neutral',
+      sentiment: ['positive', 'neutral', 'negative', 'concerned'].includes(parsed.sentiment) ? parsed.sentiment : 'neutral',
       nextAction: typeof parsed.nextAction === 'string' ? parsed.nextAction : 'Review and follow up.',
       entities: parsed.entities && typeof parsed.entities === 'object' ? {
         dates: Array.isArray(parsed.entities.dates) ? parsed.entities.dates : [],
@@ -171,6 +173,7 @@ function summarizeRuleBased(text) {
   let sentiment = 'neutral';
   if (pos > neg + 2) sentiment = 'positive';
   else if (neg > pos + 2) sentiment = 'negative';
+  else if (neg > 0 && neg >= pos) sentiment = 'concerned'; // mild negative signals concern
 
   // Next action: prefer first action item, fall back to sentiment-based
   let nextAction;
