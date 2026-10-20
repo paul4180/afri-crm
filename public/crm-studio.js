@@ -6039,16 +6039,13 @@
     }
   };
 
-  // Override drawHome for mobile — completely separate rendering path
-  var origDrawHome = window.drawHome;
-  if (typeof origDrawHome === 'function' && !origDrawHome.__mobileWrapped) {
-    window.drawHome = function () {
-      if (window.__afriMobile) {
-        return window.__drawMobileHome();
-      }
-      return origDrawHome.apply(this, arguments);
-    };
-    window.drawHome.__mobileWrapped = true;
+  // Override drawHome for mobile — ONLY on mobile, never on desktop
+  if (window.__afriMobile) {
+    var origDrawHome = window.drawHome;
+    if (typeof origDrawHome === 'function' && !origDrawHome.__mobileWrapped) {
+      window.drawHome = function () { return window.__drawMobileHome(); };
+      window.drawHome.__mobileWrapped = true;
+    }
   }
 
   // ============================================================
@@ -6124,13 +6121,12 @@
       row.style.display = (!q || name.indexOf(q) >= 0) ? 'flex' : 'none';
     });
   };
-  var origDrawContacts = window.drawContacts;
-  if (typeof origDrawContacts === 'function' && !origDrawContacts.__mobileWrapped) {
-    window.drawContacts = function () {
-      if (window.__afriMobile) return window.__drawMobileContacts();
-      return origDrawContacts.apply(this, arguments);
-    };
-    window.drawContacts.__mobileWrapped = true;
+  if (window.__afriMobile) {
+    var origDrawContacts = window.drawContacts;
+    if (typeof origDrawContacts === 'function' && !origDrawContacts.__mobileWrapped) {
+      window.drawContacts = function () { return window.__drawMobileContacts(); };
+      window.drawContacts.__mobileWrapped = true;
+    }
   }
 
   // ============================================================
@@ -6199,13 +6195,12 @@
       card.style.display = (stage === 'all' || card.dataset.stage === stage) ? 'block' : 'none';
     });
   };
-  var origDrawDeals = window.drawDeals;
-  if (typeof origDrawDeals === 'function' && !origDrawDeals.__mobileWrapped) {
-    window.drawDeals = function () {
-      if (window.__afriMobile) return window.__drawMobileDeals();
-      return origDrawDeals.apply(this, arguments);
-    };
-    window.drawDeals.__mobileWrapped = true;
+  if (window.__afriMobile) {
+    var origDrawDeals = window.drawDeals;
+    if (typeof origDrawDeals === 'function' && !origDrawDeals.__mobileWrapped) {
+      window.drawDeals = function () { return window.__drawMobileDeals(); };
+      window.drawDeals.__mobileWrapped = true;
+    }
   }
 
   // ============================================================
@@ -6270,13 +6265,12 @@
       if (navigator.vibrate) navigator.vibrate(10);
     }
   };
-  var origDrawTasks = window.drawTasks;
-  if (typeof origDrawTasks === 'function' && !origDrawTasks.__mobileWrapped) {
-    window.drawTasks = function () {
-      if (window.__afriMobile) return window.__drawMobileTasks();
-      return origDrawTasks.apply(this, arguments);
-    };
-    window.drawTasks.__mobileWrapped = true;
+  if (window.__afriMobile) {
+    var origDrawTasks = window.drawTasks;
+    if (typeof origDrawTasks === 'function' && !origDrawTasks.__mobileWrapped) {
+      window.drawTasks = function () { return window.__drawMobileTasks(); };
+      window.drawTasks.__mobileWrapped = true;
+    }
   }
 
   // ============================================================
