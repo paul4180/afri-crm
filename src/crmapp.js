@@ -7,6 +7,28 @@ import { sendMail } from './collect.js';
 import { askAI } from './ai.js';
 import bcrypt from 'bcryptjs';
 
+// ============================================================
+// STRUCTURED LOGGING — defined first so any module-load code
+// (e.g. database opening below) can use it. Single-line JSON so
+// Railway/log aggregators can parse fields. ctx can carry tenantId
+// / userId / route / err etc.
+// ============================================================
+const log = {
+  _emit(level, msg, ctx) {
+    try {
+      const line = JSON.stringify({ level, ts: new Date().toISOString(), msg, ...ctx });
+      if (level === 'error') console.error(line);
+      else if (level === 'warn') console.warn(line);
+      else console.log(line);
+    } catch {
+      console.log('[' + level + '] ' + msg);
+    }
+  },
+  info(msg, ctx = {}) { this._emit('info', msg, ctx); },
+  warn(msg, ctx = {}) { this._emit('warn', msg, ctx); },
+  error(msg, ctx = {}) { this._emit('error', msg, ctx); },
+};
+
 const localDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data');
 function crmPath() {
   const preferred = process.env.CRM_DATA_DIR;
@@ -31,9 +53,10 @@ try {
   db = new DatabaseSync(dbFile);
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA integrity_check;');
-  console.log('Database opened successfully at', dbFile);
+  // Structured log instead of plain console — Railway can parse fields
+  log.info('database.opened', { file: dbFile });
 } catch (e) {
-  console.error('Database open failed, attempting recovery:', e.message);
+  log.error('database.open.failed', { file: dbFile, err: e.message });
   try { db && db.close(); } catch {}
   // Delete all database files
   for (const suffix of ['', '-wal', '-shm', '-journal']) {
@@ -42,9 +65,9 @@ try {
   try {
     db = new DatabaseSync(dbFile);
     db.exec('PRAGMA journal_mode = WAL');
-    console.log('Fresh database created at', dbFile);
+    log.info('database.recreated', { file: dbFile });
   } catch (e2) {
-    console.error('FATAL: Cannot create database file, using in-memory:', e2.message);
+    log.error('database.fatal.in-memory', { file: dbFile, err: e2.message });
     db = new DatabaseSync(':memory:');
   }
 }
@@ -239,7 +262,7 @@ CREATE TABLE IF NOT EXISTS crm_prefs (
 );
 `);
 } catch (e) {
-  console.error('Database initialization failed:', e.message);
+  log.error('database.schema.init.failed', { err: e.message });
   // Continue anyway — individual queries will create tables as needed
 }
 for (const [table, col, type] of [
@@ -305,9 +328,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS fts_activities USING fts5(
 );
 `);
   fts5Ready = true;
-  console.log('[FTS5] Full-text search index ready');
+  log.info('fts5.ready');
 } catch (e) {
-  console.warn('[FTS5] Not available, search will fall back to LIKE:', e.message);
+  log.warn('fts5.unavailable', { err: e.message });
 }
 
 // Helper to keep FTS in sync with base tables (call after INSERT/UPDATE)
@@ -345,6 +368,52 @@ function clean(object, body) {
   }
   return out;
 }
+// Validate POST/PATCH body before insert. Returns array of error
+// strings (empty array = valid). Used by the crud POST handler
+// below to reject malformed input early with a 400.
+function validate(object, body) {
+  const errors = [];
+  const b = body || {};
+  // Required fields per object type
+  const required = {
+    companies: ['name'],
+    contacts: ['firstName'],
+    leads: ['firstName'],
+    deals: ['name'],
+    activities: ['subject'],
+    products: ['name'],
+  };
+  for (const f of required[object] || []) {
+    const v = b[f];
+    if (v === undefined || v === null || String(v).trim() === '') errors.push(f + ' is required');
+  }
+  // Email format (if provided)
+  for (const f of ['email']) {
+    const v = b[f];
+    if (v !== undefined && v !== null && String(v).trim() !== '') {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v).trim())) errors.push('Email format invalid: ' + f);
+    }
+  }
+  // Phone format (digits, +, -, spaces, parens; 6-20 chars)
+  for (const f of ['phone', 'mobile']) {
+    const v = b[f];
+    if (v !== undefined && v !== null && String(v).trim() !== '') {
+      if (!/^[0-9+\-\s()]{6,20}$/.test(String(v).trim())) errors.push('Phone format invalid: ' + f);
+    }
+  }
+  // Website format (if provided)
+  if (b.website !== undefined && b.website !== null && String(b.website).trim() !== '') {
+    if (!/^https?:\/\/[^\s]+$/.test(String(b.website).trim())) errors.push('Website must start with http:// or https://');
+  }
+  // Numeric fields must be finite numbers
+  for (const f of ['amount', 'probability', 'price', 'stock']) {
+    if (b[f] !== undefined && b[f] !== null && b[f] !== '') {
+      const n = Number(b[f]);
+      if (!Number.isFinite(n) || n < 0) errors.push(f + ' must be a non-negative number');
+    }
+  }
+  return errors;
+}
 function insert(table, tenantId, data) {
   const id = crypto.randomUUID();
   const keys = Object.keys(data);
@@ -353,8 +422,15 @@ function insert(table, tenantId, data) {
   db.prepare(`INSERT INTO ${table} (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`).run(...vals);
   return id;
 }
-function list(table, tenantId, limit = 500) {
-  return db.prepare(`SELECT * FROM ${table} WHERE tenantId = ? ORDER BY createdAt DESC LIMIT ?`).all(tenantId, limit);
+function list(table, tenantId, opts = {}) {
+  // Pagination: default limit=500 (preserves pre-existing behavior),
+  // capped at 500 max to prevent abuse. offset defaults to 0.
+  const limit = Math.min(Math.max(Number(opts.limit ?? 500), 1), 500);
+  const offset = Math.max(Number(opts.offset ?? 0), 0);
+  return db.prepare(`SELECT * FROM ${table} WHERE tenantId = ? ORDER BY createdAt DESC LIMIT ? OFFSET ?`).all(tenantId, limit, offset);
+}
+function countRows(table, tenantId) {
+  return db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE tenantId = ?`).get(tenantId).n;
 }
 function one(table, tenantId, id) {
   return db.prepare(`SELECT * FROM ${table} WHERE tenantId = ? AND id = ?`).get(tenantId, id);
@@ -732,6 +808,7 @@ export function registerCrm(app, prisma) {
     const isAuth = url.startsWith('/crm/api/login') || url.startsWith('/crm/api/signup') || url.startsWith('/crm/api/sso/');
     const cap = isAuth ? 20 : 120;
     if (limited('rl:' + ip, cap, 60 * 1000)) {
+      log.warn('rate-limit.hit', { ip, path: url, cap });
       reply.code(429).header('Retry-After', '60').send({ error: 'Too many requests. Slow down.' });
       return reply;
     }
@@ -750,10 +827,25 @@ export function registerCrm(app, prisma) {
   const crud = (name) => {
     app.get('/crm/api/' + name, async (req, reply) => {
       const user = await guard(req, reply); if (!user) return;
-      return visibleRows(list(name, user.tenantId), user, name);
+      // Pagination: ?offset=0&limit=50 — backward compatible (no
+      // params = first 500 rows, same as before).
+      const offset = Math.max(Number(req.query?.offset || 0), 0);
+      const limit = Math.min(Math.max(Number(req.query?.limit || 500), 1), 500);
+      const rows = visibleRows(list(name, user.tenantId, { offset, limit }), user, name);
+      reply.header('X-Total-Count', String(countRows(name, user.tenantId)));
+      reply.header('X-Page-Offset', String(offset));
+      reply.header('X-Page-Limit', String(limit));
+      reply.header('Access-Control-Expose-Headers', 'X-Total-Count, X-Page-Offset, X-Page-Limit');
+      return rows;
     });
     app.post('/crm/api/' + name, async (req, reply) => {
       const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+      // Validate BEFORE insert — reject malformed input with a 400.
+      const errors = validate(name, req.body || {});
+      if (errors.length) {
+        log.warn('validation failed', { object: name, errors, tenantId: user.tenantId, userId: user.sub });
+        return reply.code(400).send({ error: 'Validation failed', errors });
+      }
       const data = clean(name, req.body || {});
       const required = name === 'contacts' || name === 'leads' ? data.firstName : data.name || data.subject;
       if (!required) return reply.code(400).send({ error: 'A name is required' });
@@ -2481,10 +2573,10 @@ export function registerCrm(app, prisma) {
           const d = deals[i];
           ftsUpsert('deals', dealIds[i], workspaceId, { name: d[0], description: '', nextStep: '' });
         }
-      } catch (e) { console.warn('[FTS5] seed-demo indexing failed (non-fatal):', e.message); }
+      } catch (e) { log.warn('fts5.seed.indexing.failed', { err: e.message }); }
     }
     } catch (e) {
-      console.error('[seedDemo] Failed (non-fatal):', e.message);
+      log.error('seedDemo.failed', { err: e.message, tenantId: workspaceId });
     }
   }
 
