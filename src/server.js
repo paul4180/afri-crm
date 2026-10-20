@@ -19,8 +19,14 @@ const app = Fastify({ logger: true });
 
 // JWT for CRM auth (shared secret with ERP for SSO — set JWT_SECRET
 // to the same value as the afri-erp service if you want cross-product
-// single sign-on).
-await app.register(jwt, { secret: process.env.JWT_SECRET || 'dev-secret-change-me-later' });
+// single sign-on). In production, MUST be set — no fallback.
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+  console.error('FATAL: JWT_SECRET environment variable is required in production.');
+  console.error('Set it in Railway Variables. Example: JWT_SECRET=your-random-64-char-string');
+  process.exit(1);
+}
+await app.register(jwt, { secret: JWT_SECRET || 'dev-secret-change-me-later' });
 
 // Static file serving (crm.html, crm-studio.js, favicon.svg, sdk/)
 await app.register(fastifyStatic, {

@@ -274,8 +274,8 @@ function insert(table, tenantId, data) {
   db.prepare(`INSERT INTO ${table} (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`).run(...vals);
   return id;
 }
-function list(table, tenantId) {
-  return db.prepare(`SELECT * FROM ${table} WHERE tenantId = ? ORDER BY createdAt DESC`).all(tenantId);
+function list(table, tenantId, limit = 500) {
+  return db.prepare(`SELECT * FROM ${table} WHERE tenantId = ? ORDER BY createdAt DESC LIMIT ?`).all(tenantId, limit);
 }
 function one(table, tenantId, id) {
   return db.prepare(`SELECT * FROM ${table} WHERE tenantId = ? AND id = ?`).get(tenantId, id);
