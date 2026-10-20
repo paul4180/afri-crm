@@ -655,6 +655,144 @@ function scoreOf(row, hasTouch, weights) {
   return Math.max(0, Math.min(100, score));
 }
 
+// ============================================================
+// LEAD SCORING INTELLIGENCE — Phase 2 AI Foundation
+// Replaces the simple weighted sum with a multi-signal model
+// that produces:
+//   - score:       0-100 (final lead quality estimate)
+//   - confidence:  0-100 (how much data the score is based on)
+//   - reasons:     top 5 positive signals (human-readable)
+//   - concerns:    top 5 negative signals (human-readable)
+//   - nextAction:  recommended next step
+//   - signals:     raw signal values for debugging / re-training
+//
+// Categories of signals:
+//   1. ENGAGEMENT DEPTH  — how many activities logged (not just binary)
+//   2. CONTACT QUALITY   — email, phone, company present?
+//   3. RECENCY           — last activity (3d=+8, 7d=+4, 90d=-8, >90d=-18)
+//   4. MANUAL RATING     — sales rep's HOT/WARM/COLD
+//   5. SOURCE QUALITY    — referral vs cold outreach
+//   6. DEAL CONTEXT      — related deal amount + stage
+//   7. STALENESS         — lead created 14d+ ago with 0 activity
+//
+// This is rule-based intelligence (not ML — that's Phase 3 once we
+// have closed-won/lost data to train on). But it's far richer than
+// the legacy scoreOf() binary-touch approach.
+// ============================================================
+function scoreLeadV2(lead, activities, deals) {
+  const reasons = [];
+  const concerns = [];
+  const signals = {};
+  let score = 50;          // neutral start
+  let confidence = 25;     // low confidence until data arrives
+
+  // === 1. ENGAGEMENT DEPTH (not binary) ===
+  const leadActivities = activities.filter((a) =>
+    a.relatedId === lead.id || a.relatedId === lead.contactId
+  );
+  const touches = leadActivities.length;
+  const completed = leadActivities.filter((a) =>
+    String(a.status).startsWith('DONE') || String(a.status).startsWith('COMPLETED')
+  ).length;
+  const planned = leadActivities.filter((a) => a.status === 'PLANNED').length;
+  signals.touches = touches;
+  signals.completedTouches = completed;
+  signals.plannedTouches = planned;
+  if (touches >= 5) { score += 15; reasons.push(`5+ activities (${touches} total)`); confidence += 12; }
+  else if (touches >= 3) { score += 10; reasons.push(`${touches} activities logged`); confidence += 10; }
+  else if (touches >= 1) { score += 6; reasons.push('Initial contact made'); confidence += 6; }
+  else concerns.push('No activities logged');
+  if (completed >= 2) { score += 8; reasons.push(`${completed} completed follow-ups`); }
+  if (planned > 0) { score += 4; reasons.push(`${planned} planned follow-ups`); }
+
+  // === 2. CONTACT DATA QUALITY ===
+  if (lead.email) { score += 8; confidence += 10; }
+  else concerns.push('Missing email');
+  if (lead.phone || lead.mobile) { score += 6; confidence += 8; }
+  if (lead.companyName) { score += 4; confidence += 5; }
+  else concerns.push('No company name');
+  signals.email = !!lead.email;
+  signals.phone = !!(lead.phone || lead.mobile);
+  signals.company = !!lead.companyName;
+
+  // === 3. ENGAGEMENT RECENCY (time decay) ===
+  const lastActivityAt = leadActivities
+    .map((a) => new Date(a.createdAt).getTime())
+    .sort((a, b) => b - a)[0];
+  signals.lastActivityAt = lastActivityAt ? new Date(lastActivityAt).toISOString() : null;
+  if (lastActivityAt) {
+    const daysSince = Math.floor((Date.now() - lastActivityAt) / 86400000);
+    if (daysSince <= 3) { score += 8; reasons.push(`Active ${daysSince}d ago`); }
+    else if (daysSince <= 7) { score += 4; reasons.push(`Active ${daysSince}d ago`); }
+    else if (daysSince <= 30) { /* neutral */ }
+    else if (daysSince <= 90) { score -= 8; concerns.push(`Inactive ${daysSince}d`); }
+    else { score -= 18; concerns.push(`Cold lead (inactive ${daysSince}d)`); }
+    signals.daysSinceLastTouch = daysSince;
+  }
+
+  // === 4. MANUAL RATING (sales rep's gut) ===
+  if (lead.rating === 'HOT') { score += 15; reasons.push('Marked HOT'); confidence += 10; }
+  else if (lead.rating === 'WARM') { score += 7; reasons.push('Marked WARM'); }
+  else if (lead.rating === 'COLD') { score -= 8; concerns.push('Marked COLD'); }
+  signals.rating = lead.rating;
+
+  // === 5. SOURCE QUALITY ===
+  const src = String(lead.source || '').toLowerCase();
+  if (/refer|partner|existing|repeat|word-of-mouth/.test(src)) {
+    score += 12; reasons.push(`Quality source: ${lead.source}`); confidence += 8;
+  } else if (/cold|ads|purchased|bought/.test(src)) {
+    score -= 5; concerns.push(`Cold source: ${lead.source}`);
+  }
+  signals.source = lead.source;
+
+  // === 6. DEAL CONTEXT (is this lead attached to a deal?) ===
+  const relatedDeal = deals.find((d) => d.leadId === lead.id);
+  if (relatedDeal) {
+    confidence += 15;
+    signals.relatedDealId = relatedDeal.id;
+    signals.dealAmount = relatedDeal.amount;
+    if (relatedDeal.amount >= 1000000) {
+      score += 10; reasons.push(`Big deal: NGN ${(relatedDeal.amount / 1000000).toFixed(1)}M`);
+    } else if (relatedDeal.amount >= 100000) {
+      score += 6; reasons.push(`Deal: NGN ${(relatedDeal.amount / 1000).toFixed(0)}k`);
+    }
+    if (/proposal|negotiation/i.test(relatedDeal.stage || '')) {
+      score += 8; reasons.push(`In ${relatedDeal.stage} stage`);
+    } else if (/closed.?won/i.test(relatedDeal.stage || '')) {
+      score += 5; reasons.push('Tied to a WON deal');
+    }
+  }
+
+  // === 7. STALENESS PENALTY ===
+  const ageDays = Math.floor((Date.now() - new Date(lead.createdAt || Date.now()).getTime()) / 86400000);
+  signals.ageDays = ageDays;
+  if (touches === 0 && ageDays > 14) {
+    score -= 12; concerns.push(`No activity in ${ageDays}d since creation`);
+  }
+
+  // Clamp
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  confidence = Math.max(0, Math.min(100, Math.round(confidence)));
+
+  // === RECOMMENDED NEXT ACTION ===
+  let nextAction;
+  if (score >= 75 && relatedDeal) nextAction = 'Push deal forward — high intent';
+  else if (score >= 75) nextAction = 'Create deal — high intent';
+  else if (score >= 55) nextAction = 'Schedule follow-up call this week';
+  else if (score >= 35) nextAction = 'Add to nurture sequence';
+  else if (touches === 0) nextAction = 'Make first contact';
+  else nextAction = 'Park — low priority';
+
+  return {
+    score,
+    confidence,
+    reasons: reasons.slice(0, 5),
+    concerns: concerns.slice(0, 5),
+    nextAction,
+    signals,
+  };
+}
+
 function modelWeights(tenantId) {
   const workspace = db.prepare('SELECT * FROM workspace WHERE tenantId = ?').get(tenantId) || {};
   const weights = { email: 15, phone: 10, hot: 30, warm: 12, touch: 18, referral: 10, amount: 8, stale: 20 };
@@ -1852,6 +1990,103 @@ export function registerCrm(app, prisma) {
   app.get('/crm/api/brain', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     return brainFor(user.tenantId);
+  });
+
+  // ============================================================
+  // LEAD SCORING INTELLIGENCE — Phase 2 AI Foundation
+  // GET /crm/api/leads/:id/score — full breakdown for ONE lead
+  //   Returns: { score, confidence, reasons[], concerns[], nextAction, signals }
+  // GET /crm/api/leads/scoreboard — top leads ranked by score (with breakdown)
+  //   Returns: { ranked: [{ id, name, company, score, confidence, nextAction, topReason }], total }
+  // The legacy /crm/api/brain endpoint is NOT touched — it still uses
+  // the old scoreOf() for backward compatibility. Frontend can opt in
+  // to the new scoring by switching to these endpoints.
+  // ============================================================
+  app.get('/crm/api/leads/scoreboard', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      const limit = Math.min(Math.max(Number(req.query?.limit || 10), 1), 50);
+      const activities = list('activities', user.tenantId);
+      const deals = list('deals', user.tenantId);
+      const leads = list('leads', user.tenantId, { limit: 500 })
+        .filter((row) => row.status !== 'CONVERTED' && row.status !== 'DEAD');
+      const ranked = leads
+        .map((lead) => {
+          const breakdown = scoreLeadV2(lead, activities, deals);
+          return {
+            id: lead.id,
+            name: ((lead.firstName || '') + ' ' + (lead.lastName || '')).trim(),
+            company: lead.companyName || '',
+            score: breakdown.score,
+            confidence: breakdown.confidence,
+            nextAction: breakdown.nextAction,
+            topReason: breakdown.reasons[0] || null,
+            topConcern: breakdown.concerns[0] || null,
+            rating: lead.rating || '',
+          };
+        })
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit);
+      return { ranked, total: leads.length, engine: 'rule-v2' };
+    } catch (e) {
+      log.error('leads.scoreboard.failed', { err: e.message });
+      reply.code(500).send({ error: 'Scoreboard failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  app.get('/crm/api/leads/:id/score', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      const lead = one('leads', user.tenantId, req.params.id);
+      if (!lead) return reply.code(404).send({ error: 'Lead not found' });
+      const activities = list('activities', user.tenantId);
+      const deals = list('deals', user.tenantId);
+      const breakdown = scoreLeadV2(lead, activities, deals);
+      return {
+        id: lead.id,
+        name: ((lead.firstName || '') + ' ' + (lead.lastName || '')).trim(),
+        company: lead.companyName || '',
+        rating: lead.rating || '',
+        ...breakdown,
+      };
+    } catch (e) {
+      log.error('leads.score.failed', { err: e.message, leadId: req.params.id });
+      reply.code(500).send({ error: 'Score failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  // ============================================================
+  // LEAD SCORING INTELLIGENCE — auto-update lead.rating field
+  // POST /crm/api/leads/:id/auto-rate — syncs the model's verdict
+  //   back onto the lead row's `rating` field (HOT/WARM/COLD).
+  //   Useful for batch operations ("auto-rate all my cold leads").
+  //   Thresholds: score>=65 → HOT, score>=40 → WARM, else COLD.
+  //   Does NOT overwrite a HOT rating with COLD if confidence < 50
+  //   (don't downgrade on shaky data).
+  // ============================================================
+  app.post('/crm/api/leads/:id/auto-rate', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+      const lead = one('leads', user.tenantId, req.params.id);
+      if (!lead) return reply.code(404).send({ error: 'Lead not found' });
+      const activities = list('activities', user.tenantId);
+      const deals = list('deals', user.tenantId);
+      const breakdown = scoreLeadV2(lead, activities, deals);
+      let newRating = 'COLD';
+      if (breakdown.score >= 65) newRating = 'HOT';
+      else if (breakdown.score >= 40) newRating = 'WARM';
+      // Don't downgrade a HOT to COLD on low confidence (avoid erasing
+      // a sales rep's judgment based on missing data)
+      if (lead.rating === 'HOT' && newRating === 'COLD' && breakdown.confidence < 50) {
+        return { ok: true, kept: 'HOT', reason: 'low confidence — preserving manual HOT rating', score: breakdown.score, confidence: breakdown.confidence };
+      }
+      db.prepare('UPDATE leads SET rating = ? WHERE id = ? AND tenantId = ?').run(newRating, lead.id, user.tenantId);
+      writeAudit(user.tenantId, user.sub, 'auto-rated', 'leads', lead.id, `score=${breakdown.score} conf=${breakdown.confidence} → ${newRating}`);
+      return { ok: true, updated: newRating, score: breakdown.score, confidence: breakdown.confidence, nextAction: breakdown.nextAction };
+    } catch (e) {
+      log.error('leads.auto-rate.failed', { err: e.message, leadId: req.params.id });
+      reply.code(500).send({ error: 'Auto-rate failed: ' + (e.message || 'unknown error') });
+    }
   });
 
   app.get('/crm/api/record/:type/:id', async (req, reply) => {
