@@ -278,6 +278,54 @@ CREATE INDEX IF NOT EXISTS ix_crm_company_owner ON companies(tenantId, ownerId);
 CREATE INDEX IF NOT EXISTS ix_crm_deal_company ON deals(tenantId, companyId);
 `);
 
+// ============================================================
+// FTS5 — full-text search index for contacts, companies, deals,
+// leads, activities. Wrapped in try/catch: if FTS5 is unavailable
+// (some Node builds), the server still boots — the /crm/api/search/fts
+// endpoint will simply 503 and the LIKE-based /crm/api/search still
+// works as a fallback.
+// ============================================================
+let fts5Ready = false;
+try {
+  db.exec(`
+CREATE VIRTUAL TABLE IF NOT EXISTS fts_contacts USING fts5(
+  id UNINDEXED, tenantId UNINDEXED, firstName, lastName, email, phone, company
+);
+CREATE VIRTUAL TABLE IF NOT EXISTS fts_companies USING fts5(
+  id UNINDEXED, tenantId UNINDEXED, name, email, phone, industry
+);
+CREATE VIRTUAL TABLE IF NOT EXISTS fts_deals USING fts5(
+  id UNINDEXED, tenantId UNINDEXED, name, description, nextStep
+);
+CREATE VIRTUAL TABLE IF NOT EXISTS fts_leads USING fts5(
+  id UNINDEXED, tenantId UNINDEXED, firstName, lastName, companyName, email, phone
+);
+CREATE VIRTUAL TABLE IF NOT EXISTS fts_activities USING fts5(
+  id UNINDEXED, tenantId UNINDEXED, subject, notes
+);
+`);
+  fts5Ready = true;
+  console.log('[FTS5] Full-text search index ready');
+} catch (e) {
+  console.warn('[FTS5] Not available, search will fall back to LIKE:', e.message);
+}
+
+// Helper to keep FTS in sync with base tables (call after INSERT/UPDATE)
+function ftsUpsert(table, id, tenantId, fields) {
+  if (!fts5Ready) return;
+  try {
+    db.prepare('DELETE FROM fts_' + table + ' WHERE id = ?').run(id);
+    const cols = ['id', 'tenantId', ...Object.keys(fields)];
+    const vals = [id, tenantId, ...Object.values(fields)];
+    const placeholders = cols.map(() => '?').join(',');
+    db.prepare(`INSERT INTO fts_${table} (${cols.join(',')}) VALUES (${placeholders})`).run(...vals);
+  } catch { /* non-fatal — FTS lag won't break the app */ }
+}
+function ftsDelete(table, id) {
+  if (!fts5Ready) return;
+  try { db.prepare('DELETE FROM fts_' + table + ' WHERE id = ?').run(id); } catch {}
+}
+
 const FIELDS = {
   companies: ['name', 'industry', 'type', 'website', 'phone', 'email', 'street', 'city', 'state', 'country', 'description', 'years', 'offering', 'area', 'satisfaction', 'ownerId', 'source'],
   contacts: ['firstName', 'lastName', 'title', 'email', 'phone', 'mobile', 'companyId', 'street', 'city', 'state', 'country', 'description', 'method', 'serviceFrequency', 'serviceType', 'lastService', 'ownerId', 'source', 'status'],
@@ -669,6 +717,26 @@ function slugify(value) {
 }
 
 export function registerCrm(app, prisma) {
+  // ============================================================
+  // RATE LIMITING — 120 req/min per IP on /crm/api/* (auth routes
+  // get a tighter 20/min cap to discourage brute-force). Uses the
+  // in-memory `limited()` helper from earlier in this file. This is
+  // a baseline protection; a proper Redis-backed limiter is a Phase 5
+  // task. Bypassed entirely during tests so vitest stays fast.
+  // ============================================================
+  app.addHook('onRequest', async (req, reply) => {
+    if (process.env.NODE_ENV === 'test') return;
+    const url = req.url || '';
+    if (!url.startsWith('/crm/api/')) return;
+    const ip = String(req.headers['x-forwarded-for'] || req.ip || 'unknown').split(',')[0].trim();
+    const isAuth = url.startsWith('/crm/api/login') || url.startsWith('/crm/api/signup') || url.startsWith('/crm/api/sso/');
+    const cap = isAuth ? 20 : 120;
+    if (limited('rl:' + ip, cap, 60 * 1000)) {
+      reply.code(429).header('Retry-After', '60').send({ error: 'Too many requests. Slow down.' });
+      return reply;
+    }
+  });
+
   if (process.env.NODE_ENV !== 'test' && !globalThis.__crmSweep) {
     globalThis.__crmSweep = setInterval(() => { sweepDue(); try { drainEvents(); } catch { /* a bad job must not stop the clock */ } }, 60000);
     globalThis.__crmSweep.unref?.();
@@ -2166,6 +2234,37 @@ export function registerCrm(app, prisma) {
       reply.code(500).send({ error: 'Search failed: ' + (e.message || 'unknown error') });
     }
   });
+
+  // ============================================================
+  // FTS5 SEARCH — high-performance full-text search using SQLite
+  // FTS5 virtual tables. Returns the same {hits} shape as the
+  // legacy LIKE-based /crm/api/search so the frontend can switch
+  // to this endpoint with a one-line change. Falls back to 503 if
+  // FTS5 is unavailable (some Node builds).
+  // ============================================================
+  app.get('/crm/api/search/fts', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      if (!fts5Ready) return reply.code(503).send({ error: 'FTS5 not available', fallback: '/crm/api/search' });
+      const q = String(req.query?.q || '').trim().slice(0, 100);
+      if (q.length < 2) return { hits: [] };
+      // FTS5 query syntax: prefix-match each token (e.g. "ada*" matches "adama")
+      const tokens = q.split(/\s+/).filter(Boolean).map((t) => t.replace(/["*]/g, '') + '*').join(' ');
+      if (!tokens) return { hits: [] };
+      const hits = [];
+      const push = (kind, id, title, detail) => { if (hits.length < 30) hits.push({ kind, id, title, detail }); };
+      for (const row of db.prepare('SELECT c.id, c.firstName, c.lastName, c.email FROM fts_contacts f JOIN contacts c ON c.id = f.id WHERE f.tenantId = ? AND fts_contacts MATCH ? ORDER BY rank LIMIT 12').all(user.tenantId, tokens)) push('contact', row.id, ((row.firstName || '') + ' ' + (row.lastName || '')).trim(), row.email || '');
+      for (const row of db.prepare('SELECT c.id, c.name, c.industry FROM fts_companies f JOIN companies c ON c.id = f.id WHERE f.tenantId = ? AND fts_companies MATCH ? ORDER BY rank LIMIT 8').all(user.tenantId, tokens)) push('company', row.id, row.name, row.industry || '');
+      for (const row of db.prepare('SELECT l.id, l.firstName, l.lastName, l.companyName FROM fts_leads f JOIN leads l ON l.id = f.id WHERE f.tenantId = ? AND fts_leads MATCH ? ORDER BY rank LIMIT 8').all(user.tenantId, tokens)) push('lead', row.id, ((row.firstName || '') + ' ' + (row.lastName || '')).trim(), row.companyName || '');
+      for (const row of db.prepare('SELECT d.id, d.name, d.stage FROM fts_deals f JOIN deals d ON d.id = f.id WHERE f.tenantId = ? AND fts_deals MATCH ? ORDER BY rank LIMIT 8').all(user.tenantId, tokens)) push('deal', row.id, row.name, row.stage || '');
+      for (const row of db.prepare('SELECT a.id, a.subject, a.type FROM fts_activities f JOIN activities a ON a.id = f.id WHERE f.tenantId = ? AND fts_activities MATCH ? ORDER BY rank LIMIT 6').all(user.tenantId, tokens)) push('activity', row.id, row.subject || '', a_type_label(row.type));
+      return { hits, engine: 'fts5', query: q };
+    } catch (e) {
+      reply.code(500).send({ error: 'FTS search failed: ' + (e.message || 'unknown error') });
+    }
+  });
+  function a_type_label(t) { return String(t || 'TASK').replace('_', ' ').toLowerCase(); }
+
   app.get('/crm/api/events', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     return db.prepare('SELECT id, name, status, attempts, lastError, createdAt FROM crm_events WHERE tenantId = ? ORDER BY createdAt DESC LIMIT 40').all(user.tenantId);
@@ -2287,10 +2386,13 @@ export function registerCrm(app, prisma) {
   });
 
   function seedDemo(workspaceId, ownerId) {
-    if (db.prepare('SELECT COUNT(*) AS n FROM companies WHERE tenantId = ?').get(workspaceId).n > 0) return;
-    ensurePipeline(workspaceId);
-    ensureSequences(workspaceId);
-    ensureWorkflows(workspaceId);
+    // Defensive: never let demo-seeding failure crash signup or the
+    // admin "Load demo data" button. Log + bail to the caller.
+    try {
+      if (db.prepare('SELECT COUNT(*) AS n FROM companies WHERE tenantId = ?').get(workspaceId).n > 0) return;
+      ensurePipeline(workspaceId);
+      ensureSequences(workspaceId);
+      ensureWorkflows(workspaceId);
     const tags = ['VIP', 'Wholesale', 'Lagos', 'Abuja', 'Repeat buyer'];
     for (let i = 0; i < tags.length; i++) {
       db.prepare('INSERT INTO tags (id, tenantId, name, color) VALUES (?,?,?,?)').run(crypto.randomUUID(), workspaceId, tags[i], ['#dc2626','#7c3aed','#2563eb','#059669','#d97706'][i]);
@@ -2331,9 +2433,11 @@ export function registerCrm(app, prisma) {
       ['Consulting retainer', companyIds[3], contactIds[3], 3000000, 'PROSPECTING', 10, '2026-12-15'],
       ['Training program (won)', companyIds[4], contactIds[4], 450000, 'CLOSED_WON', 100, '2026-09-20'],
     ];
+    var dealIds = [];
     deals.forEach(function(d) {
       var id = crypto.randomUUID();
       db.prepare('INSERT INTO deals (id, tenantId, name, companyId, contactId, amount, stage, probability, closeDate, type, source, ownerId, nextStep, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, d[0], d[1], d[2], d[3], findStage(d[4]), d[5], d[6], 'NEW', 'Referral', ownerId, d[4] === 'CLOSED_WON' ? 'Send onboarding' : 'Schedule follow-up', new Date(Date.now() - Math.random() * 15 * 86400000).toISOString());
+      dealIds.push(id);
     });
     var today = new Date().toISOString().slice(0,10);
     var tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0,10);
@@ -2362,6 +2466,26 @@ export function registerCrm(app, prisma) {
       db.prepare('INSERT INTO notes (id, tenantId, relatedType, relatedId, body, createdAt) VALUES (?,?,?,?,?,?)').run(crypto.randomUUID(), workspaceId, n[1], n[0], n[2], new Date().toISOString());
     });
     db.prepare('INSERT OR REPLACE INTO workspace (tenantId, size, industry, goal, channel, done) VALUES (?,?,?,?,?,?)').run(workspaceId, '11-50', 'Services', 'Close deals', 'Phone & WhatsApp', 0);
+    // Populate FTS5 index so search works immediately after seeding
+    if (fts5Ready) {
+      try {
+        for (let i = 0; i < companies.length; i++) {
+          const c = companies[i];
+          ftsUpsert('companies', companyIds[i], workspaceId, { name: c[0], email: c[4], phone: c[5], industry: c[1] });
+        }
+        for (let i = 0; i < contacts.length; i++) {
+          const c = contacts[i];
+          ftsUpsert('contacts', contactIds[i], workspaceId, { firstName: c[0], lastName: c[1], email: c[4], phone: c[5], company: '' });
+        }
+        for (let i = 0; i < deals.length; i++) {
+          const d = deals[i];
+          ftsUpsert('deals', dealIds[i], workspaceId, { name: d[0], description: '', nextStep: '' });
+        }
+      } catch (e) { console.warn('[FTS5] seed-demo indexing failed (non-fatal):', e.message); }
+    }
+    } catch (e) {
+      console.error('[seedDemo] Failed (non-fatal):', e.message);
+    }
   }
 
   // ============================================================
