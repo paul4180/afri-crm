@@ -1131,41 +1131,103 @@
       background-size: cover !important;
       color: #e2e8f0;
     }
-    /* Make the main app shell + content panels semi-transparent so the
-       wallpaper shows through with a frosted-glass blur effect. */
-    #app, #view, .gate, .setup {
-      background: rgba(250, 249, 247, 0.78) !important;
-      backdrop-filter: blur(20px) saturate(140%);
-      -webkit-backdrop-filter: blur(20px) saturate(140%);
+    /* Make the main app shell + content panels MORE transparent so the
+       wallpaper is clearly visible behind the panels (was 0.78 → 0.55).
+       Reduced blur from 20px to 8px so the wallpaper isn't smeared. */
+    #app, #view {
+      background: rgba(250, 249, 247, 0.55) !important;
+      backdrop-filter: blur(8px) saturate(120%);
+      -webkit-backdrop-filter: blur(8px) saturate(120%);
     }
-    [data-theme="dark"] #app, [data-theme="dark"] #view,
+    [data-theme="dark"] #app, [data-theme="dark"] #view {
+      background: rgba(11, 18, 32, 0.55) !important;
+      backdrop-filter: blur(8px) saturate(120%);
+      -webkit-backdrop-filter: blur(8px) saturate(120%);
+    }
+    /* Login/signup gate — slightly more opaque so the form is readable */
+    .gate, .setup {
+      background: rgba(250, 249, 247, 0.7) !important;
+      backdrop-filter: blur(12px) saturate(140%);
+      -webkit-backdrop-filter: blur(12px) saturate(140%);
+    }
     [data-theme="dark"] .gate, [data-theme="dark"] .setup {
-      background: rgba(11, 18, 32, 0.78) !important;
-      backdrop-filter: blur(20px) saturate(140%);
-      -webkit-backdrop-filter: blur(20px) saturate(140%);
+      background: rgba(11, 18, 32, 0.7) !important;
+      backdrop-filter: blur(12px) saturate(140%);
+      -webkit-backdrop-filter: blur(12px) saturate(140%);
     }
-    /* Cards inside the view get their own subtle frosted layer */
+    /* Cards inside the view — slightly more transparent so wallpaper shows
+       through the cards too (was 0.85 → 0.75) */
     .card, .leadcard, .today-stat, .dealboard .col, .leadcol {
-      background: rgba(255, 255, 255, 0.85) !important;
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
+      background: rgba(255, 255, 255, 0.75) !important;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
     }
     [data-theme="dark"] .card, [data-theme="dark"] .leadcard,
     [data-theme="dark"] .today-stat, [data-theme="dark"] .dealboard .col,
     [data-theme="dark"] .leadcol {
-      background: rgba(30, 41, 59, 0.78) !important;
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
+      background: rgba(30, 41, 59, 0.72) !important;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
     }
-    /* Login/signup gate also gets the wallpaper.
-       NOTE: NO !important on display — boot() sets display:none on the
-       gate element when user logs in. Using !important would override
-       that and keep the login form visible forever (which is the bug
-       that was breaking signup). */
+    /* Login/signup gate layout — NO !important on display (boot() sets it) */
     .gate, .setup {
       min-height: 100vh !important;
       place-items: center !important;
       padding: 32px 16px !important;
+    }
+
+    /* ============================================================
+       OUTLOOK-STYLE LEFT SIDEBAR — make nav look like Outlook's folder
+       list: dark navy background, white text, count badges, hover
+       states that match Outlook's accent color. Nav items become
+       folder-like rows.
+       ============================================================ */
+    [data-theme="dark"] #nav {
+      background: rgba(15, 23, 42, 0.85) !important;
+      backdrop-filter: blur(16px) saturate(140%);
+      -webkit-backdrop-filter: blur(16px) saturate(140%);
+      border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
+    }
+    #nav {
+      background: rgba(248, 250, 252, 0.85) !important;
+      backdrop-filter: blur(16px) saturate(140%);
+      -webkit-backdrop-filter: blur(16px) saturate(140%);
+      border-right: 1px solid rgba(0, 0, 0, 0.06) !important;
+    }
+    /* Nav items styled like Outlook folder rows */
+    #nav [data-page], #nav button {
+      border-radius: 6px !important;
+      padding: 8px 12px !important;
+      margin: 1px 8px !important;
+      transition: background 0.15s ease !important;
+    }
+    #nav [data-page]:hover, #nav button:hover {
+      background: rgba(13, 148, 136, 0.12) !important;
+    }
+    [data-theme="dark"] #nav [data-page]:hover, [data-theme="dark"] #nav button:hover {
+      background: rgba(20, 184, 166, 0.18) !important;
+    }
+    #nav [data-page][class*="on"], #nav button.on, #nav [aria-current="page"] {
+      background: rgba(13, 148, 136, 0.15) !important;
+      color: #0d9488 !important;
+    }
+
+    /* ============================================================
+       OUTLOOK-STYLE TOP RIBBON — header gets a more Outlook-like
+       styling: slightly translucent, accent border on bottom,
+       larger breathing room.
+       ============================================================ */
+    header {
+      background: rgba(255, 255, 255, 0.7) !important;
+      backdrop-filter: blur(16px) saturate(140%);
+      -webkit-backdrop-filter: blur(16px) saturate(140%);
+      border-bottom: 1px solid rgba(13, 148, 136, 0.2) !important;
+    }
+    [data-theme="dark"] header {
+      background: rgba(15, 23, 42, 0.7) !important;
+      backdrop-filter: blur(16px) saturate(140%);
+      -webkit-backdrop-filter: blur(16px) saturate(140%);
+      border-bottom: 1px solid rgba(20, 184, 166, 0.25) !important;
     }
 
     /* Reduce typography bold globally — was 700-800, now 600 max */
