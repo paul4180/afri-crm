@@ -10,20 +10,20 @@ import bcrypt from 'bcryptjs';
 const localDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data');
 function crmPath() {
   const preferred = process.env.CRM_DATA_DIR;
+  // Use a versioned filename to avoid corrupted old database
   const candidates = [preferred, fs.existsSync('/data') ? '/data' : null, localDir].filter(Boolean);
   for (const folder of candidates) {
     try {
       fs.mkdirSync(folder, { recursive: true });
       fs.accessSync(folder, fs.constants.W_OK);
-      return path.join(folder, 'crm.sqlite');
+      return path.join(folder, 'crm2.sqlite');
     } catch { /* try the next place */ }
   }
   fs.mkdirSync(localDir, { recursive: true });
-  return path.join(localDir, 'crm.sqlite');
+  return path.join(localDir, 'crm2.sqlite');
 }
 const dbFile = crmPath();
-const legacyFile = path.join(localDir, 'crm.sqlite');
-if (!fs.existsSync(dbFile) && fs.existsSync(legacyFile) && path.resolve(dbFile) !== path.resolve(legacyFile)) fs.copyFileSync(legacyFile, dbFile);
+// Do NOT copy from old crm.sqlite — it may be corrupted. Start fresh with crm2.sqlite.
 
 // Crash-proof database opening: try → recover → delete+recreate → in-memory
 let db;
