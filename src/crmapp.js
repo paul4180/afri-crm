@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { DatabaseSync } from 'node:sqlite';
 import { sendMail } from './collect.js';
 import { askAI } from './ai.js';
+import { summarizeConversation } from './summarize.js';
 import bcrypt from 'bcryptjs';
 
 // ============================================================
@@ -2344,6 +2345,91 @@ export function registerCrm(app, prisma) {
     } catch (e) {
       log.error('leads.suggestions.apply.failed', { err: e.message, leadId: req.params.id });
       reply.code(500).send({ error: 'Apply suggestions failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  // ============================================================
+  // CONVERSATION SUMMARIZATION — Phase 2 Part 3
+  // POST /crm/api/ai/summarize — paste a WhatsApp/email/meeting
+  //   transcript, get back: 3-bullet summary + key points + action
+  //   items + sentiment + recommended next action + extracted entities.
+  //   Body: { text, type?, leadId?, contactId? }
+  //   type: 'whatsapp'|'email'|'meeting'|'call'|'auto' (default 'auto')
+  //   Returns: { summary[], keyPoints[], actionItems[], sentiment,
+  //             nextAction, entities{dates,emails,phones,amounts},
+  //             method: 'gemini'|'rule', tokens }
+  //
+  // POST /crm/api/ai/summarize-and-attach — summarize AND save the
+  //   result as a Note on the lead or contact record.
+  //   Body: { text, type?, recordType: 'lead'|'contact', recordId }
+  //   Returns: { ...summaryResult, noteId }
+  //
+  // Uses Gemini when GEMINI_API_KEY is set; falls back to a rule-based
+  // summarizer that scores sentences by action verbs + dates + amounts
+  // + sentiment keywords. Always returns structured output either way.
+  // ============================================================
+  app.post('/crm/api/ai/summarize', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      const text = String(req.body?.text || '').trim();
+      if (!text || text.length < 20) return reply.code(400).send({ error: 'Text must be at least 20 characters' });
+      if (text.length > 50000) return reply.code(413).send({ error: 'Text too long (max 50,000 chars)' });
+      const type = String(req.body?.type || 'auto').trim().slice(0, 20);
+      const validTypes = ['whatsapp', 'email', 'meeting', 'call', 'auto'];
+      if (!validTypes.includes(type)) return reply.code(400).send({ error: 'Invalid type. Use: ' + validTypes.join(', ') });
+      const leadId = req.body?.leadId || null;
+      const contactId = req.body?.contactId || null;
+      const result = await summarizeConversation(text, { type, leadId, contactId });
+      log.info('ai.summarize', { method: result.method, tokens: result.tokens, sentiment: result.sentiment, items: result.actionItems.length, tenantId: user.tenantId, userId: user.sub });
+      return result;
+    } catch (e) {
+      log.error('ai.summarize.failed', { err: e.message });
+      reply.code(500).send({ error: 'Summarize failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  app.post('/crm/api/ai/summarize-and-attach', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+      const text = String(req.body?.text || '').trim();
+      if (!text || text.length < 20) return reply.code(400).send({ error: 'Text must be at least 20 characters' });
+      const recordType = String(req.body?.recordType || '').trim();
+      const recordId = String(req.body?.recordId || '').trim();
+      if (!recordType || !recordId) return reply.code(400).send({ error: 'recordType and recordId are required' });
+      const validTypes = ['lead', 'contact', 'deal', 'company'];
+      if (!validTypes.includes(recordType)) return reply.code(400).send({ error: 'Invalid recordType. Use: ' + validTypes.join(', ') });
+      // Verify record exists and belongs to tenant
+      const tableMap = { lead: 'leads', contact: 'contacts', deal: 'deals', company: 'companies' };
+      const record = one(tableMap[recordType], user.tenantId, recordId);
+      if (!record) return reply.code(404).send({ error: recordType + ' not found' });
+      const type = String(req.body?.type || 'auto').trim().slice(0, 20);
+      const result = await summarizeConversation(text, { type });
+      // Save summary as a Note (existing table)
+      const noteBody = [
+        'AI Summary (' + result.method + '):',
+        '',
+        ...result.summary.map((s) => '• ' + s),
+        '',
+        'Key points:',
+        ...(result.keyPoints.length ? result.keyPoints.map((p) => '• ' + p) : ['(none)']),
+        '',
+        'Action items:',
+        ...(result.actionItems.length ? result.actionItems.map((a) => '☐ ' + a) : ['(none)']),
+        '',
+        'Sentiment: ' + result.sentiment,
+        'Next action: ' + result.nextAction,
+        result.entities?.amounts?.length ? 'Amounts mentioned: ' + result.entities.amounts.join(', ') : '',
+        result.entities?.dates?.length ? 'Dates mentioned: ' + result.entities.dates.join(', ') : '',
+      ].filter((line) => line.length > 0).join('\n');
+      const noteId = crypto.randomUUID();
+      db.prepare('INSERT INTO notes (id, tenantId, relatedType, relatedId, body, createdAt) VALUES (?,?,?,?,?,?)')
+        .run(noteId, user.tenantId, recordType, recordId, noteBody.slice(0, 4000), new Date().toISOString());
+      writeAudit(user.tenantId, user.sub, 'ai-summarized', recordType + 's', recordId, `method=${result.method} sentiment=${result.sentiment} actions=${result.actionItems.length}`);
+      log.info('ai.summarize.attached', { method: result.method, recordType, recordId, noteId, tenantId: user.tenantId });
+      return { ...result, noteId, noteBody };
+    } catch (e) {
+      log.error('ai.summarize.attach.failed', { err: e.message });
+      reply.code(500).send({ error: 'Summarize-and-attach failed: ' + (e.message || 'unknown error') });
     }
   });
 
