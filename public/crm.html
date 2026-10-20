@@ -2318,9 +2318,114 @@ async function drawRecord() {
         ${type !== 'deal' ? `<div class="card"><h2>Deals</h2>${deals}</div>` : ''}
         <div class="card"><h2>Tags</h2><div style="margin-bottom:8px">${tags}</div>${tagPick}</div>
         ${type === 'contact' ? `<div class="card"><h2>Write to them</h2><p class="hello">${rec.email ? 'Send uses Gmail, then Outlook, then the mail key. If none of those can send, the message is only logged on this person.' : 'This person has no email, so this is only a log.'}</p><label>Subject<input id="mailSubject"></label><label>Message<textarea id="mailBody" style="height:80px"></textarea></label><button type="button" onclick="sendToContact()">${rec.email ? 'Send' : 'Log it'}</button></div><div class="card"><h2>Merge</h2><p class="hello">This person stays. The other person is removed. Deals, notes, tickets, and emails move here. This cannot be undone.</p><label>The other person<select id="mergeWho"><option value="">Choose</option>${(bag.contacts||[]).filter((row)=>row.id!==rec.id).map((row)=>`<option value="${row.id}">${esc(person(row))}${row.email ? ' · ' + esc(row.email) : ''}</option>`).join('')}</select></label><button type="button" class="ghost" onclick="mergeContact()">Merge into this person</button></div>` : ''}
+        ${type === 'lead' ? `<div class="card" style="border-left:3px solid #0d9488"><h2 style="color:#0d9488">AI Intelligence</h2><div id="aiScore"><p class="meta">Loading score…</p></div><h3 style="margin-top:14px">Smart sequence suggestions</h3><div id="aiSuggestions"><p class="meta">Loading…</p></div><h3 style="margin-top:14px">Summarize a conversation</h3><p class="hello">Paste a WhatsApp chat, email thread, or call notes. Get back a 3-bullet summary, action items, sentiment, and recommended next step.</p><textarea id="aiSumText" style="height:100px" placeholder="Paste conversation here…"></textarea><label style="display:block;margin-top:6px">Conversation type<select id="aiSumType" style="display:block"><option value="auto">Auto-detect</option><option value="whatsapp">WhatsApp</option><option value="email">Email</option><option value="meeting">Meeting notes</option><option value="call">Call transcript</option></select></label><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button type="button" onclick="summarizeForLead('${rec.id}')">Summarize</button><button type="button" class="ghost" onclick="summarizeAndAttach('${rec.id}')">Summarize &amp; save as note</button></div><div id="aiSummaryResult" style="margin-top:10px"></div></div>` : ''}
         <div class="card"><h2>What happened</h2>${timeline.map((row) => `<div class="time">${esc(row.text)}</div>`).join('') || '<div class="meta">Nothing yet. A note or a call will show here.</div>'}<label>Note<textarea id="noteBody" style="height:70px"></textarea></label><button type="button" onclick="saveRecordNote()">Save note</button> <button type="button" class="ghost" onclick="recordFollow()">Follow up tomorrow</button></div>
       </div>
     </div>`;
+  if (type === 'lead') setTimeout(function(){ loadLeadAI(rec.id); }, 50);
+}
+async function loadLeadAI(leadId) {
+  // V2 score
+  try {
+    const score = await api('/crm/api/leads/' + leadId + '/score');
+    if (score && !score.error) {
+      var color = score.score >= 75 ? '#10b981' : score.score >= 55 ? '#f59e0b' : score.score >= 35 ? '#f97316' : '#ef4444';
+      var html = '<div style="display:flex;gap:14px;align-items:center;margin-bottom:8px"><div style="font-size:36px;font-weight:700;color:' + color + ';line-height:1">' + score.score + '</div><div><div class="meta" style="font-size:13px">Score / 100</div><div class="meta" style="font-size:12px">' + (score.confidence || 0) + '% confidence</div></div></div>';
+      html += '<p class="hello">Recommended next: <b>' + esc(score.nextAction || '') + '</b></p>';
+      if (score.reasons && score.reasons.length) {
+        html += '<div style="margin-top:8px"><div class="meta" style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#10b981">Why this score</div>';
+        score.reasons.forEach(function(r) { html += '<div style="padding:2px 0;font-size:13px">✓ ' + esc(r) + '</div>'; });
+        html += '</div>';
+      }
+      if (score.concerns && score.concerns.length) {
+        html += '<div style="margin-top:8px"><div class="meta" style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#f59e0b">Concerns</div>';
+        score.concerns.forEach(function(c) { html += '<div style="padding:2px 0;font-size:13px">⚠ ' + esc(c) + '</div>'; });
+        html += '</div>';
+      }
+      var el = document.getElementById('aiScore');
+      if (el) el.innerHTML = html;
+    } else {
+      var el2 = document.getElementById('aiScore');
+      if (el2) el2.innerHTML = '<p class="meta">Score unavailable' + (score && score.error ? ': ' + esc(score.error) : '') + '</p>';
+    }
+  } catch (e) {
+    var el3 = document.getElementById('aiScore');
+    if (el3) el3.innerHTML = '<p class="meta">Could not load score</p>';
+  }
+  // Smart sequence suggestions
+  try {
+    var sg = await api('/crm/api/leads/' + leadId + '/suggestions');
+    if (sg && sg.suggestions) {
+      var urgencyColor = sg.urgency === 'high' ? '#ef4444' : sg.urgency === 'medium' ? '#f59e0b' : sg.urgency === 'low' ? '#f97316' : '#6b7280';
+      var h = '<p class="hello" style="margin-top:0">Urgency: <b style="color:' + urgencyColor + ';text-transform:uppercase">' + esc(sg.urgency) + '</b></p>';
+      sg.suggestions.forEach(function(s) {
+        h += '<div style="padding:8px 0;border-bottom:1px solid #e8e6e1">';
+        h += '<div style="display:flex;justify-content:space-between;align-items:baseline"><b>' + esc(s.channel) + '</b><span class="meta" style="font-size:12px">' + esc(s.dayName) + ' (+' + s.offsetDays + 'd)</span></div>';
+        h += '<div style="font-size:13px;margin-top:2px">' + esc(s.subject) + '</div>';
+        h += '<div class="meta" style="font-size:11px;margin-top:3px;color:#6b7280">' + esc(s.rationale) + '</div>';
+        h += '</div>';
+      });
+      h += '<button type="button" style="margin-top:10px" onclick="applySuggestionsForLead(\'' + leadId + '\')">Add these ' + sg.suggestions.length + ' activities</button>';
+      var elS = document.getElementById('aiSuggestions');
+      if (elS) elS.innerHTML = h;
+    }
+  } catch (e) {
+    var elS2 = document.getElementById('aiSuggestions');
+    if (elS2) elS2.innerHTML = '<p class="meta">Could not load suggestions</p>';
+  }
+}
+async function applySuggestionsForLead(leadId) {
+  var r = await api('/crm/api/leads/' + leadId + '/suggestions/apply', { method: 'POST', body: '{}' });
+  if (r && r.ok) {
+    toast('Added ' + r.created.length + ' planned activities');
+    setTimeout(function(){ openRecord('lead', leadId); }, 600);
+  } else {
+    toast((r && r.error) || 'Could not apply suggestions');
+  }
+}
+async function summarizeForLead(leadId) {
+  var text = (document.getElementById('aiSumText') || {}).value || '';
+  if (text.trim().length < 20) { toast('Paste at least 20 characters'); return; }
+  var type = (document.getElementById('aiSumType') || {}).value || 'auto';
+  var result = document.getElementById('aiSummaryResult');
+  if (result) result.innerHTML = '<p class="meta">Summarizing…</p>';
+  var r = await api('/crm/api/ai/summarize', { method: 'POST', body: JSON.stringify({ text: text, type: type, leadId: leadId }) });
+  if (r && r.summary) {
+    var sentimentColor = r.sentiment === 'positive' ? '#10b981' : r.sentiment === 'negative' ? '#ef4444' : r.sentiment === 'concerned' ? '#f59e0b' : '#6b7280';
+    var html = '<p class="hello" style="margin-top:0">Sentiment: <b style="color:' + sentimentColor + '">' + esc(r.sentiment) + '</b> · Engine: ' + esc(r.method) + ' · ' + (r.wordCount || 0) + ' words</p>';
+    html += '<div class="meta" style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#0d9488">Summary</div>';
+    (r.summary || []).forEach(function(s) { html += '<div style="padding:2px 0;font-size:13px">• ' + esc(s) + '</div>'; });
+    if (r.actionItems && r.actionItems.length) {
+      html += '<div class="meta" style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-top:8px;color:#f59e0b">Action items</div>';
+      r.actionItems.forEach(function(a) { html += '<div style="padding:2px 0;font-size:13px">☐ ' + esc(a) + '</div>'; });
+    }
+    html += '<p class="hello" style="margin-top:8px"><b>Next action:</b> ' + esc(r.nextAction || '') + '</p>';
+    if (r.entities) {
+      var any = (r.entities.dates && r.entities.dates.length) || (r.entities.amounts && r.entities.amounts.length) || (r.entities.emails && r.entities.emails.length) || (r.entities.phones && r.entities.phones.length);
+      if (any) {
+        html += '<div class="meta" style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-top:8px;color:#6b7280">Entities found</div>';
+        if (r.entities.dates && r.entities.dates.length) html += '<div class="meta" style="font-size:12px">📅 ' + r.entities.dates.map(esc).join(', ') + '</div>';
+        if (r.entities.amounts && r.entities.amounts.length) html += '<div class="meta" style="font-size:12px">💰 ' + r.entities.amounts.map(esc).join(', ') + '</div>';
+        if (r.entities.emails && r.entities.emails.length) html += '<div class="meta" style="font-size:12px">✉ ' + r.entities.emails.map(esc).join(', ') + '</div>';
+        if (r.entities.phones && r.entities.phones.length) html += '<div class="meta" style="font-size:12px">📞 ' + r.entities.phones.map(esc).join(', ') + '</div>';
+      }
+    }
+    if (result) result.innerHTML = html;
+  } else {
+    if (result) result.innerHTML = '<p class="meta">Could not summarize: ' + esc((r && r.error) || 'unknown error') + '</p>';
+  }
+}
+async function summarizeAndAttach(leadId) {
+  var text = (document.getElementById('aiSumText') || {}).value || '';
+  if (text.trim().length < 20) { toast('Paste at least 20 characters'); return; }
+  var type = (document.getElementById('aiSumType') || {}).value || 'auto';
+  var r = await api('/crm/api/ai/summarize-and-attach', { method: 'POST', body: JSON.stringify({ text: text, type: type, recordType: 'lead', recordId: leadId }) });
+  if (r && r.noteId) {
+    toast('Summary saved as note');
+    setTimeout(function(){ openRecord('lead', leadId); }, 600);
+  } else {
+    toast((r && r.error) || 'Could not save summary');
+  }
 }
 async function saveProfile() {
   if (!focus) return;
@@ -2725,6 +2830,6 @@ document.getElementById('email').value = localStorage.getItem('crmEmail') || '';
   if (token) boot();
 })();
 </script>
-<script src="/crm-studio.js?v=52"></script>
+<script src="/crm-studio.js?v=53"></script>
 </body>
 </html>
