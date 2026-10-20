@@ -6486,7 +6486,7 @@
   // sheets on mobile (full-width, slide up from bottom)
   // ============================================================
   style.textContent += `
-    [data-shell="mobile"] .side-panel-overlay { z-index: 200; background: rgba(2,6,23,0.5); }
+    [data-shell="mobile"] .side-panel-overlay { z-index: 200; background: rgba(2,6,23,0.6); backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
     [data-shell="mobile"] .side-panel {
       top: auto !important; bottom: 0 !important; right: 0 !important; left: 0 !important;
       width: 100% !important; max-width: 100% !important;
