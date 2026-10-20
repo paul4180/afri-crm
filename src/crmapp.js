@@ -286,6 +286,14 @@ CREATE TABLE IF NOT EXISTS crm_prefs (
   log.error('database.schema.init.failed', { err: e.message });
   // Continue anyway — individual queries will create tables as needed
 }
+// CLEAR all per-account login locks at server startup.
+// This unblocks any user who got rate-limited before this deploy.
+try {
+  db.prepare("UPDATE crm_accounts SET failed = 0, lockedUntil = NULL").run();
+  log.info('login.locks.cleared');
+} catch (e) {
+  // Non-fatal — table might not exist yet on fresh DB
+}
 for (const [table, col, type] of [
   ['contacts', 'method', 'TEXT'], ['contacts', 'serviceFrequency', 'TEXT'], ['contacts', 'serviceType', 'TEXT'], ['contacts', 'lastService', 'TEXT'],
   ['companies', 'years', 'TEXT'], ['companies', 'offering', 'TEXT'], ['companies', 'area', 'TEXT'], ['companies', 'satisfaction', 'TEXT'],
@@ -1436,48 +1444,28 @@ export function registerCrm(app, prisma) {
   //   /crm/api/signup   10/hour (stricter — anti-spam)
   //   everything else  300/min  (was 120 — too low for normal use)
   // ============================================================
-  function failLockoutKey(ip) { return 'fail:' + ip; }
-  function isIpLockedOut(ip) {
-    // Just CHECK without incrementing (don't use limited() — that increments)
-    const now = Date.now();
-    const fresh = (hits.get(failLockoutKey(ip)) || []).filter((time) => now - time < 15 * 60 * 1000);
-    return fresh.length >= 5;
-  }
-  function recordFailedLogin(ip) {
-    // Increment the failed-attempt counter (always)
-    const key = failLockoutKey(ip);
-    const now = Date.now();
-    const fresh = (hits.get(key) || []).filter((time) => now - time < 15 * 60 * 1000);
-    fresh.push(now);
-    hits.set(key, fresh);
-  }
-  function clearFailedLogins(ip) {
-    // Clear the failed-attempt counter on successful login
-    hits.delete(failLockoutKey(ip));
-  }
+  // NOTE: IP-based failed-login lockout REMOVED — was blocking users
+  // who tried to login with multiple email accounts (each attempt is
+  // a "failure" since the password doesn't match the wrong account).
+  // Per-ACCOUNT lockout (8 failed → 15-min lock on that account only)
+  // still exists inside the login handler below — that's enough to
+  // stop brute force on a single account without blocking legit users.
+  // ============================================================
   app.addHook('onRequest', async (req, reply) => {
     if (process.env.NODE_ENV === 'test') return;
     const url = req.url || '';
     if (!url.startsWith('/crm/api/')) return;
     const ip = String(req.headers['x-forwarded-for'] || req.ip || 'unknown').split(',')[0].trim();
 
-    // Check for brute-force lockout (only on auth routes)
-    if (url.startsWith('/crm/api/login') || url.startsWith('/crm/api/sso/')) {
-      if (isIpLockedOut(ip)) {
-        log.warn('rate-limit.lockout', { ip, path: url });
-        reply.code(429).header('Retry-After', '900').send({ error: 'Too many failed attempts. Try again in 15 minutes.' });
-        return reply;
-      }
-    }
-
-    // Tiered caps by route (per-minute)
+    // Tiered caps by route (per-minute) — these prevent request flooding
+    // but DON'T block users who try multiple accounts
     let cap, windowMs;
     if (url.startsWith('/crm/api/login') || url.startsWith('/crm/api/sso/')) {
-      cap = 40; windowMs = 60 * 1000;
+      cap = 60; windowMs = 60 * 1000; // 60/min — very lenient
     } else if (url.startsWith('/crm/api/signup')) {
-      cap = 10; windowMs = 60 * 60 * 1000;
+      cap = 10; windowMs = 60 * 60 * 1000; // 10/hour — strict anti-spam
     } else {
-      cap = 300; windowMs = 60 * 1000;
+      cap = 600; windowMs = 60 * 1000; // 600/min for general API
     }
     const rateKey = 'rl:' + ip + ':' + (url.startsWith('/crm/api/login') ? 'login' : url.startsWith('/crm/api/signup') ? 'signup' : url.startsWith('/crm/api/sso/') ? 'sso' : 'api');
     if (limited(rateKey, cap, windowMs)) {
@@ -1836,14 +1824,11 @@ export function registerCrm(app, prisma) {
     return reply.code(201).send({ accessToken, slug, fullName, email });
   });
   app.post('/crm/api/login', async (req, reply) => {
-    const ip = String(req.headers['x-forwarded-for'] || req.ip || 'unknown').split(',')[0].trim();
     const email = String(req.body?.email || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
     const account = email ? db.prepare('SELECT * FROM crm_accounts WHERE email = ?').get(email) : null;
     const locked = account && account.lockedUntil && account.lockedUntil > new Date().toISOString();
     if (!account || locked || !(await bcrypt.compare(password, account.passwordHash))) {
-      // Record failed login by IP (for IP-based lockout)
-      recordFailedLogin(ip);
       if (account && !locked) {
         const failed = Number(account.failed || 0) + 1;
         const until = failed >= 8 ? new Date(Date.now() + 15 * 60 * 1000).toISOString() : null;
@@ -1853,8 +1838,6 @@ export function registerCrm(app, prisma) {
       return reply.code(401).send({ error: 'Email or password is wrong.' });
     }
     if (Number(account.active) === 0) return reply.code(401).send({ error: 'This account is switched off.' });
-    // Successful login — clear failed-attempt counters for this IP
-    clearFailedLogins(ip);
     db.prepare('UPDATE crm_accounts SET failed = 0, lockedUntil = NULL WHERE id = ?').run(account.id);
     writeAudit(account.workspaceId, account.id, 'login', 'account', account.id, email);
     return { accessToken: openSession(app, account, req) };
