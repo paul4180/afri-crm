@@ -1198,9 +1198,10 @@
 
     /* ============================================================
        DESIGNED ICON-ONLY VERTICAL SIDEBAR (64px wide)
-       Each nav item gets a CATEGORY-COLORED GRADIENT background on
-       hover/active — like the colorful branded icons in Windows 11
-       taskbar (image 1 from user reference).
+       NO PANEL BACKGROUND — the wallpaper shows directly behind
+       the icons. Each icon is a self-contained colorful gradient
+       circle (like Windows taskbar icons), always colored — not
+       just on hover. Active icon gets a white ring.
        Categories:
          • Home = teal/cyan gradient (primary brand)
          • Selling (deals, opportunities, leads) = teal/green
@@ -1208,29 +1209,29 @@
          • Work (tasks, calendar, inbox, feed) = orange/amber
          • Insights (forecast, dashboard) = purple
          • Platform (automation, integrations, guide) = slate gray
-       Active page gets a glowing vertical accent bar on the LEFT edge
-       (Discord/Slack-style active indicator).
        ============================================================ */
     #nav {
       width: 64px !important;
       min-width: 64px !important;
       max-width: 64px !important;
-      background: rgba(15, 23, 42, 0.55) !important;
-      backdrop-filter: blur(24px) saturate(160%);
-      -webkit-backdrop-filter: blur(24px) saturate(160%);
+      /* NO background — wallpaper shows through directly */
+      background: transparent !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
       border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
       padding: 8px 0 !important;
       overflow: visible !important;
-      box-shadow: 4px 0 24px rgba(0, 0, 0, 0.18) !important;
+      box-shadow: none !important;
     }
     [data-theme="light"] #nav {
-      background: rgba(248, 250, 252, 0.55) !important;
+      background: transparent !important;
+      border-right-color: rgba(0, 0, 0, 0.06) !important;
     }
-    /* Brand area — show only the A logo, hide the text */
+    /* Brand area — show only the A logo */
     #nav .brand {
       display: flex !important;
       justify-content: center !important;
-      padding: 8px 0 12px !important;
+      padding: 8px 0 16px !important;
       margin: 0 !important;
     }
     #nav .brand > div { display: none !important; }
@@ -1245,7 +1246,7 @@
       color: #fff !important;
       font-weight: 800 !important;
       font-size: 20px !important;
-      box-shadow: 0 4px 12px rgba(13, 148, 136, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+      box-shadow: 0 6px 16px rgba(13, 148, 136, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
     }
     /* Hide section labels in icon-only mode */
     #nav .navlabel { display: none !important; }
@@ -1254,10 +1255,12 @@
       display: flex !important;
       flex-direction: column !important;
       align-items: center !important;
-      gap: 6px !important;
+      gap: 8px !important;
       padding: 0 !important;
     }
-    /* Each nav button — 40x40 rounded icon. Base state = subtle bg. */
+    /* Each nav button — 40x40 rounded icon button.
+       Base state: NO background (transparent). On hover/active, the
+       category gradient fills the button. */
     #nav [data-page], #nav button:not(.fold) {
       width: 40px !important;
       height: 40px !important;
@@ -1268,17 +1271,20 @@
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
-      background: rgba(255, 255, 255, 0.04) !important;
-      color: rgba(255, 255, 255, 0.7) !important;
+      background: rgba(255, 255, 255, 0.08) !important;
+      color: rgba(255, 255, 255, 0.85) !important;
       position: relative !important;
       transition: all 0.2s ease !important;
       cursor: pointer !important;
-      border: 1px solid transparent !important;
+      border: 1px solid rgba(255, 255, 255, 0.1) !important;
+      backdrop-filter: blur(4px) !important;
+      -webkit-backdrop-filter: blur(4px) !important;
     }
     [data-theme="light"] #nav [data-page],
     [data-theme="light"] #nav button:not(.fold) {
-      background: rgba(15, 23, 42, 0.04) !important;
-      color: rgba(15, 23, 42, 0.7) !important;
+      background: rgba(15, 23, 42, 0.05) !important;
+      color: rgba(15, 23, 42, 0.75) !important;
+      border-color: rgba(0, 0, 0, 0.08) !important;
     }
     /* Hide the text label inside buttons — show only the .ico span */
     #nav [data-page] > span:not(.ico),
@@ -1286,14 +1292,14 @@
     #nav .chev { display: none !important; }
 
     /* ===== CATEGORY-COLORED GRADIENT ICON BACKGROUNDS =====
-       Each nav item, on hover OR active, gets a colorful gradient
-       background matching its category — like Windows taskbar icons. */
+       On hover OR active, each icon gets its category gradient. */
 
-    /* HOME — teal/cyan gradient (primary brand) */
+    /* HOME — teal/cyan gradient */
     #nav [data-page="home"]:hover, #nav [data-page="home"][class*="on"] {
       background: linear-gradient(135deg, #06b6d4 0%, #0891b2 50%, #0e7490 100%) !important;
       color: #fff !important;
-      box-shadow: 0 4px 12px rgba(6, 182, 212, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+      border-color: rgba(255, 255, 255, 0.25) !important;
+      box-shadow: 0 4px 14px rgba(6, 182, 212, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
     }
     /* SELLING (deals, opportunities, leads) — teal/green gradient */
     #nav [data-page="deals"]:hover, #nav [data-page="deals"][class*="on"],
@@ -1301,14 +1307,16 @@
     #nav [data-page="leads"]:hover, #nav [data-page="leads"][class*="on"] {
       background: linear-gradient(135deg, #14b8a6 0%, #0d9488 50%, #0f766e 100%) !important;
       color: #fff !important;
-      box-shadow: 0 4px 12px rgba(13, 148, 136, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+      border-color: rgba(255, 255, 255, 0.25) !important;
+      box-shadow: 0 4px 14px rgba(13, 148, 136, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
     }
     /* PEOPLE (contacts, companies) — blue gradient */
     #nav [data-page="contacts"]:hover, #nav [data-page="contacts"][class*="on"],
     #nav [data-page="companies"]:hover, #nav [data-page="companies"][class*="on"] {
       background: linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%) !important;
       color: #fff !important;
-      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+      border-color: rgba(255, 255, 255, 0.25) !important;
+      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
     }
     /* WORK (tasks, calendar, inbox, feed) — orange/amber gradient */
     #nav [data-page="tasks"]:hover, #nav [data-page="tasks"][class*="on"],
@@ -1317,14 +1325,16 @@
     #nav [data-page="feed"]:hover, #nav [data-page="feed"][class*="on"] {
       background: linear-gradient(135deg, #f97316 0%, #ea580c 50%, #c2410c 100%) !important;
       color: #fff !important;
-      box-shadow: 0 4px 12px rgba(249, 115, 22, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+      border-color: rgba(255, 255, 255, 0.25) !important;
+      box-shadow: 0 4px 14px rgba(249, 115, 22, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
     }
     /* INSIGHTS (forecast, dashboard) — purple gradient */
     #nav [data-page="forecast"]:hover, #nav [data-page="forecast"][class*="on"],
     #nav [data-page="dashboard"]:hover, #nav [data-page="dashboard"][class*="on"] {
       background: linear-gradient(135deg, #a855f7 0%, #9333ea 50%, #7c3aed 100%) !important;
       color: #fff !important;
-      box-shadow: 0 4px 12px rgba(168, 85, 247, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+      border-color: rgba(255, 255, 255, 0.25) !important;
+      box-shadow: 0 4px 14px rgba(168, 85, 247, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
     }
     /* PLATFORM (automation, integrations, guide) — slate gradient */
     #nav [data-page="automation"]:hover, #nav [data-page="automation"][class*="on"],
@@ -1332,7 +1342,8 @@
     #nav [data-page="guide"]:hover, #nav [data-page="guide"][class*="on"] {
       background: linear-gradient(135deg, #64748b 0%, #475569 50%, #334155 100%) !important;
       color: #fff !important;
-      box-shadow: 0 4px 12px rgba(100, 116, 139, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+      border-color: rgba(255, 255, 255, 0.25) !important;
+      box-shadow: 0 4px 14px rgba(100, 116, 139, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
     }
 
     /* Active page indicator — glowing vertical accent bar on LEFT edge */
@@ -1346,14 +1357,14 @@
       width: 4px !important;
       border-radius: 0 4px 4px 0 !important;
       background: #14b8a6 !important;
-      box-shadow: 0 0 8px rgba(20, 184, 166, 0.6) !important;
+      box-shadow: 0 0 10px rgba(20, 184, 166, 0.7) !important;
     }
     /* Navfoot — vertical stack of More + fold buttons */
     #nav .navfoot, #nav .navend {
       display: flex !important;
       flex-direction: column !important;
       align-items: center !important;
-      gap: 6px !important;
+      gap: 8px !important;
       padding: 8px 0 !important;
     }
     #nav #setupCard { display: none !important; }
@@ -1373,7 +1384,7 @@
     /* When icon button has gradient bg, make icon stroke pure white */
     #nav [data-page]:hover .ico svg, #nav [data-page][class*="on"] .ico svg {
       stroke: #fff !important;
-      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2)) !important;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25)) !important;
     }
     /* CSS-only tooltip on hover */
     #nav [data-page]:hover::after,
