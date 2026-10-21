@@ -1132,63 +1132,96 @@
       color: #e2e8f0;
     }
     /* ============================================================
-       FROSTED-GLASS PANELS — sophisticated glassmorphism that BLENDS
-       into the wallpaper background. Stronger blur + inner glow +
-       subtle border highlight = panels feel like real frosted glass,
-       not just semi-transparent rectangles.
+       FROSTED-GLASS PANELS + READABLE TEXT — fix the blurry letters.
+       1. Slightly more opaque panels so text has a more solid bg.
+       2. STRONGER text-shadow (was too subtle — text unreadable).
+       3. Font-smoothing: antialiased for clearer letter rendering.
+       4. Pure white text in dark mode (was slightly gray).
+       5. Body text slightly bolder (500 instead of 400).
        ============================================================ */
     #app, #view {
-      background: rgba(250, 249, 247, 0.32) !important;
-      backdrop-filter: blur(16px) saturate(140%);
-      -webkit-backdrop-filter: blur(16px) saturate(140%);
+      background: rgba(250, 249, 247, 0.45) !important;
+      backdrop-filter: blur(12px) saturate(140%);
+      -webkit-backdrop-filter: blur(12px) saturate(140%);
     }
     [data-theme="dark"] #app, [data-theme="dark"] #view {
-      background: rgba(11, 18, 32, 0.38) !important;
-      backdrop-filter: blur(16px) saturate(140%);
-      -webkit-backdrop-filter: blur(16px) saturate(140%);
+      background: rgba(11, 18, 32, 0.55) !important;
+      backdrop-filter: blur(12px) saturate(140%);
+      -webkit-backdrop-filter: blur(12px) saturate(140%);
     }
-    /* Login/signup gate — slightly more opaque so the form is readable */
     .gate, .setup {
-      background: rgba(250, 249, 247, 0.65) !important;
+      background: rgba(250, 249, 247, 0.7) !important;
       backdrop-filter: blur(20px) saturate(160%);
       -webkit-backdrop-filter: blur(20px) saturate(160%);
     }
     [data-theme="dark"] .gate, [data-theme="dark"] .setup {
-      background: rgba(11, 18, 32, 0.7) !important;
+      background: rgba(11, 18, 32, 0.75) !important;
       backdrop-filter: blur(20px) saturate(160%);
       -webkit-backdrop-filter: blur(20px) saturate(160%);
     }
-    /* Cards — frosted glass with inner glow + subtle white border */
+    /* Cards — MORE opaque so text is readable, with inner glow + border */
     .card, .leadcard, .today-stat, .dealboard .col, .leadcol {
-      background: rgba(255, 255, 255, 0.5) !important;
-      backdrop-filter: blur(12px) saturate(140%);
-      -webkit-backdrop-filter: blur(12px) saturate(140%);
-      border: 1px solid rgba(255, 255, 255, 0.35) !important;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+      background: rgba(255, 255, 255, 0.72) !important;
+      backdrop-filter: blur(8px) saturate(140%);
+      -webkit-backdrop-filter: blur(8px) saturate(140%);
+      border: 1px solid rgba(255, 255, 255, 0.45) !important;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
     }
     [data-theme="dark"] .card, [data-theme="dark"] .leadcard,
     [data-theme="dark"] .today-stat, [data-theme="dark"] .dealboard .col,
     [data-theme="dark"] .leadcol {
-      background: rgba(30, 41, 59, 0.5) !important;
-      backdrop-filter: blur(12px) saturate(140%);
-      -webkit-backdrop-filter: blur(12px) saturate(140%);
-      border: 1px solid rgba(255, 255, 255, 0.12) !important;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+      background: rgba(30, 41, 59, 0.75) !important;
+      backdrop-filter: blur(8px) saturate(140%);
+      -webkit-backdrop-filter: blur(8px) saturate(140%);
+      border: 1px solid rgba(255, 255, 255, 0.18) !important;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
     }
-    /* TEXT READABILITY — subtle shadow so text is readable over busy wallpaper */
+    /* FONT SMOOTHING — antialiased rendering fixes the blurry letter
+       issue caused by backdrop-filter GPU compositing layers. */
+    body, #view, #view *, .card, .leadcard, .today-stat {
+      -webkit-font-smoothing: antialiased !important;
+      -moz-osx-font-smoothing: grayscale !important;
+      text-rendering: optimizeLegibility !important;
+    }
+    /* Body text slightly bolder for better legibility */
     #view, #view * {
-      text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5) !important;
+      font-weight: 500 !important;
+    }
+    #view h1, #view h2, #view h3, #view b, #view strong { font-weight: 600 !important; }
+    /* TEXT READABILITY — STRONGER shadow behind all text.
+       Was: 0 1px 2px (too subtle — text unreadable).
+       Now: 0 1px 4px with 0.95 opacity = clear halo around letters. */
+    #view, #view * {
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 0 1px rgba(0, 0, 0, 0.5) !important;
+    }
+    [data-theme="light"] #view, [data-theme="light"] #view * {
+      text-shadow: 0 1px 2px rgba(255, 255, 255, 0.7), 0 0 1px rgba(0, 0, 0, 0.3) !important;
     }
     [data-theme="dark"] #view, [data-theme="dark"] #view * {
-      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7) !important;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95), 0 0 2px rgba(0, 0, 0, 0.8) !important;
+      color: #fff !important;
     }
+    /* Card headings get even stronger shadow for hierarchy */
     #view h1, #view h2, #view h3, #view b, #view strong {
-      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.25) !important;
+      text-shadow: 0 2px 5px rgba(0, 0, 0, 0.5), 0 0 2px rgba(0, 0, 0, 0.7) !important;
     }
     [data-theme="dark"] #view h1, [data-theme="dark"] #view h2,
     [data-theme="dark"] #view h3, [data-theme="dark"] #view b,
     [data-theme="dark"] #view strong {
-      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85) !important;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.98), 0 0 3px rgba(0, 0, 0, 0.9) !important;
+      color: #fff !important;
+    }
+    /* Muted/meta text — brighten in dark mode */
+    [data-theme="dark"] #view .meta, [data-theme="dark"] #view .hello,
+    [data-theme="dark"] #view .sub {
+      color: rgba(255, 255, 255, 0.85) !important;
+    }
+    /* Deal/contact/etc values (large numbers) — make them pop */
+    [data-theme="dark"] #view .deal-amount, [data-theme="dark"] #view .today-stat b,
+    [data-theme="dark"] #view .forecast-stat .value {
+      color: #fff !important;
+      font-weight: 700 !important;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.98) !important;
     }
     .gate, .setup {
       min-height: 100vh !important;
