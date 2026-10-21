@@ -598,7 +598,7 @@ function contactName(id) { const row = (bag.contacts || []).find((item) => item.
 function stageOf(row) { return OLD[row.stage] || row.stage; }
 function hit(text) { const q = document.getElementById('q').value.trim().toLowerCase(); return !q || String(text || '').toLowerCase().includes(q); }
 function svg(body) { return `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`; }
-function navItem(id, label, icon) { return `<button type="button" data-page="${id}" onclick="go('${id}')"><span class="ico">${icon}</span><span>${label}</span></button>`; }
+function navItem(id, label, icon) { return `<button type="button" data-page="${id}" data-tooltip="${label}" title="${label}" onclick="go('${id}')"><span class="ico">${icon}</span><span>${label}</span></button>`; }
 function paintNav() {
   const home = svg('<path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/>');
   const people = svg('<path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="3"/><path d="M20 8v6M17 11h6"/>');
@@ -2831,6 +2831,6 @@ document.getElementById('email').value = localStorage.getItem('crmEmail') || '';
   if (token) boot();
 })();
 </script>
-<script src="/crm-studio.js?v=56"></script>
+<script src="/crm-studio.js?v=57"></script>
 </body>
 </html>
