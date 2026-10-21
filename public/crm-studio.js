@@ -1131,63 +1131,65 @@
       background-size: cover !important;
       color: #e2e8f0;
     }
-    /* Make the main app shell + content panels MORE transparent so the
-       wallpaper is clearly visible behind the panels (was 0.78 → 0.55 → 0.4).
-       Reduced blur from 20px to 6px so the wallpaper isn't smeared. */
+    /* ============================================================
+       FROSTED-GLASS PANELS — sophisticated glassmorphism that BLENDS
+       into the wallpaper background. Stronger blur + inner glow +
+       subtle border highlight = panels feel like real frosted glass,
+       not just semi-transparent rectangles.
+       ============================================================ */
     #app, #view {
-      background: rgba(250, 249, 247, 0.4) !important;
-      backdrop-filter: blur(6px) saturate(120%);
-      -webkit-backdrop-filter: blur(6px) saturate(120%);
+      background: rgba(250, 249, 247, 0.32) !important;
+      backdrop-filter: blur(16px) saturate(140%);
+      -webkit-backdrop-filter: blur(16px) saturate(140%);
     }
     [data-theme="dark"] #app, [data-theme="dark"] #view {
-      background: rgba(11, 18, 32, 0.45) !important;
-      backdrop-filter: blur(6px) saturate(120%);
-      -webkit-backdrop-filter: blur(6px) saturate(120%);
+      background: rgba(11, 18, 32, 0.38) !important;
+      backdrop-filter: blur(16px) saturate(140%);
+      -webkit-backdrop-filter: blur(16px) saturate(140%);
     }
     /* Login/signup gate — slightly more opaque so the form is readable */
     .gate, .setup {
-      background: rgba(250, 249, 247, 0.7) !important;
-      backdrop-filter: blur(12px) saturate(140%);
-      -webkit-backdrop-filter: blur(12px) saturate(140%);
+      background: rgba(250, 249, 247, 0.65) !important;
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
     }
     [data-theme="dark"] .gate, [data-theme="dark"] .setup {
       background: rgba(11, 18, 32, 0.7) !important;
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
+    }
+    /* Cards — frosted glass with inner glow + subtle white border */
+    .card, .leadcard, .today-stat, .dealboard .col, .leadcol {
+      background: rgba(255, 255, 255, 0.5) !important;
       backdrop-filter: blur(12px) saturate(140%);
       -webkit-backdrop-filter: blur(12px) saturate(140%);
-    }
-    /* Cards inside the view — more transparent so wallpaper shows through */
-    .card, .leadcard, .today-stat, .dealboard .col, .leadcol {
-      background: rgba(255, 255, 255, 0.6) !important;
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
-      border: 1px solid rgba(255, 255, 255, 0.25) !important;
+      border: 1px solid rgba(255, 255, 255, 0.35) !important;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
     }
     [data-theme="dark"] .card, [data-theme="dark"] .leadcard,
     [data-theme="dark"] .today-stat, [data-theme="dark"] .dealboard .col,
     [data-theme="dark"] .leadcol {
-      background: rgba(30, 41, 59, 0.6) !important;
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
-      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+      background: rgba(30, 41, 59, 0.5) !important;
+      backdrop-filter: blur(12px) saturate(140%);
+      -webkit-backdrop-filter: blur(12px) saturate(140%);
+      border: 1px solid rgba(255, 255, 255, 0.12) !important;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
     }
-    /* TEXT READABILITY — subtle shadow behind all text so it's readable
-       over the busy wallpaper + transparent panels */
+    /* TEXT READABILITY — subtle shadow so text is readable over busy wallpaper */
     #view, #view * {
       text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5) !important;
     }
     [data-theme="dark"] #view, [data-theme="dark"] #view * {
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6) !important;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7) !important;
     }
-    /* Card headings get stronger shadow for hierarchy */
     #view h1, #view h2, #view h3, #view b, #view strong {
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.25) !important;
     }
     [data-theme="dark"] #view h1, [data-theme="dark"] #view h2,
     [data-theme="dark"] #view h3, [data-theme="dark"] #view b,
     [data-theme="dark"] #view strong {
-      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7) !important;
+      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85) !important;
     }
-    /* Login/signup gate layout — NO !important on display (boot() sets it) */
     .gate, .setup {
       min-height: 100vh !important;
       place-items: center !important;
@@ -1195,191 +1197,221 @@
     }
 
     /* ============================================================
-       DISCORD/SLACK-STYLE ICON-ONLY VERTICAL SIDEBAR
-       Converts the wide text nav (240px) into a narrow icon-only
-       vertical strip (64px) — matches the user's reference images:
-       - Image 3: Windows 11 taskbar (vertical icon strip)
-       - Image 4: Discord/Slack server list (icon-only column)
-       Each nav item is a 40x40 rounded icon button. Hover shows a
-       CSS tooltip with the label. Active page gets accent highlight.
+       DESIGNED ICON-ONLY VERTICAL SIDEBAR (64px wide)
+       Each nav item gets a CATEGORY-COLORED GRADIENT background on
+       hover/active — like the colorful branded icons in Windows 11
+       taskbar (image 1 from user reference).
+       Categories:
+         • Home = teal/cyan gradient (primary brand)
+         • Selling (deals, opportunities, leads) = teal/green
+         • People (contacts, companies) = blue
+         • Work (tasks, calendar, inbox, feed) = orange/amber
+         • Insights (forecast, dashboard) = purple
+         • Platform (automation, integrations, guide) = slate gray
+       Active page gets a glowing vertical accent bar on the LEFT edge
+       (Discord/Slack-style active indicator).
        ============================================================ */
     #nav {
       width: 64px !important;
       min-width: 64px !important;
       max-width: 64px !important;
       background: rgba(15, 23, 42, 0.55) !important;
-      backdrop-filter: blur(20px) saturate(160%);
-      -webkit-backdrop-filter: blur(20px) saturate(160%);
-      border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
+      backdrop-filter: blur(24px) saturate(160%);
+      -webkit-backdrop-filter: blur(24px) saturate(160%);
+      border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
       padding: 8px 0 !important;
       overflow: visible !important;
+      box-shadow: 4px 0 24px rgba(0, 0, 0, 0.18) !important;
     }
-    [data-theme="light"] #nav, #nav:not([data-theme="dark"] #nav) {
+    [data-theme="light"] #nav {
       background: rgba(248, 250, 252, 0.55) !important;
     }
-    /* Brand area — just show the A logo, hide the "Afri CRM" text */
+    /* Brand area — show only the A logo, hide the text */
     #nav .brand {
       display: flex !important;
       justify-content: center !important;
       padding: 8px 0 12px !important;
       margin: 0 !important;
     }
-    #nav .brand > div {
-      display: none !important;
-    }
+    #nav .brand > div { display: none !important; }
     #nav .brand .logo {
-      width: 40px !important;
-      height: 40px !important;
+      width: 44px !important;
+      height: 44px !important;
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
-      border-radius: 12px !important;
-      background: linear-gradient(135deg, #14b8a6, #0d9488) !important;
+      border-radius: 14px !important;
+      background: linear-gradient(135deg, #14b8a6 0%, #0d9488 50%, #0f766e 100%) !important;
       color: #fff !important;
-      font-weight: 700 !important;
-      font-size: 18px !important;
+      font-weight: 800 !important;
+      font-size: 20px !important;
+      box-shadow: 0 4px 12px rgba(13, 148, 136, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
     }
-    /* Hide section labels ("Sales", "Platform") in icon-only mode */
-    #nav .navlabel {
-      display: none !important;
-    }
+    /* Hide section labels in icon-only mode */
+    #nav .navlabel { display: none !important; }
     /* Nav scroll area — vertical icon column */
     #nav .navscroll {
       display: flex !important;
       flex-direction: column !important;
       align-items: center !important;
-      gap: 4px !important;
+      gap: 6px !important;
       padding: 0 !important;
     }
-    /* Each nav button — 40x40 rounded icon, no text label */
+    /* Each nav button — 40x40 rounded icon. Base state = subtle bg. */
     #nav [data-page], #nav button:not(.fold) {
       width: 40px !important;
       height: 40px !important;
       min-width: 40px !important;
       padding: 0 !important;
       margin: 0 !important;
-      border-radius: 10px !important;
+      border-radius: 12px !important;
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
-      background: transparent !important;
-      color: rgba(255, 255, 255, 0.65) !important;
+      background: rgba(255, 255, 255, 0.04) !important;
+      color: rgba(255, 255, 255, 0.7) !important;
       position: relative !important;
-      transition: all 0.15s ease !important;
+      transition: all 0.2s ease !important;
       cursor: pointer !important;
+      border: 1px solid transparent !important;
     }
     [data-theme="light"] #nav [data-page],
     [data-theme="light"] #nav button:not(.fold) {
-      color: rgba(15, 23, 42, 0.65) !important;
+      background: rgba(15, 23, 42, 0.04) !important;
+      color: rgba(15, 23, 42, 0.7) !important;
     }
     /* Hide the text label inside buttons — show only the .ico span */
     #nav [data-page] > span:not(.ico),
-    #nav button:not(.fold) > span:not(.ico):not(.chev) {
-      display: none !important;
-    }
-    #nav .chev {
-      display: none !important;
-    }
-    /* Hover state — Outlook-style: subtle background + brighter icon */
-    #nav [data-page]:hover, #nav button:not(.fold):hover {
-      background: rgba(20, 184, 166, 0.18) !important;
+    #nav button:not(.fold) > span:not(.ico):not(.chev) { display: none !important; }
+    #nav .chev { display: none !important; }
+
+    /* ===== CATEGORY-COLORED GRADIENT ICON BACKGROUNDS =====
+       Each nav item, on hover OR active, gets a colorful gradient
+       background matching its category — like Windows taskbar icons. */
+
+    /* HOME — teal/cyan gradient (primary brand) */
+    #nav [data-page="home"]:hover, #nav [data-page="home"][class*="on"] {
+      background: linear-gradient(135deg, #06b6d4 0%, #0891b2 50%, #0e7490 100%) !important;
       color: #fff !important;
-      border-radius: 12px !important;
+      box-shadow: 0 4px 12px rgba(6, 182, 212, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
     }
-    [data-theme="light"] #nav [data-page]:hover,
-    [data-theme="light"] #nav button:not(.fold):hover {
-      color: #0d9488 !important;
-      background: rgba(13, 148, 136, 0.15) !important;
+    /* SELLING (deals, opportunities, leads) — teal/green gradient */
+    #nav [data-page="deals"]:hover, #nav [data-page="deals"][class*="on"],
+    #nav [data-page="opportunities"]:hover, #nav [data-page="opportunities"][class*="on"],
+    #nav [data-page="leads"]:hover, #nav [data-page="leads"][class*="on"] {
+      background: linear-gradient(135deg, #14b8a6 0%, #0d9488 50%, #0f766e 100%) !important;
+      color: #fff !important;
+      box-shadow: 0 4px 12px rgba(13, 148, 136, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
     }
-    /* Active page indicator — vertical accent bar on the LEFT edge
-       (like Discord/Slack server-active indicator) */
+    /* PEOPLE (contacts, companies) — blue gradient */
+    #nav [data-page="contacts"]:hover, #nav [data-page="contacts"][class*="on"],
+    #nav [data-page="companies"]:hover, #nav [data-page="companies"][class*="on"] {
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%) !important;
+      color: #fff !important;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+    }
+    /* WORK (tasks, calendar, inbox, feed) — orange/amber gradient */
+    #nav [data-page="tasks"]:hover, #nav [data-page="tasks"][class*="on"],
+    #nav [data-page="calendar"]:hover, #nav [data-page="calendar"][class*="on"],
+    #nav [data-page="inbox"]:hover, #nav [data-page="inbox"][class*="on"],
+    #nav [data-page="feed"]:hover, #nav [data-page="feed"][class*="on"] {
+      background: linear-gradient(135deg, #f97316 0%, #ea580c 50%, #c2410c 100%) !important;
+      color: #fff !important;
+      box-shadow: 0 4px 12px rgba(249, 115, 22, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+    }
+    /* INSIGHTS (forecast, dashboard) — purple gradient */
+    #nav [data-page="forecast"]:hover, #nav [data-page="forecast"][class*="on"],
+    #nav [data-page="dashboard"]:hover, #nav [data-page="dashboard"][class*="on"] {
+      background: linear-gradient(135deg, #a855f7 0%, #9333ea 50%, #7c3aed 100%) !important;
+      color: #fff !important;
+      box-shadow: 0 4px 12px rgba(168, 85, 247, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+    }
+    /* PLATFORM (automation, integrations, guide) — slate gradient */
+    #nav [data-page="automation"]:hover, #nav [data-page="automation"][class*="on"],
+    #nav [data-page="integrations"]:hover, #nav [data-page="integrations"][class*="on"],
+    #nav [data-page="guide"]:hover, #nav [data-page="guide"][class*="on"] {
+      background: linear-gradient(135deg, #64748b 0%, #475569 50%, #334155 100%) !important;
+      color: #fff !important;
+      box-shadow: 0 4px 12px rgba(100, 116, 139, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+    }
+
+    /* Active page indicator — glowing vertical accent bar on LEFT edge */
     #nav [data-page][class*="on"]::before,
     #nav [data-page][aria-current="page"]::before {
       content: '' !important;
       position: absolute !important;
-      left: -12px !important;
-      top: 8px !important;
-      bottom: 8px !important;
+      left: -10px !important;
+      top: 10px !important;
+      bottom: 10px !important;
       width: 4px !important;
       border-radius: 0 4px 4px 0 !important;
       background: #14b8a6 !important;
+      box-shadow: 0 0 8px rgba(20, 184, 166, 0.6) !important;
     }
-    #nav [data-page][class*="on"], #nav [data-page][aria-current="page"] {
-      background: rgba(20, 184, 166, 0.22) !important;
-      color: #fff !important;
-      border-radius: 12px !important;
-    }
-    [data-theme="light"] #nav [data-page][class*="on"],
-    [data-theme="light"] #nav [data-page][aria-current="page"] {
-      color: #0d9488 !important;
-      background: rgba(13, 148, 136, 0.18) !important;
-    }
-    /* Navfoot — vertically stack the More + fold buttons (no text) */
-    #nav .navfoot {
+    /* Navfoot — vertical stack of More + fold buttons */
+    #nav .navfoot, #nav .navend {
       display: flex !important;
       flex-direction: column !important;
       align-items: center !important;
-      gap: 4px !important;
+      gap: 6px !important;
       padding: 8px 0 !important;
     }
-    #nav .navend {
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: center !important;
-      gap: 4px !important;
-    }
-    /* Hide the "Finish setup" card in icon-only mode (or move it elsewhere) */
-    #nav #setupCard {
-      display: none !important;
-    }
-    /* Make sure the .ico SVG icons are sized correctly */
+    #nav #setupCard { display: none !important; }
+    /* Icon size — slightly larger + thicker stroke for better visibility */
     #nav .ico {
-      width: 22px !important;
-      height: 22px !important;
+      width: 24px !important;
+      height: 24px !important;
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
     }
     #nav .ico svg {
-      width: 22px !important;
-      height: 22px !important;
+      width: 24px !important;
+      height: 24px !important;
+      stroke-width: 2.2 !important;
     }
-    /* CSS-only tooltip — show label on hover via ::after
-       Uses the data-page attribute as the label */
+    /* When icon button has gradient bg, make icon stroke pure white */
+    #nav [data-page]:hover .ico svg, #nav [data-page][class*="on"] .ico svg {
+      stroke: #fff !important;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2)) !important;
+    }
+    /* CSS-only tooltip on hover */
     #nav [data-page]:hover::after,
     #nav button:not(.fold):hover::after {
       content: attr(data-tooltip) !important;
       position: absolute !important;
-      left: calc(100% + 12px) !important;
+      left: calc(100% + 14px) !important;
       top: 50% !important;
       transform: translateY(-50%) !important;
       background: rgba(15, 23, 42, 0.95) !important;
       color: #fff !important;
-      padding: 6px 12px !important;
-      border-radius: 6px !important;
+      padding: 7px 14px !important;
+      border-radius: 8px !important;
       font-size: 13px !important;
-      font-weight: 500 !important;
+      font-weight: 600 !important;
       white-space: nowrap !important;
       pointer-events: none !important;
       z-index: 9999 !important;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+      border: 1px solid rgba(255, 255, 255, 0.1) !important;
     }
 
     /* ============================================================
-       OUTLOOK-STYLE TOP RIBBON — header gets a more Outlook-like
-       styling: slightly translucent, accent border on bottom.
+       OUTLOOK-STYLE TOP RIBBON — frosted glass header with accent border
        ============================================================ */
     header {
-      background: rgba(255, 255, 255, 0.55) !important;
-      backdrop-filter: blur(16px) saturate(140%);
-      -webkit-backdrop-filter: blur(16px) saturate(140%);
-      border-bottom: 1px solid rgba(13, 148, 136, 0.2) !important;
+      background: rgba(255, 255, 255, 0.45) !important;
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      border-bottom: 1px solid rgba(13, 148, 136, 0.25) !important;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06) !important;
     }
     [data-theme="dark"] header {
-      background: rgba(15, 23, 42, 0.55) !important;
-      backdrop-filter: blur(16px) saturate(140%);
-      -webkit-backdrop-filter: blur(16px) saturate(140%);
-      border-bottom: 1px solid rgba(20, 184, 166, 0.25) !important;
+      background: rgba(15, 23, 42, 0.5) !important;
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      border-bottom: 1px solid rgba(20, 184, 166, 0.3) !important;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3) !important;
     }
 
     /* Reduce typography bold globally — was 700-800, now 600 max */
