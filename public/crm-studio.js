@@ -1132,101 +1132,116 @@
       color: #e2e8f0;
     }
     /* ============================================================
-       FROSTED-GLASS PANELS + READABLE TEXT — fix the blurry letters.
-       1. Slightly more opaque panels so text has a more solid bg.
-       2. STRONGER text-shadow (was too subtle — text unreadable).
-       3. Font-smoothing: antialiased for clearer letter rendering.
-       4. Pure white text in dark mode (was slightly gray).
-       5. Body text slightly bolder (500 instead of 400).
+       FROSTED-GLASS SHELL + OPAQUE CARDS = CRISP TEXT READABILITY
+       Design philosophy (matching Windows 11 desktop pattern):
+       - Body has the wallpaper (visible at the edges)
+       - #app shell = VERY translucent (0.18 opacity, 20px blur) →
+         dreamy wallpaper blur visible behind everything
+       - Cards = OPAQUE (rgba 0.96) → text perfectly crisp, no smear
+       - NO backdrop-filter on cards (avoids GPU compositing text blur)
+       - Strong borders + drop shadows so cards stand out from wallpaper
+       This is what Windows 11 does: wallpaper visible behind windows,
+       but windows themselves are solid (text is crisp).
+       Mobile keeps a solid background (no wallpaper for performance).
        ============================================================ */
     #app, #view {
-      background: rgba(250, 249, 247, 0.45) !important;
-      backdrop-filter: blur(12px) saturate(140%);
-      -webkit-backdrop-filter: blur(12px) saturate(140%);
+      background: rgba(250, 249, 247, 0.18) !important;
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
     }
     [data-theme="dark"] #app, [data-theme="dark"] #view {
-      background: rgba(11, 18, 32, 0.55) !important;
-      backdrop-filter: blur(12px) saturate(140%);
-      -webkit-backdrop-filter: blur(12px) saturate(140%);
-    }
-    .gate, .setup {
-      background: rgba(250, 249, 247, 0.7) !important;
+      background: rgba(11, 18, 32, 0.25) !important;
       backdrop-filter: blur(20px) saturate(160%);
       -webkit-backdrop-filter: blur(20px) saturate(160%);
+    }
+    /* Login/signup gate — opaque enough to read the form */
+    .gate, .setup {
+      background: rgba(250, 249, 247, 0.85) !important;
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
     }
     [data-theme="dark"] .gate, [data-theme="dark"] .setup {
-      background: rgba(11, 18, 32, 0.75) !important;
-      backdrop-filter: blur(20px) saturate(160%);
-      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      background: rgba(11, 18, 32, 0.88) !important;
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
     }
-    /* Cards — MORE opaque so text is readable, with inner glow + border */
+    /* CARDS = OPAQUE — text is perfectly crisp, no GPU blur smear.
+       This is the key fix for the "blurry letters" problem.
+       Strong border + shadow makes cards stand out from the wallpaper
+       visible through the translucent #app shell. */
     .card, .leadcard, .today-stat, .dealboard .col, .leadcol {
-      background: rgba(255, 255, 255, 0.72) !important;
-      backdrop-filter: blur(8px) saturate(140%);
-      -webkit-backdrop-filter: blur(8px) saturate(140%);
-      border: 1px solid rgba(255, 255, 255, 0.45) !important;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+      background: #ffffff !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+      border: 1px solid rgba(0, 0, 0, 0.08) !important;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.06) !important;
     }
     [data-theme="dark"] .card, [data-theme="dark"] .leadcard,
     [data-theme="dark"] .today-stat, [data-theme="dark"] .dealboard .col,
     [data-theme="dark"] .leadcol {
-      background: rgba(30, 41, 59, 0.75) !important;
-      backdrop-filter: blur(8px) saturate(140%);
-      -webkit-backdrop-filter: blur(8px) saturate(140%);
-      border: 1px solid rgba(255, 255, 255, 0.18) !important;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+      background: #1e293b !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+      border: 1px solid rgba(255, 255, 255, 0.1) !important;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.2) !important;
     }
-    /* FONT SMOOTHING — antialiased rendering fixes the blurry letter
-       issue caused by backdrop-filter GPU compositing layers. */
+    /* FONT SMOOTHING — antialiased rendering for clearer letters */
     body, #view, #view *, .card, .leadcard, .today-stat {
       -webkit-font-smoothing: antialiased !important;
       -moz-osx-font-smoothing: grayscale !important;
       text-rendering: optimizeLegibility !important;
     }
-    /* Body text slightly bolder for better legibility */
+    /* Body text slightly bolder for better legibility (was 400, now 500) */
     #view, #view * {
       font-weight: 500 !important;
     }
     #view h1, #view h2, #view h3, #view b, #view strong { font-weight: 600 !important; }
-    /* TEXT READABILITY — STRONGER shadow behind all text.
-       Was: 0 1px 2px (too subtle — text unreadable).
-       Now: 0 1px 4px with 0.95 opacity = clear halo around letters. */
+    /* Subtle text-shadow — needed because cards are opaque but the
+       #app shell behind cards shows the blurry wallpaper */
     #view, #view * {
-      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 0 1px rgba(0, 0, 0, 0.5) !important;
+      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.15) !important;
     }
     [data-theme="light"] #view, [data-theme="light"] #view * {
-      text-shadow: 0 1px 2px rgba(255, 255, 255, 0.7), 0 0 1px rgba(0, 0, 0, 0.3) !important;
+      text-shadow: 0 1px 1px rgba(255, 255, 255, 0.5) !important;
     }
     [data-theme="dark"] #view, [data-theme="dark"] #view * {
-      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95), 0 0 2px rgba(0, 0, 0, 0.8) !important;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
       color: #fff !important;
     }
-    /* Card headings get even stronger shadow for hierarchy */
-    #view h1, #view h2, #view h3, #view b, #view strong {
-      text-shadow: 0 2px 5px rgba(0, 0, 0, 0.5), 0 0 2px rgba(0, 0, 0, 0.7) !important;
-    }
-    [data-theme="dark"] #view h1, [data-theme="dark"] #view h2,
-    [data-theme="dark"] #view h3, [data-theme="dark"] #view b,
-    [data-theme="dark"] #view strong {
-      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.98), 0 0 3px rgba(0, 0, 0, 0.9) !important;
-      color: #fff !important;
-    }
-    /* Muted/meta text — brighten in dark mode */
+    /* Muted/meta text — brighter in dark mode for readability */
     [data-theme="dark"] #view .meta, [data-theme="dark"] #view .hello,
     [data-theme="dark"] #view .sub {
       color: rgba(255, 255, 255, 0.85) !important;
     }
-    /* Deal/contact/etc values (large numbers) — make them pop */
+    /* Large numbers (deal amounts, stats) — make them pop */
     [data-theme="dark"] #view .deal-amount, [data-theme="dark"] #view .today-stat b,
     [data-theme="dark"] #view .forecast-stat .value {
       color: #fff !important;
       font-weight: 700 !important;
-      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.98) !important;
     }
     .gate, .setup {
       min-height: 100vh !important;
       place-items: center !important;
       padding: 32px 16px !important;
+    }
+
+    /* ============================================================
+       MOBILE COMPATIBILITY — disable wallpaper + frosted glass on
+       mobile for performance + readability. Mobile uses solid
+       backgrounds and the existing mobile shell styles.
+       ============================================================ */
+    [data-shell="mobile"] body {
+      background: var(--m-bg, #0f172a) !important;
+    }
+    [data-shell="mobile"] #app, [data-shell="mobile"] #view {
+      background: transparent !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+    [data-shell="mobile"] .card, [data-shell="mobile"] .leadcard,
+    [data-shell="mobile"] .today-stat {
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
     }
 
     /* ============================================================
