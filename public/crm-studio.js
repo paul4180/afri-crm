@@ -1132,17 +1132,17 @@
       color: #e2e8f0;
     }
     /* Make the main app shell + content panels MORE transparent so the
-       wallpaper is clearly visible behind the panels (was 0.78 → 0.55).
-       Reduced blur from 20px to 8px so the wallpaper isn't smeared. */
+       wallpaper is clearly visible behind the panels (was 0.78 → 0.55 → 0.4).
+       Reduced blur from 20px to 6px so the wallpaper isn't smeared. */
     #app, #view {
-      background: rgba(250, 249, 247, 0.55) !important;
-      backdrop-filter: blur(8px) saturate(120%);
-      -webkit-backdrop-filter: blur(8px) saturate(120%);
+      background: rgba(250, 249, 247, 0.4) !important;
+      backdrop-filter: blur(6px) saturate(120%);
+      -webkit-backdrop-filter: blur(6px) saturate(120%);
     }
     [data-theme="dark"] #app, [data-theme="dark"] #view {
-      background: rgba(11, 18, 32, 0.55) !important;
-      backdrop-filter: blur(8px) saturate(120%);
-      -webkit-backdrop-filter: blur(8px) saturate(120%);
+      background: rgba(11, 18, 32, 0.45) !important;
+      backdrop-filter: blur(6px) saturate(120%);
+      -webkit-backdrop-filter: blur(6px) saturate(120%);
     }
     /* Login/signup gate — slightly more opaque so the form is readable */
     .gate, .setup {
@@ -1155,19 +1155,37 @@
       backdrop-filter: blur(12px) saturate(140%);
       -webkit-backdrop-filter: blur(12px) saturate(140%);
     }
-    /* Cards inside the view — slightly more transparent so wallpaper shows
-       through the cards too (was 0.85 → 0.75) */
+    /* Cards inside the view — more transparent so wallpaper shows through */
     .card, .leadcard, .today-stat, .dealboard .col, .leadcol {
-      background: rgba(255, 255, 255, 0.75) !important;
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
+      background: rgba(255, 255, 255, 0.6) !important;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.25) !important;
     }
     [data-theme="dark"] .card, [data-theme="dark"] .leadcard,
     [data-theme="dark"] .today-stat, [data-theme="dark"] .dealboard .col,
     [data-theme="dark"] .leadcol {
-      background: rgba(30, 41, 59, 0.72) !important;
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
+      background: rgba(30, 41, 59, 0.6) !important;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    }
+    /* TEXT READABILITY — subtle shadow behind all text so it's readable
+       over the busy wallpaper + transparent panels */
+    #view, #view * {
+      text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5) !important;
+    }
+    [data-theme="dark"] #view, [data-theme="dark"] #view * {
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6) !important;
+    }
+    /* Card headings get stronger shadow for hierarchy */
+    #view h1, #view h2, #view h3, #view b, #view strong {
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.25) !important;
+    }
+    [data-theme="dark"] #view h1, [data-theme="dark"] #view h2,
+    [data-theme="dark"] #view h3, [data-theme="dark"] #view b,
+    [data-theme="dark"] #view strong {
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7) !important;
     }
     /* Login/signup gate layout — NO !important on display (boot() sets it) */
     .gate, .setup {
@@ -1177,54 +1195,188 @@
     }
 
     /* ============================================================
-       OUTLOOK-STYLE LEFT SIDEBAR — make nav look like Outlook's folder
-       list: dark navy background, white text, count badges, hover
-       states that match Outlook's accent color. Nav items become
-       folder-like rows.
+       DISCORD/SLACK-STYLE ICON-ONLY VERTICAL SIDEBAR
+       Converts the wide text nav (240px) into a narrow icon-only
+       vertical strip (64px) — matches the user's reference images:
+       - Image 3: Windows 11 taskbar (vertical icon strip)
+       - Image 4: Discord/Slack server list (icon-only column)
+       Each nav item is a 40x40 rounded icon button. Hover shows a
+       CSS tooltip with the label. Active page gets accent highlight.
        ============================================================ */
-    [data-theme="dark"] #nav {
-      background: rgba(15, 23, 42, 0.85) !important;
-      backdrop-filter: blur(16px) saturate(140%);
-      -webkit-backdrop-filter: blur(16px) saturate(140%);
-      border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
-    }
     #nav {
-      background: rgba(248, 250, 252, 0.85) !important;
-      backdrop-filter: blur(16px) saturate(140%);
-      -webkit-backdrop-filter: blur(16px) saturate(140%);
-      border-right: 1px solid rgba(0, 0, 0, 0.06) !important;
+      width: 64px !important;
+      min-width: 64px !important;
+      max-width: 64px !important;
+      background: rgba(15, 23, 42, 0.55) !important;
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
+      padding: 8px 0 !important;
+      overflow: visible !important;
     }
-    /* Nav items styled like Outlook folder rows */
-    #nav [data-page], #nav button {
-      border-radius: 6px !important;
-      padding: 8px 12px !important;
-      margin: 1px 8px !important;
-      transition: background 0.15s ease !important;
+    [data-theme="light"] #nav, #nav:not([data-theme="dark"] #nav) {
+      background: rgba(248, 250, 252, 0.55) !important;
     }
-    #nav [data-page]:hover, #nav button:hover {
-      background: rgba(13, 148, 136, 0.12) !important;
+    /* Brand area — just show the A logo, hide the "Afri CRM" text */
+    #nav .brand {
+      display: flex !important;
+      justify-content: center !important;
+      padding: 8px 0 12px !important;
+      margin: 0 !important;
     }
-    [data-theme="dark"] #nav [data-page]:hover, [data-theme="dark"] #nav button:hover {
+    #nav .brand > div {
+      display: none !important;
+    }
+    #nav .brand .logo {
+      width: 40px !important;
+      height: 40px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      border-radius: 12px !important;
+      background: linear-gradient(135deg, #14b8a6, #0d9488) !important;
+      color: #fff !important;
+      font-weight: 700 !important;
+      font-size: 18px !important;
+    }
+    /* Hide section labels ("Sales", "Platform") in icon-only mode */
+    #nav .navlabel {
+      display: none !important;
+    }
+    /* Nav scroll area — vertical icon column */
+    #nav .navscroll {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      gap: 4px !important;
+      padding: 0 !important;
+    }
+    /* Each nav button — 40x40 rounded icon, no text label */
+    #nav [data-page], #nav button:not(.fold) {
+      width: 40px !important;
+      height: 40px !important;
+      min-width: 40px !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border-radius: 10px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      background: transparent !important;
+      color: rgba(255, 255, 255, 0.65) !important;
+      position: relative !important;
+      transition: all 0.15s ease !important;
+      cursor: pointer !important;
+    }
+    [data-theme="light"] #nav [data-page],
+    [data-theme="light"] #nav button:not(.fold) {
+      color: rgba(15, 23, 42, 0.65) !important;
+    }
+    /* Hide the text label inside buttons — show only the .ico span */
+    #nav [data-page] > span:not(.ico),
+    #nav button:not(.fold) > span:not(.ico):not(.chev) {
+      display: none !important;
+    }
+    #nav .chev {
+      display: none !important;
+    }
+    /* Hover state — Outlook-style: subtle background + brighter icon */
+    #nav [data-page]:hover, #nav button:not(.fold):hover {
       background: rgba(20, 184, 166, 0.18) !important;
+      color: #fff !important;
+      border-radius: 12px !important;
     }
-    #nav [data-page][class*="on"], #nav button.on, #nav [aria-current="page"] {
-      background: rgba(13, 148, 136, 0.15) !important;
+    [data-theme="light"] #nav [data-page]:hover,
+    [data-theme="light"] #nav button:not(.fold):hover {
       color: #0d9488 !important;
+      background: rgba(13, 148, 136, 0.15) !important;
+    }
+    /* Active page indicator — vertical accent bar on the LEFT edge
+       (like Discord/Slack server-active indicator) */
+    #nav [data-page][class*="on"]::before,
+    #nav [data-page][aria-current="page"]::before {
+      content: '' !important;
+      position: absolute !important;
+      left: -12px !important;
+      top: 8px !important;
+      bottom: 8px !important;
+      width: 4px !important;
+      border-radius: 0 4px 4px 0 !important;
+      background: #14b8a6 !important;
+    }
+    #nav [data-page][class*="on"], #nav [data-page][aria-current="page"] {
+      background: rgba(20, 184, 166, 0.22) !important;
+      color: #fff !important;
+      border-radius: 12px !important;
+    }
+    [data-theme="light"] #nav [data-page][class*="on"],
+    [data-theme="light"] #nav [data-page][aria-current="page"] {
+      color: #0d9488 !important;
+      background: rgba(13, 148, 136, 0.18) !important;
+    }
+    /* Navfoot — vertically stack the More + fold buttons (no text) */
+    #nav .navfoot {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      gap: 4px !important;
+      padding: 8px 0 !important;
+    }
+    #nav .navend {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      gap: 4px !important;
+    }
+    /* Hide the "Finish setup" card in icon-only mode (or move it elsewhere) */
+    #nav #setupCard {
+      display: none !important;
+    }
+    /* Make sure the .ico SVG icons are sized correctly */
+    #nav .ico {
+      width: 22px !important;
+      height: 22px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+    }
+    #nav .ico svg {
+      width: 22px !important;
+      height: 22px !important;
+    }
+    /* CSS-only tooltip — show label on hover via ::after
+       Uses the data-page attribute as the label */
+    #nav [data-page]:hover::after,
+    #nav button:not(.fold):hover::after {
+      content: attr(data-tooltip) !important;
+      position: absolute !important;
+      left: calc(100% + 12px) !important;
+      top: 50% !important;
+      transform: translateY(-50%) !important;
+      background: rgba(15, 23, 42, 0.95) !important;
+      color: #fff !important;
+      padding: 6px 12px !important;
+      border-radius: 6px !important;
+      font-size: 13px !important;
+      font-weight: 500 !important;
+      white-space: nowrap !important;
+      pointer-events: none !important;
+      z-index: 9999 !important;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
     }
 
     /* ============================================================
        OUTLOOK-STYLE TOP RIBBON — header gets a more Outlook-like
-       styling: slightly translucent, accent border on bottom,
-       larger breathing room.
+       styling: slightly translucent, accent border on bottom.
        ============================================================ */
     header {
-      background: rgba(255, 255, 255, 0.7) !important;
+      background: rgba(255, 255, 255, 0.55) !important;
       backdrop-filter: blur(16px) saturate(140%);
       -webkit-backdrop-filter: blur(16px) saturate(140%);
       border-bottom: 1px solid rgba(13, 148, 136, 0.2) !important;
     }
     [data-theme="dark"] header {
-      background: rgba(15, 23, 42, 0.7) !important;
+      background: rgba(15, 23, 42, 0.55) !important;
       backdrop-filter: blur(16px) saturate(140%);
       -webkit-backdrop-filter: blur(16px) saturate(140%);
       border-bottom: 1px solid rgba(20, 184, 166, 0.25) !important;
