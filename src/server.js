@@ -9,6 +9,7 @@
 import Fastify from 'fastify';
 import jwt from '@fastify/jwt';
 import fastifyStatic from '@fastify/static';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { registerCrm } from './crmapp.js';
@@ -38,7 +39,15 @@ await app.register(fastifyStatic, {
 // Landing page is the whole product's front door — serves landing.html at root /
 app.get('/', async (req, reply) => reply.sendFile('landing.html'));
 // CRM app stays at /crm (for direct access + ERP cross-links)
-app.get('/crm', async (req, reply) => reply.sendFile('crm.html'));
+app.get('/crm', async (req, reply) => {
+  const file = path.join(__dirname, '..', 'public', 'crm.html');
+  let html = fs.readFileSync(file, 'utf8');
+  const tag = '<script src="/outlook-skin.js"></script>';
+  if (!html.includes('outlook-skin.js')) {
+    html = html.includes('</head>') ? html.replace('</head>', tag + '</head>') : tag + html;
+  }
+  return reply.type('text/html; charset=utf-8').send(html);
+});
 // Privacy Policy + Terms of Service — required by Google OAuth verification
 app.get('/privacy', async (req, reply) => reply.sendFile('privacy.html'));
 app.get('/terms', async (req, reply) => reply.sendFile('terms.html'));
