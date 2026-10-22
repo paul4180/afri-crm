@@ -120,6 +120,10 @@
   }
   .gate-forms { width: 100%; max-width: 440px; margin-left: auto; }
   @media (max-width: 880px) { .gate-forms { margin: 0 auto; } }
+  .pw-row { display: flex; gap: 8px; align-items: center; }
+  .pw-row input { flex: 1; }
+  .gate .pw-toggle { background: transparent; color: #0d9488; padding: 0 4px; font-weight: 650; border-radius: 8px; }
+  .gate .hint { color: #64748b; font-size: 12px; margin: 0 0 8px; line-height: 1.4; }
   .gate .panel.card {
     background: rgba(255, 255, 255, 0.98);
     border: 1px solid rgba(255, 255, 255, 0.2);
@@ -475,8 +479,9 @@
           Continue with Google
         </button>
         <div class="sso-divider"><span>or</span></div>
-        <label>Email<input id="email" type="email" required autocomplete="username"></label>
-        <label>Password<input id="password" type="password" required autocomplete="current-password"></label>
+        <label>Email<input id="email" type="email" required autocomplete="username" inputmode="email" spellcheck="false"></label>
+        <label class="pw">Password<span class="pw-row"><input id="password" type="password" required autocomplete="current-password"><button type="button" class="ghost pw-toggle" onclick="togglePw('password', this)">Show</button></span></label>
+        <p class="hint">Use the email that created this CRM. A different Gmail saved in this browser is a different account.</p>
         <p class="err" id="loginError"></p>
         <button type="submit">Sign in</button>
         <p class="toggle-link">No account yet?<button type="button" class="ghost" onclick="showSignup()">Create one</button></p>
@@ -494,7 +499,8 @@
         <label>Business name<input id="crmName" required></label>
         <label>Your name<input id="crmFull" required></label>
         <label>Email<input id="crmEmail" type="email" required autocomplete="username"></label>
-        <label>Password<input id="crmPassword" type="password" required minlength="8" autocomplete="new-password"></label>
+        <label class="pw">Password<span class="pw-row"><input id="crmPassword" type="password" required minlength="8" autocomplete="new-password"><button type="button" class="ghost pw-toggle" onclick="togglePw('crmPassword', this)">Show</button></span></label>
+        <p class="hint">At least 8 characters. This password is only for Afri CRM.</p>
         <label class="check"><input id="crmClaim" type="checkbox"> I already have CRM records under this email. Use the books password to keep them.</label>
         <p class="err" id="signupError"></p>
         <button type="submit">Create and enter</button>
@@ -578,11 +584,28 @@ async function api(path, options = {}) {
 function logout() { token = ''; localStorage.removeItem('crmToken'); location.href = '/crm'; }
 function showSignup() { document.getElementById('loginForm').style.display = 'none'; document.getElementById('signupForm').style.display = 'block'; }
 function showLogin() { document.getElementById('signupForm').style.display = 'none'; document.getElementById('loginForm').style.display = 'block'; }
+function togglePw(id, btn) {
+  const input = document.getElementById(id);
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  btn.textContent = show ? 'Hide' : 'Show';
+}
 document.getElementById('loginForm').addEventListener('submit', async (event) => {
   event.preventDefault();
-  const res = await fetch('/crm/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: document.getElementById('email').value.trim(), password: document.getElementById('password').value }) });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) { document.getElementById('loginError').textContent = data.error || 'Sign-in failed'; return; }
+  const emailEl = document.getElementById('email');
+  const email = emailEl.value.trim().toLowerCase();
+  emailEl.value = email;
+  const err = document.getElementById('loginError');
+  err.textContent = 'Checking this email…';
+  let res, data = {};
+  try {
+    res = await fetch('/crm/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: document.getElementById('password').value }) });
+    data = await res.json().catch(() => ({}));
+  } catch (e) {
+    err.textContent = 'The sign-in request did not reach the server. Refresh the page and try again.';
+    return;
+  }
+  if (!res.ok) { err.textContent = data.error || 'Sign-in failed'; return; }
   token = data.accessToken; localStorage.setItem('crmToken', token); boot();
 });
 document.getElementById('signupForm').addEventListener('submit', async (event) => {

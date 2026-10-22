@@ -7110,6 +7110,65 @@
     }
     .m-scan-fab:active { transform: scale(0.88); }
     .m-scan-fab svg { width: 20px; height: 20px; }
+
+    /* Shell: the rail fills its column. Collapsed is 76px, not a 64px
+       strip sitting inside a 248px hole. Labels stay visible until collapse. */
+    .app { display: grid !important; grid-template-columns: 240px minmax(0, 1fr) !important; min-height: 100vh; }
+    .app.rail { grid-template-columns: 76px minmax(0, 1fr) !important; }
+    .work, #view, main { min-width: 0 !important; }
+    #nav {
+      width: auto !important; min-width: 0 !important; max-width: none !important;
+      height: 100vh !important; overflow: hidden !important; padding: 14px 10px 12px !important;
+      background: rgba(12, 16, 28, 0.92) !important;
+    }
+    #nav .brand { display: flex !important; align-items: center !important; gap: 10px !important; justify-content: flex-start !important; padding: 4px 8px 14px !important; }
+    #nav .brand > div { display: block !important; }
+    #nav .brand .logo { width: 36px !important; height: 36px !important; border-radius: 10px !important; font-size: 16px !important; box-shadow: none !important; }
+    #nav .navlabel { display: block !important; padding: 14px 10px 4px !important; }
+    #nav .navscroll { align-items: stretch !important; gap: 2px !important; overflow: auto !important; }
+    #nav [data-page], #nav button:not(.fold),
+    #nav [data-page]:hover, #nav [data-page][class*="on"] {
+      width: 100% !important; height: auto !important; min-width: 0 !important; min-height: 36px !important;
+      padding: 7px 8px !important; margin: 0 !important; justify-content: flex-start !important; gap: 10px !important;
+      background: transparent !important; border: 0 !important; box-shadow: none !important; border-radius: 8px !important;
+      color: #cbd5e1 !important;
+    }
+    #nav [data-page].on, #nav [data-page]:hover { background: rgba(255,255,255,0.08) !important; color: #fff !important; }
+    #nav [data-page] > span:not(.ico), #nav button:not(.fold) > span:not(.ico):not(.chev) { display: inline !important; }
+    #nav .ico { width: 28px !important; height: 28px !important; border-radius: 8px !important; background: rgba(255,255,255,0.07) !important; flex: none !important; }
+    #nav [data-page][class*="on"]::before { display: none !important; }
+    #nav .navfoot, #nav .navend { flex-direction: row !important; align-items: center !important; justify-content: space-between !important; width: 100% !important; }
+    .app.rail #nav .brand > div,
+    .app.rail #nav .navlabel,
+    .app.rail #nav [data-page] > span:not(.ico),
+    .app.rail #nav button:not(.fold) > span:not(.ico) { display: none !important; }
+    .app.rail #nav .navscroll, .app.rail #nav .navfoot, .app.rail #nav .navend { align-items: center !important; }
+    .app.rail #nav [data-page], .app.rail #nav button:not(.fold) {
+      width: 44px !important; min-width: 44px !important; justify-content: center !important; padding: 6px !important;
+    }
+    .app.rail .launcher { left: 88px !important; }
+    header { display: flex !important; align-items: center !important; gap: 12px !important; padding: 10px 16px !important; }
+    header .tools { display: flex !important; align-items: center !important; gap: 2px !important; }
+    header .iconbtn { width: 34px !important; height: 34px !important; border-radius: 8px !important; background: transparent !important; color: #e2e8f0 !important; }
+    .launcher {
+      left: 256px !important; right: 24px !important; bottom: 20px !important; width: auto !important; max-width: 680px !important;
+      background: rgba(15, 18, 32, 0.96) !important; border: 1px solid rgba(255,255,255,0.08) !important;
+      border-radius: 16px !important;
+    }
+    .launcher .hubs button, .launcher button.fly {
+      background: transparent !important; color: #e2e8f0 !important; border: 0 !important; border-radius: 10px !important;
+      box-shadow: none !important; width: 100% !important; height: auto !important; min-height: 0 !important;
+      justify-content: flex-start !important; padding: 10px 12px !important; text-align: left !important;
+    }
+    .launcher .hubs button.on, .launcher .hubs button:hover, .launcher button.fly:hover {
+      background: rgba(20, 184, 166, 0.16) !important; color: #99f6e4 !important;
+    }
+    .guides nav {
+      background: rgba(22, 28, 45, 0.88) !important; color: #e7edf5 !important;
+      border: 1px solid rgba(255,255,255,0.08) !important; border-radius: 16px !important; padding: 8px !important;
+    }
+    .guides nav button { background: transparent !important; color: #e2e8f0 !important; border-radius: 10px !important; box-shadow: none !important; }
+    .guides nav button.on, .guides nav button:hover { background: rgba(255,255,255,0.08) !important; }
   `;
   window.__injectScanFab = function () {
     if (!window.__afriMobile) return;

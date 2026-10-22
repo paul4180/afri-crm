@@ -1827,15 +1827,18 @@ export function registerCrm(app, prisma) {
     const email = String(req.body?.email || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
     const account = email ? db.prepare('SELECT * FROM crm_accounts WHERE email = ?').get(email) : null;
-    const locked = account && account.lockedUntil && account.lockedUntil > new Date().toISOString();
-    if (!account || locked || !(await bcrypt.compare(password, account.passwordHash))) {
-      if (account && !locked) {
-        const failed = Number(account.failed || 0) + 1;
-        const until = failed >= 8 ? new Date(Date.now() + 15 * 60 * 1000).toISOString() : null;
-        db.prepare('UPDATE crm_accounts SET failed = ?, lockedUntil = ? WHERE id = ?').run(until ? 0 : failed, until, account.id);
-        writeAudit(account.workspaceId, account.id, 'login.failed', 'account', account.id, email);
-      }
-      return reply.code(401).send({ error: 'Email or password is wrong.' });
+    if (!email || !password) return reply.code(400).send({ error: 'Enter the email and the password.' });
+    if (!account) return reply.code(401).send({ error: 'No Afri CRM account uses ' + email + '. Check the spelling, or create an account. A books login is not this login.' });
+    if (account.lockedUntil && account.lockedUntil > new Date().toISOString()) {
+      return reply.code(423).send({ error: 'Too many tries for ' + email + '. Sign-in is paused for 15 minutes.' });
+    }
+    if (!(await bcrypt.compare(password, account.passwordHash))) {
+      const failed = Number(account.failed || 0) + 1;
+      const until = failed >= 8 ? new Date(Date.now() + 15 * 60 * 1000).toISOString() : null;
+      db.prepare('UPDATE crm_accounts SET failed = ?, lockedUntil = ? WHERE id = ?').run(until ? 0 : failed, until, account.id);
+      writeAudit(account.workspaceId, account.id, 'login.failed', 'account', account.id, email);
+      const left = until ? 0 : 8 - failed;
+      return reply.code(401).send({ error: until ? 'That password does not match ' + email + '. Sign-in is now paused for 15 minutes.' : 'That password does not match ' + email + '. ' + left + ' tries left.' });
     }
     if (Number(account.active) === 0) return reply.code(401).send({ error: 'This account is switched off.' });
     db.prepare('UPDATE crm_accounts SET failed = 0, lockedUntil = NULL WHERE id = ?').run(account.id);
