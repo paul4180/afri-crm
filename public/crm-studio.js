@@ -7169,6 +7169,42 @@
     }
     .guides nav button { background: transparent !important; color: #e2e8f0 !important; border-radius: 10px !important; box-shadow: none !important; }
     .guides nav button.on, .guides nav button:hover { background: rgba(255,255,255,0.08) !important; }
+
+    /* Dashboard tiles were white with light text, so the numbers vanished. */
+    #view .kpi, #view .actcard, #view .card, #view .sheet, #view .desk, #view .guide {
+      background: rgba(16, 22, 36, 0.94) !important;
+      color: #e7edf5 !important;
+      border: 1px solid rgba(255,255,255,0.08) !important;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.18) !important;
+    }
+    #view .kpi b, #view .actcard b, #view .card b, #view .rowline b, #view .hbar b {
+      color: #f8fafc !important;
+    }
+    #view .kpi h2, #view .card h2, #view .actcard h2, #view .kpi .meta, #view .meta, #view .hello, #view .rowline span, #view .hbar span {
+      color: #94a3b8 !important;
+    }
+    #view .rowline { border-top-color: rgba(255,255,255,0.08) !important; }
+    #view .sumline { background: rgba(255,255,255,0.12) !important; }
+    #view .hbar i { background: #14b8a6 !important; }
+    #view .guides { display: flex !important; flex-direction: column !important; gap: 14px !important; }
+    #view .guides nav {
+      display: flex !important; flex-direction: row !important; flex-wrap: wrap !important; gap: 6px !important;
+      width: 100% !important; background: rgba(12, 16, 28, 0.9) !important;
+      border: 1px solid rgba(255,255,255,0.08) !important; border-radius: 14px !important; padding: 6px !important;
+    }
+    #view .guides nav button, #view .guides nav button.on, #view .tabs button, #view .filters button, #view button.ghost {
+      background: transparent !important; color: #cbd5e1 !important; border-radius: 10px !important;
+      border: 1px solid transparent !important; box-shadow: none !important; width: auto !important;
+      padding: 8px 14px !important; font-weight: 600 !important;
+    }
+    #view .guides nav button.on {
+      background: rgba(15, 118, 110, 0.45) !important; color: #ecfdf5 !important;
+      border-color: rgba(45, 212, 191, 0.4) !important;
+    }
+    #view .guides nav button:hover, #view .tabs button:hover { background: rgba(255,255,255,0.06) !important; }
+    #view .pulse article { background: rgba(16, 22, 36, 0.94) !important; border: 1px solid rgba(255,255,255,0.08) !important; }
+    #view .pulse b { color: #f8fafc !important; }
+    #view .pulse span { color: #94a3b8 !important; }
   `;
   window.__injectScanFab = function () {
     if (!window.__afriMobile) return;
