@@ -1145,14 +1145,14 @@
        Mobile keeps a solid background (no wallpaper for performance).
        ============================================================ */
     #app, #view {
-      background: rgba(250, 249, 247, 0.18) !important;
-      backdrop-filter: blur(20px) saturate(160%);
-      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      background: transparent !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
     }
     [data-theme="dark"] #app, [data-theme="dark"] #view {
-      background: rgba(11, 18, 32, 0.25) !important;
-      backdrop-filter: blur(20px) saturate(160%);
-      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      background: transparent !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
     }
     /* Login/signup gate — opaque enough to read the form */
     .gate, .setup {
@@ -1191,23 +1191,9 @@
       -moz-osx-font-smoothing: grayscale !important;
       text-rendering: optimizeLegibility !important;
     }
-    /* Body text slightly bolder for better legibility (was 400, now 500) */
-    #view, #view * {
-      font-weight: 500 !important;
-    }
     #view h1, #view h2, #view h3, #view b, #view strong { font-weight: 600 !important; }
-    /* Subtle text-shadow — needed because cards are opaque but the
-       #app shell behind cards shows the blurry wallpaper */
-    #view, #view * {
-      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.15) !important;
-    }
-    [data-theme="light"] #view, [data-theme="light"] #view * {
-      text-shadow: 0 1px 1px rgba(255, 255, 255, 0.5) !important;
-    }
-    [data-theme="dark"] #view, [data-theme="dark"] #view * {
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
-      color: #fff !important;
-    }
+    #view, #view * { text-shadow: none !important; }
+    [data-theme="dark"] #view { color: #e7edf5; }
     /* Muted/meta text — brighter in dark mode for readability */
     [data-theme="dark"] #view .meta, [data-theme="dark"] #view .hello,
     [data-theme="dark"] #view .sub {
@@ -1262,17 +1248,17 @@
       width: 64px !important;
       min-width: 64px !important;
       max-width: 64px !important;
-      /* NO background — wallpaper shows through directly */
-      background: transparent !important;
-      backdrop-filter: none !important;
-      -webkit-backdrop-filter: none !important;
+      /* Dark glass rail, like Outlook's folder pane */
+      background: rgba(15, 18, 32, 0.86) !important;
+      backdrop-filter: blur(16px) saturate(140%) !important;
+      -webkit-backdrop-filter: blur(16px) saturate(140%) !important;
       border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
       padding: 8px 0 !important;
       overflow: visible !important;
       box-shadow: none !important;
     }
     [data-theme="light"] #nav {
-      background: transparent !important;
+      background: rgba(255, 255, 255, 0.82) !important;
       border-right-color: rgba(0, 0, 0, 0.06) !important;
     }
     /* Brand area — show only the A logo */
@@ -1427,7 +1413,7 @@
     #nav .ico svg {
       width: 24px !important;
       height: 24px !important;
-      stroke-width: 2.2 !important;
+      stroke-width: 1.6 !important;
     }
     /* When icon button has gradient bg, make icon stroke pure white */
     #nav [data-page]:hover .ico svg, #nav [data-page][class*="on"] .ico svg {
@@ -1614,24 +1600,28 @@
     [data-theme="dark"] aside .mark { color: #f8fafc !important; }
 
     /* Main work area — softer padding, breathing room */
-    main { padding: 24px !important; background: #faf9f7; }
-    [data-theme="dark"] main { background: #0b1220; }
-    .work { background: #faf9f7; }
-    [data-theme="dark"] .work { background: #0b1220; }
+    main { padding: 16px !important; background: transparent !important; }
+    [data-theme="dark"] main { background: transparent !important; }
+    .work { background: transparent !important; }
+    [data-theme="dark"] .work { background: transparent !important; }
 
     /* Cards — softer shadows, consistent 14px radius, less stark white */
     .card, .actcard, .dealcard, .contact-card, .glance, .report, .timeline, .sheet, .leadcard, .forecast-chart {
-      background: #fff !important;
-      border: 1px solid #e8e6e1 !important;
+      background: rgba(255, 255, 255, 0.88) !important;
+      backdrop-filter: blur(12px) saturate(140%) !important;
+      -webkit-backdrop-filter: blur(12px) saturate(140%) !important;
+      border: 1px solid rgba(255, 255, 255, 0.5) !important;
       border-radius: 14px !important;
-      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03), 0 1px 3px rgba(15, 23, 42, 0.02) !important;
+      box-shadow: 0 8px 28px rgba(15, 23, 42, 0.12) !important;
     }
     [data-theme="dark"] .card, [data-theme="dark"] .actcard, [data-theme="dark"] .dealcard,
     [data-theme="dark"] .contact-card, [data-theme="dark"] .glance, [data-theme="dark"] .report,
     [data-theme="dark"] .timeline, [data-theme="dark"] .sheet, [data-theme="dark"] .leadcard,
     [data-theme="dark"] .forecast-chart {
-      background: #1e293b !important;
-      border-color: #334155 !important;
+      background: rgba(22, 28, 45, 0.84) !important;
+      border-color: rgba(255, 255, 255, 0.1) !important;
+      backdrop-filter: blur(14px) saturate(140%) !important;
+      -webkit-backdrop-filter: blur(14px) saturate(140%) !important;
     }
     /* Today stat tiles — softer */
     .today-stat {
