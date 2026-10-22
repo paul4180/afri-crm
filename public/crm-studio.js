@@ -7205,6 +7205,49 @@
     #view .pulse article { background: rgba(16, 22, 36, 0.94) !important; border: 1px solid rgba(255,255,255,0.08) !important; }
     #view .pulse b { color: #f8fafc !important; }
     #view .pulse span { color: #94a3b8 !important; }
+
+    /* Scrollbar: thin and dark, no white track and no arrow buttons.
+       Same pattern HubSpot and Attio use: the bar only appears over the list. */
+    #nav .navscroll, #view, .work {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+    }
+    #nav .navscroll::-webkit-scrollbar, #view::-webkit-scrollbar, .work::-webkit-scrollbar { width: 8px; height: 8px; }
+    #nav .navscroll::-webkit-scrollbar-track, #view::-webkit-scrollbar-track, .work::-webkit-scrollbar-track { background: transparent; }
+    #nav .navscroll::-webkit-scrollbar-thumb, #view::-webkit-scrollbar-thumb, .work::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.28);
+      border-radius: 99px;
+      border: 2px solid transparent;
+      background-clip: padding-box;
+    }
+    #nav .navscroll::-webkit-scrollbar-thumb:hover, #view::-webkit-scrollbar-thumb:hover { background: rgba(226, 232, 240, 0.45); background-clip: padding-box; }
+    #nav .navscroll::-webkit-scrollbar-button, #view::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+
+    #nav {
+      background:
+        radial-gradient(140px 90px at 30% 0%, rgba(45, 212, 191, 0.16), transparent 72%),
+        linear-gradient(180deg, #121a2e 0%, #0b1020 100%) !important;
+    }
+    .nav-section-header {
+      display: block !important;
+      font-size: 10px !important;
+      letter-spacing: 0.16em !important;
+      color: #64748b !important;
+      padding: 16px 8px 6px !important;
+      white-space: nowrap !important;
+    }
+    .app.rail .nav-section-header { display: none !important; }
+    #nav .ico { background: transparent !important; color: inherit !important; }
+    #nav [data-page="home"] .ico { color: #2dd4bf !important; background: rgba(45, 212, 191, 0.14) !important; }
+    #nav [data-page="leads"] .ico, #nav [data-page="deals"] .ico, #nav [data-page="opportunities"] .ico { color: #34d399 !important; background: rgba(52, 211, 153, 0.14) !important; }
+    #nav [data-page="contacts"] .ico, #nav [data-page="companies"] .ico { color: #60a5fa !important; background: rgba(96, 165, 250, 0.14) !important; }
+    #nav [data-page="tasks"] .ico, #nav [data-page="calendar"] .ico, #nav [data-page="inbox"] .ico, #nav [data-page="feed"] .ico { color: #fb923c !important; background: rgba(251, 146, 60, 0.14) !important; }
+    #nav [data-page="dashboard"] .ico, #nav [data-page="forecast"] .ico { color: #c084fc !important; background: rgba(192, 132, 252, 0.16) !important; }
+    #nav [data-page="automation"] .ico, #nav [data-page="integrations"] .ico, #nav [data-page="guide"] .ico { color: #cbd5e1 !important; background: rgba(148, 163, 184, 0.14) !important; }
+    #nav [data-page].on { box-shadow: inset 3px 0 0 #2dd4bf !important; background: rgba(255,255,255,0.06) !important; }
+    #nav [data-page] { transition: background 0.15s ease !important; }
+    #nav [data-page]:hover .ico { transform: translateY(-1px); }
+    #nav .ico { transition: transform 0.15s ease !important; }
   `;
   window.__injectScanFab = function () {
     if (!window.__afriMobile) return;
