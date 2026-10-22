@@ -2247,6 +2247,180 @@ export function registerCrm(app, prisma) {
       connections: rows,
     };
   });
+
+  // ============================================================
+  // PHASE 3 PART 1 — GMAIL INBOX SYNC
+  // GET /crm/api/email/inbox?limit=20&folder=inbox
+  //   Fetches the user's latest Gmail messages (requires Gmail
+  //   connected via OAuth). For each message, extracts:
+  //     - id, threadId, sender name + email, subject, snippet,
+  //       date, isUnread, hasAttachment
+  //   Auto-links each sender to an existing CRM contact via the
+  //   duplicate detection engine (Phase 2 Part 4). Returns:
+  //     { messages: [...], total, linked: <number>, unlinked: <number> }
+  // GET /crm/api/email/message/:id
+  //   Fetches a single message's full body (HTML + plain text).
+  //   Returns: { id, sender, subject, bodyHtml, bodyText, date,
+  //             linkedContactId, hasReply }
+  // Both endpoints gracefully 424 (Failed Dependency) if Gmail
+  // isn't connected, so the frontend can prompt the user to connect.
+  // ============================================================
+  app.get('/crm/api/email/inbox', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      const gmail = db.prepare('SELECT * FROM connections WHERE tenantId = ? AND provider = ?').get(user.tenantId, 'gmail');
+      if (!gmail) return reply.code(424).send({ error: 'Gmail not connected. Connect it on the Integrations page first.', provider: 'gmail', needsConnect: true });
+      const token = await freshToken(gmail);
+      if (!token) return reply.code(401).send({ error: 'Gmail token expired. Reconnect Gmail on the Integrations page.', provider: 'gmail', needsReconnect: true });
+
+      const limit = Math.min(Math.max(Number(req.query?.limit || 20), 1), 50);
+      const folder = String(req.query?.folder || 'INBOX').toUpperCase();
+      const label = ['INBOX', 'SENT', 'DRAFT', 'TRASH', 'SPAM'].includes(folder) ? folder : 'INBOX';
+
+      // Step 1: list messages (just IDs)
+      const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${limit}&labelIds=${label}&q=-in:chat`;
+      const listRes = await fetch(listUrl, { headers: { Authorization: 'Bearer ' + token } });
+      if (!listRes.ok) {
+        const errText = await listRes.text().catch(() => '');
+        log.error('gmail.list.failed', { status: listRes.status, err: errText.slice(0, 200) });
+        return reply.code(502).send({ error: `Gmail list failed (${listRes.status}). Try reconnecting Gmail.`, provider: 'gmail' });
+      }
+      const listJson = await listRes.json();
+      const messageIds = (listJson.messages || []).map((m) => m.id);
+      if (!messageIds.length) return { messages: [], total: 0, linked: 0, unlinked: 0, folder: label };
+
+      // Step 2: batch-fetch each message metadata (Gmail has no batch GET, so we fetch one-by-one)
+      // To stay fast, fetch with format=metadata (just headers + snippet)
+      const contacts = list('contacts', user.tenantId, { limit: 500 });
+      const messages = [];
+      let linked = 0;
+      let unlinked = 0;
+      const headersWanted = ['From', 'Subject', 'Date', 'To', 'Cc'];
+
+      // Fetch in parallel (5 at a time to avoid rate limits)
+      const parallelSize = 5;
+      for (let i = 0; i < messageIds.length; i += parallelSize) {
+        const batch = messageIds.slice(i, i + parallelSize);
+        const results = await Promise.all(batch.map(async (id) => {
+          try {
+            const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=${headersWanted.join('&metadataHeaders=')}`, { headers: { Authorization: 'Bearer ' + token } });
+            if (!r.ok) return null;
+            return r.json();
+          } catch { return null; }
+        }));
+        for (const msg of results) {
+          if (!msg) continue;
+          // Parse the headers
+          const headers = {};
+          for (const h of (msg.payload?.headers || [])) headers[h.name] = h.value;
+          const fromRaw = headers.From || '';
+          const fromMatch = fromRaw.match(/^(.*?)\s*<([^>]+)>\s*$/) || [, fromRaw, ''];
+          const senderName = (fromMatch[1] || fromRaw || '').replace(/"/g, '').trim();
+          const senderEmail = (fromMatch[2] || fromRaw || '').toLowerCase().trim();
+          const subject = String(headers.Subject || '(no subject)').slice(0, 300);
+          const date = headers.Date ? new Date(headers.Date).toISOString() : null;
+
+          // Try to link the sender to an existing CRM contact
+          let linkedContact = null;
+          if (senderEmail) {
+            const matches = contacts.filter((c) => String(c.email || '').toLowerCase() === senderEmail);
+            if (matches.length === 1) {
+              linkedContact = { id: matches[0].id, name: ((matches[0].firstName || '') + ' ' + (matches[0].lastName || '')).trim() };
+            } else if (matches.length > 1) {
+              // Multiple contacts with same email — pick the first (shouldn't happen if duplicate detection ran)
+              linkedContact = { id: matches[0].id, name: ((matches[0].firstName || '') + ' ' + (matches[0].lastName || '')).trim() };
+            }
+          }
+
+          if (linkedContact) linked++; else unlinked++;
+
+          messages.push({
+            id: msg.id,
+            threadId: msg.threadId,
+            senderName,
+            senderEmail,
+            subject,
+            snippet: String(msg.snippet || '').slice(0, 200),
+            date,
+            isUnread: (msg.labelIds || []).includes('UNREAD'),
+            hasAttachment: !!(msg.payload?.parts || []).some((p) => p.filename),
+            linkedContactId: linkedContact?.id || null,
+            linkedContactName: linkedContact?.name || null,
+          });
+        }
+      }
+
+      // Sort newest first
+      messages.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+      log.info('gmail.inbox.synced', { tenantId: user.tenantId, total: messages.length, linked, unlinked });
+      return { messages, total: messages.length, linked, unlinked, folder: label };
+    } catch (e) {
+      log.error('gmail.inbox.failed', { err: e.message });
+      reply.code(500).send({ error: 'Inbox sync failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  app.get('/crm/api/email/message/:id', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      const gmail = db.prepare('SELECT * FROM connections WHERE tenantId = ? AND provider = ?').get(user.tenantId, 'gmail');
+      if (!gmail) return reply.code(424).send({ error: 'Gmail not connected', provider: 'gmail', needsConnect: true });
+      const token = await freshToken(gmail);
+      if (!token) return reply.code(401).send({ error: 'Gmail token expired', provider: 'gmail', needsReconnect: true });
+
+      const id = String(req.params.id || '').trim();
+      if (!/^[a-zA-Z0-9_-]+$/.test(id)) return reply.code(400).send({ error: 'Invalid message id' });
+
+      // Fetch full message
+      const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`, { headers: { Authorization: 'Bearer ' + token } });
+      if (!r.ok) return reply.code(r.status === 404 ? 404 : 502).send({ error: `Gmail fetch failed (${r.status})` });
+      const msg = await r.json();
+
+      // Parse headers
+      const headers = {};
+      for (const h of (msg.payload?.headers || [])) headers[h.name] = h.value;
+      const fromRaw = headers.From || '';
+      const fromMatch = fromRaw.match(/^(.*?)\s*<([^>]+)>\s*$/) || [, fromRaw, ''];
+      const senderName = (fromMatch[1] || fromRaw || '').replace(/"/g, '').trim();
+      const senderEmail = (fromMatch[2] || fromRaw || '').toLowerCase().trim();
+
+      // Extract body parts (HTML preferred, fall back to plain)
+      let bodyHtml = '';
+      let bodyText = '';
+      function walkParts(part) {
+        if (!part) return;
+        if (part.mimeType === 'text/html' && part.body?.data) bodyHtml = bodyHtml || Buffer.from(part.body.data, 'base64url').toString('utf8');
+        if (part.mimeType === 'text/plain' && part.body?.data) bodyText = bodyText || Buffer.from(part.body.data, 'base64url').toString('utf8');
+        for (const p of (part.parts || [])) walkParts(p);
+      }
+      walkParts(msg.payload);
+
+      // Link to CRM contact
+      let linkedContactId = null;
+      if (senderEmail) {
+        const c = db.prepare('SELECT id, firstName, lastName FROM contacts WHERE tenantId = ? AND email = ?').get(user.tenantId, senderEmail);
+        if (c) linkedContactId = c.id;
+      }
+
+      return {
+        id: msg.id,
+        threadId: msg.threadId,
+        senderName,
+        senderEmail,
+        subject: String(headers.Subject || '(no subject)'),
+        date: headers.Date ? new Date(headers.Date).toISOString() : null,
+        bodyHtml: bodyHtml.slice(0, 50000),
+        bodyText: bodyText.slice(0, 20000),
+        isUnread: (msg.labelIds || []).includes('UNREAD'),
+        hasAttachment: !!(msg.payload?.parts || []).some((p) => p.filename),
+        linkedContactId,
+      };
+    } catch (e) {
+      log.error('gmail.message.failed', { err: e.message, id: req.params.id });
+      reply.code(500).send({ error: 'Message fetch failed: ' + (e.message || 'unknown error') });
+    }
+  });
   app.post('/crm/api/tool-apps', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only an owner can save the app keys' });
