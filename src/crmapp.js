@@ -4656,10 +4656,16 @@ function agentBrain(tenantId) {
     }).sort((a, b) => b.score - a.score);
     return { on: contacts.length + deals.length > 0, companies: db.prepare("SELECT COUNT(*) AS n FROM companies WHERE tenantId = ? AND (sample = 1 OR source = 'Sample')").get(tenantId).n, contacts: contacts.length, deals: deals.length, next: ranked.slice(0, 3) };
   }
+  const DEMO_COMPANIES = ['Zenith Foods Ltd','Lekki Tech Hub','Atlantic Logistics','Savannah Trading Co','Naija Builds Ltd','Dangote Industries','MTN Nigeria','Access Bank','BUA Foods','First Bank','Zenith Bank'];
+  const DEMO_EMAILS = ['ada@zenithfoods.ng','bola@lekkitech.ng','chidi@atlanticlog.ng','fatima@savannahtc.ng','emeka@naijabuilds.ng','grace@lekkitech.ng','tunde@zenithfoods.ng','zainab@savannahtc.ng','emeka@mtn.ng','ngozi@accessbank.ng','tunde@dangote.ng','amaka@firstbank.ng','yusuf@buafoods.ng','sade@zenithbank.ng','contact@zenithfoods.ng','hello@lekkitech.ng','info@atlanticlog.ng','sales@savannahtc.ng','projects@naijabuilds.ng','hello@zenithfoods.ng','hello@dangote.ng','hello@mtn.ng','hello@accessbank.ng','hello@buafoods.ng','hello@firstbank.ng','hello@zenithbank.ng'];
   function markSample(tenantId) {
-    db.prepare("UPDATE companies SET sample = 1 WHERE tenantId = ? AND source = 'Sample' AND COALESCE(sample, 0) = 0").run(tenantId);
-    db.prepare("UPDATE contacts SET sample = 1 WHERE tenantId = ? AND source = 'Sample' AND COALESCE(sample, 0) = 0").run(tenantId);
-    db.prepare("UPDATE deals SET sample = 1 WHERE tenantId = ? AND source = 'Sample' AND COALESCE(sample, 0) = 0").run(tenantId);
+    const names = DEMO_COMPANIES.flatMap((name) => [name, '[Sample] ' + name]);
+    db.prepare('UPDATE companies SET sample = 1 WHERE tenantId = ? AND name IN (' + names.map(() => '?').join(',') + ')').run(tenantId, ...names);
+    db.prepare('UPDATE companies SET sample = 1 WHERE tenantId = ? AND email IN (' + DEMO_EMAILS.map(() => '?').join(',') + ')').run(tenantId, ...DEMO_EMAILS);
+    db.prepare('UPDATE contacts SET sample = 1 WHERE tenantId = ? AND email IN (' + DEMO_EMAILS.map(() => '?').join(',') + ')').run(tenantId, ...DEMO_EMAILS);
+    db.prepare("UPDATE companies SET sample = 1 WHERE tenantId = ? AND (source = 'Sample' OR name LIKE '[Sample] %')").run(tenantId);
+    db.prepare("UPDATE contacts SET sample = 1 WHERE tenantId = ? AND (source = 'Sample' OR firstName LIKE '[Sample] %' OR companyId IN (SELECT id FROM companies WHERE tenantId = ? AND sample = 1))").run(tenantId, tenantId);
+    db.prepare("UPDATE deals SET sample = 1 WHERE tenantId = ? AND (source = 'Sample' OR name LIKE '[Sample] %' OR companyId IN (SELECT id FROM companies WHERE tenantId = ? AND sample = 1) OR contactId IN (SELECT id FROM contacts WHERE tenantId = ? AND sample = 1))").run(tenantId, tenantId, tenantId);
     const people = db.prepare('SELECT id FROM contacts WHERE tenantId = ? AND sample = 1').all(tenantId).map((row) => row.id);
     const deals = db.prepare('SELECT id FROM deals WHERE tenantId = ? AND sample = 1').all(tenantId).map((row) => row.id);
     for (const id of people.concat(deals)) db.prepare('UPDATE activities SET sample = 1 WHERE tenantId = ? AND relatedId = ? AND COALESCE(sample, 0) = 0').run(tenantId, id);
@@ -4677,9 +4683,10 @@ function agentBrain(tenantId) {
     const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
     if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only an owner or admin can remove sample data.' });
     const tenantId = user.tenantId;
-    const contacts = db.prepare("SELECT id FROM contacts WHERE tenantId = ? AND (sample = 1 OR source = 'Sample')").all(tenantId);
-    const deals = db.prepare("SELECT id FROM deals WHERE tenantId = ? AND (sample = 1 OR source = 'Sample')").all(tenantId);
-    const companies = db.prepare("SELECT id FROM companies WHERE tenantId = ? AND (sample = 1 OR source = 'Sample')").all(tenantId);
+    markSample(tenantId);
+    const contacts = db.prepare('SELECT id FROM contacts WHERE tenantId = ? AND sample = 1').all(tenantId);
+    const deals = db.prepare('SELECT id FROM deals WHERE tenantId = ? AND sample = 1').all(tenantId);
+    const companies = db.prepare('SELECT id FROM companies WHERE tenantId = ? AND sample = 1').all(tenantId);
     const ids = contacts.concat(deals).map((row) => row.id);
     for (const id of ids) {
       db.prepare('DELETE FROM activities WHERE tenantId = ? AND relatedId = ?').run(tenantId, id);
@@ -4687,9 +4694,10 @@ function agentBrain(tenantId) {
     }
     db.prepare('DELETE FROM activities WHERE tenantId = ? AND sample = 1').run(tenantId);
     db.prepare('DELETE FROM notes WHERE tenantId = ? AND sample = 1').run(tenantId);
-    db.prepare("DELETE FROM deals WHERE tenantId = ? AND (sample = 1 OR source = 'Sample')").run(tenantId);
-    db.prepare("DELETE FROM contacts WHERE tenantId = ? AND (sample = 1 OR source = 'Sample')").run(tenantId);
-    db.prepare("DELETE FROM companies WHERE tenantId = ? AND (sample = 1 OR source = 'Sample')").run(tenantId);
+    db.prepare('DELETE FROM deals WHERE tenantId = ? AND sample = 1').run(tenantId);
+    db.prepare('DELETE FROM contacts WHERE tenantId = ? AND sample = 1').run(tenantId);
+    db.prepare('DELETE FROM companies WHERE tenantId = ? AND sample = 1').run(tenantId);
+    db.prepare("DELETE FROM activities WHERE tenantId = ? AND subject IN ('Update pricing sheet for Q4','Send contract to Zenith Foods','Check in with Emeka on training','[Sample] Update pricing sheet for Q4')").run(tenantId);
     db.prepare("DELETE FROM crm_accounts WHERE workspaceId = ? AND email LIKE '%@sample.invalid'").run(tenantId);
     writeAudit(tenantId, user.sub, 'demo-clear', 'workspace', tenantId, 'Sample data removed');
     return { ok: true, removed: { companies: companies.length, contacts: contacts.length, deals: deals.length } };
