@@ -10104,6 +10104,34 @@ window.openSearchHit = function (kind, id) {
     return sum + Number(row.amount || 0) * chance;
   }, 0);
   const noStep = () => openDeals().filter((row) => !String(row.nextStep || '').trim());
+  const ageDays = (id) => { const stamp = latest(id); if (!stamp) return 45; const days = (Date.now() - new Date(stamp).getTime()) / 86400000; return Math.min(90, Math.max(0, days)); };
+  const chanceOf = (row) => { const stage = stageHit(row); const value = Number(row.probability || (stage && stage.probability) || 0); return Math.min(100, Math.max(0, value)) / 100; };
+  const dealsOf = (id) => openDeals().filter((row) => row.contactId === id);
+  function stakeOf(deals, days, cap) {
+    const silence = Math.min(1, days / cap);
+    return deals.reduce((sum, deal) => sum + Number(deal.amount || 0) * chanceOf(deal) * silence, 0);
+  }
+  function ranked() {
+    const cr = churn().map((row) => { const days = ageDays(row.id); const stake = stakeOf(dealsOf(row.id), days, 30); return { row, stake, why: Math.round(days) + ' days quiet' + (stake ? ' · ' + money(stake) + ' weighted' : ' · no chance on the deal, so the amount is not counted') }; }).sort((a, b) => b.stake - a.stake || ageDays(b.row.id) - ageDays(a.row.id));
+    const fu = unanswered().map((row) => { const days = ageDays(row.id); const stake = stakeOf(dealsOf(row.id), days, 7); return { row, stake, why: Math.round(days) + ' days since the last email or WhatsApp' + (stake ? ' · ' + money(stake) + ' weighted' : '') }; }).sort((a, b) => b.stake - a.stake);
+    const soon = noStep().filter((row) => { const close = String(row.closeDate || '').slice(0, 10); const limit = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10); return close && close <= limit; });
+    const saStake = soon.reduce((sum, row) => sum + Number(row.amount || 0) * chanceOf(row), 0);
+    const missing = openDeals().filter((row) => !chanceOf(row));
+    const won = (bag.deals || []).filter((row) => { const stage = stageHit(row); return row.stage === 'CLOSED_WON' || (stage && stage.code === 'CLOSED_WON'); });
+    const avgWon = won.length ? won.reduce((sum, row) => sum + Number(row.amount || 0), 0) / won.length : 0;
+    const found = prospects();
+    const fresh = (bag.leads || []).filter((row) => (row.status === 'NEW' || row.status === 'WORKING') && quiet(row.id, 3));
+    const pack = [
+      { id: 'cr', stake: cr.reduce((sum, row) => sum + row.stake, 0), count: cr.length, why: cr.length ? money(cr.reduce((sum, row) => sum + row.stake, 0)) + ' is quiet on an open deal' : 'Nobody on an open deal has gone quiet', rows: cr },
+      { id: 'fu', stake: fu.reduce((sum, row) => sum + row.stake, 0), count: fu.length, why: fu.length ? fu.length + ' unanswered, ' + money(fu.reduce((sum, row) => sum + row.stake, 0)) + ' weighted' : 'No email or WhatsApp is waiting', rows: fu },
+      { id: 'sa', stake: saStake, count: soon.length, why: soon.length ? soon.length + ' deals have no next step and close within 14 days' : 'No close date is inside 14 days without a next step', rows: soon.map((row) => ({ row, why: (row.closeDate || '').slice(0, 10) })) },
+      { id: 'ro', stake: missing.reduce((sum, row) => sum + Number(row.amount || 0), 0) * 0.01, count: missing.length, why: missing.length ? missing.length + ' open deals have no chance, so they are left out of the weighted total' : 'Every open deal has a chance', rows: missing.map((row) => ({ row, why: 'No chance on this deal' })) },
+      { id: 'ls', stake: fresh.length * 100, count: fresh.length, why: fresh.length + ' new leads have had no activity for 3 days', rows: fresh.map((row) => ({ row, why: 'Not touched' })) },
+      { id: 'pr', stake: found.length * 100, count: found.length, why: found.length ? found.length + ' leads look like a won industry' + (avgWon ? '. A typical won deal was ' + money(avgWon) + ', which is not added to the rank.' : '') : 'No lead matches a won industry', rows: found.map((row) => ({ row, why: 'Same industry as a won deal' })) },
+    ];
+    pack.sort((a, b) => b.stake - a.stake || b.count - a.count);
+    return pack;
+  }
   function ruleRows(rule) {
     let rows = [];
     if (rule.trigger === 'lead.new') rows = (bag.leads || []).filter((row) => row.status === 'NEW' || row.status === 'WORKING');
@@ -10178,26 +10206,21 @@ window.openSearchHit = function (kind, id) {
     refresh();
   };
   drawAgent = function () {
-    const agents = [
-      ['cr', 'CR', '#db2777', 'Churn Risk', 'Contacts on an open deal with no activity for 30 days.', churn().length + ' quiet'],
-      ['ls', 'LS', '#d97706', 'Lead Scorer', 'Scores leads from fit, intent, and how similar leads turned out.', ((bag.leads || []).length) + ' leads'],
-      ['fu', 'FU', '#0f766e', 'Follow-up', 'A task when the last touch was an email or WhatsApp more than 2 days ago.', unanswered().length + ' waiting'],
-      ['pr', 'PR', '#2563eb', 'Prospect Finder', 'Leads in the industry of companies you have already won.', prospects().length + ' matches'],
-      ['sa', 'SA', '#7c3aed', 'Sales Assistant', 'Drafts only when you ask. It does not send.', noStep().length + ' deals with no next step'],
-      ['ro', 'RO', '#15803d', 'Revenue Oracle', 'Open amount times the chance already on the deal or the stage.', money(weighted()) + ' weighted'],
-    ];
-    const cards = agents.map(([id, mark, color, name, about, metric]) => `<article class="ah-card"><div class="ah-top"><span class="ah-mark" style="background:${color}">${mark}</span><div><b>${name}</b><div class="ah-status ${on(id) ? 'on' : ''}"><i></i>${on(id) ? 'Published' : 'Draft'}</div></div></div><p class="cx-muted">${about}</p><div class="ah-metric">${esc(metric)}</div><div><button type="button" class="ah-btn ${on(id) ? '' : 'go'}" onclick="${on(id) ? `ahMode('view','${id}')` : `ahRun('${id}')`}">${on(id) ? 'View' : 'Activate'}</button></div></article>`).join('');
+    const order = ranked();
+    const meta = { cr: ['CR', '#db2777', 'Churn Risk', 'Quiet days times the open amount times the chance already on the deal.'], ls: ['LS', '#d97706', 'Lead Scorer', 'New leads with no activity for 3 days. Each one is worth a flat 1,000 points so they can be compared, not naira.'], fu: ['FU', '#0f766e', 'Follow-up', 'Days since the last email or WhatsApp, times the open amount and the chance.'], pr: ['PR', '#2563eb', 'Prospect Finder', 'Matches times the average amount of deals you have won. Not a forecast.'], sa: ['SA', '#7c3aed', 'Sales Assistant', 'Deals with no next step whose close date is inside 14 days.'], ro: ['RO', '#15803d', 'Revenue Oracle', 'Open deals with no chance. Their amount is not in the weighted total.'] };
+    const top = order[0];
+    const cards = order.map((item, index) => { const [mark, color, name, about] = meta[item.id]; return `<article class="ah-card"><div class="ah-top"><span class="ah-mark" style="background:${color}">${mark}</span><div><b>${name}</b><div class="ah-status ${on(item.id) ? 'on' : ''}"><i></i>${on(item.id) ? 'Published' : 'Draft'} · ${index + 1}</div></div></div><p class="cx-muted">${about}</p><div class="ah-metric">${esc(item.why)}</div><div><button type="button" class="ah-btn ${on(item.id) ? '' : 'go'}" onclick="${on(item.id) ? `ahMode('view','${item.id}')` : `ahRun('${item.id}')`}">${on(item.id) ? 'View' : 'Activate'}</button></div></article>`; }).join('');
     const custom = (bag.objects || []).filter((row) => row.kind === 'agent').map((row) => `<article class="ah-card"><div class="ah-top"><span class="ah-mark" style="background:#334155">AG</span><div><b>${esc(row.name)}</b><div class="ah-status on"><i></i>${esc(row.status || 'PUBLISHED')}</div></div></div><p class="cx-muted">Your rule. Test counted records. Run writes a task only if you chose that.</p><div><button type="button" class="ah-btn" onclick="ahCustom('${row.id}')">Run</button></div></article>`).join('');
     let extra = '';
     if (hubMode === 'build') {
       extra = `<div class="ah-form"><label>Name<input id="agName" placeholder="Quiet deals"></label><label>When<select id="agWhen"><option value="deal.quiet">A deal has been quiet 14 days</option><option value="contact.quiet">A contact has been quiet 30 days</option><option value="lead.new">A lead is still new</option><option value="deal.open">A deal is open</option></select></label><label>And<select id="agIf"><option value="any">No extra condition</option><option value="email">They can be reached</option><option value="amount">The deal has an amount</option><option value="quiet14">No activity for 14 days</option></select></label><label>Do<select id="agDo"><option value="task">Open a task</option><option value="count">Only count them</option></select></label><div style="grid-column:1/-1"><button type="button" class="ah-btn" onclick="ahTest()">Test</button> <button type="button" class="ah-btn go" onclick="ahSave()">Publish</button> <span id="agTest" class="cx-muted"></span></div></div>`;
     } else if (hubMode === 'view') {
-      const lists = { cr: churn(), fu: unanswered(), pr: prospects(), sa: noStep(), ro: openDeals(), ls: bag.leads || [] };
-      const rows = (lists[focusId] || []).slice(0, 8).map((row) => `<div class="ah-metric">${esc(row.name || person(row) || 'Record')}</div>`).join('') || '<p class="cx-muted">None right now.</p>';
+      const found = order.find((item) => item.id === focusId);
+      const rows = ((found && found.rows) || []).slice(0, 8).map((item) => `<div class="ah-metric">${esc(item.row.name || person(item.row) || 'Record')}<div class="cx-muted">${esc(item.why || '')}</div></div>`).join('') || '<p class="cx-muted">None right now.</p>';
       extra = `<div class="ah-card" style="margin-top:12px"><b>What this agent sees</b>${rows}<p class="cx-muted">These are records already in the workspace.</p></div>`;
       if (focusId === 'sa') extra += `<div class="ah-card" style="margin-top:12px"><b>Ask</b><textarea id="ask" style="height:70px" placeholder="Draft a follow-up for the first open deal. Do not invent a price."></textarea><p><button type="button" class="ah-btn go" onclick="askAgent()">Ask</button></p><p id="answer" class="cx-muted"></p></div>`;
     }
-    document.getElementById('view').innerHTML = `<div class="ah"><div class="cal-toolbar"><h1>Agent Hub</h1><button type="button" class="ah-btn go" onclick="ahMode('build')">New agent</button></div><p class="cx-muted">A number is a count of your records. Activate writes a task only for churn risk and follow-up. The others show what they found.</p><div class="ah-grid">${cards}${custom}</div>${extra}</div>`;
+    document.getElementById('view').innerHTML = `<div class="ah"><div class="cal-toolbar"><h1>Agent Hub</h1><button type="button" class="ah-btn go" onclick="ahMode('build')">New agent</button></div><p class="cx-muted">Start with ${esc(top.why)}. The order is the amount at stake. A deal with no chance adds nothing, so it is not treated as a likely win. Activate still writes a task only for churn risk and follow-up.</p><div class="ah-grid">${cards}${custom}</div>${extra}</div>`;
     if (!localStorage.getItem('crm-agent-welcome') && !document.getElementById('ahWelcome')) {
       const shade = document.createElement('div');
       shade.id = 'ahWelcome';
