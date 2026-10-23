@@ -8619,3 +8619,260 @@ window.openSearchHit = function (kind, id) {
   if (kind === 'contact' || kind === 'company' || kind === 'deal' || kind === 'lead') return openRecord(kind, id);
   go('home');
 };
+
+(function () {
+  const css = document.createElement('style');
+  css.textContent = `
+    #view .cx.dl .dl-board { display: flex; gap: 12px; overflow-x: auto; align-items: flex-start; padding: 4px 2px 16px; }
+    #view .cx.dl .dl-col { flex: 0 0 270px; background: #f8fafc; border: 1px solid #e5e8eb; border-radius: 12px; padding: 10px; min-height: 180px; }
+    #view .cx.dl .dl-col.drop-target { outline: 2px solid #0d9488; }
+    #view .cx.dl .dl-col h3 { margin: 0; font-size: 13px; font-weight: 700; color: #64748b; letter-spacing: .02em; }
+    #view .cx.dl .dl-count { display: inline-flex; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #0d9488; color: #fff; font-size: 11px; align-items: center; justify-content: center; margin-left: 6px; }
+    #view .cx.dl .dl-sum { font-weight: 700; color: #0f172a; margin: 4px 0 8px; }
+    #view .cx.dl .dl-card { background: #1a2332; color: #fff; border: 1px solid rgba(255,255,255,.08); border-left: 3px solid var(--stage, #0d9488); border-radius: 10px; padding: 14px 16px; margin-bottom: 8px; cursor: pointer; position: relative; }
+    #view .cx.dl .dl-card:hover { transform: translateY(-2px); }
+    #view .cx.dl .dl-card.dragging { opacity: .45; }
+    #view .cx.dl .dl-card.won { background: #123028; }
+    #view .cx.dl .dl-card.lost { opacity: .72; background: #2a1717; }
+    #view .cx.dl .dl-card b { display: block; font-size: 14px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #view .cx.dl .dl-card .co { color: #5eead4; background: transparent !important; border: 0 !important; padding: 0 !important; height: auto !important; font-size: 13px !important; }
+    #view .cx.dl .dl-card .who, #view .cx.dl .dl-card .when { color: #94a3b8; font-size: 13px; }
+    #view .cx.dl .dl-card .when.late { color: #fca5a5; }
+    #view .cx.dl .dl-card .amt { color: #fbbf24; font-weight: 700; font-size: 15px; margin-top: 6px; }
+    #view .cx.dl .dl-card .foot { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: #94a3b8; font-size: 12px; }
+    #view .cx.dl .dl-card .pct { margin-left: auto; background: rgba(255,255,255,.08); border-radius: 999px; padding: 2px 6px; }
+    #view .cx.dl .dl-menu { position: absolute; right: 8px; top: 8px; }
+    #view .cx.dl .dl-menu .cx-pop { right: 0; top: 28px; }
+    #view .cx.dl .dl-menu .cx-pop button.cx-tool { background: #fff !important; color: #0f172a !important; border: 0 !important; border-radius: 0 !important; width: 100%; text-align: left; height: auto !important; }
+    #view .cx.dl button.dl-add { background: transparent !important; color: #0d9488 !important; border: 0 !important; padding: 6px 0 !important; height: auto !important; font-size: 13px !important; }
+    #view .cx.dl .dl-steps { display: flex; gap: 4px; overflow: auto; margin: 8px 0 14px; }
+    #view .cx.dl button.dl-step { flex: 1; min-width: 88px; background: #f1f5f9 !important; color: #64748b !important; border: 0 !important; border-radius: 8px !important; height: 36px !important; font-size: 12px !important; }
+    #view .cx.dl button.dl-step.done { background: #ccfbf1 !important; color: #0f766e !important; }
+    #view .cx.dl button.dl-step.on { background: #0d9488 !important; color: #fff !important; }
+    #view .cx.dl .dl-bars { display: grid; gap: 10px; margin: 12px 0; }
+    #view .cx.dl .dl-bar { display: grid; grid-template-columns: 110px 1fr 90px; gap: 8px; align-items: center; font-size: 13px; }
+    #view .cx.dl .dl-track { display: flex; height: 14px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+    #view .cx.dl .dl-track span { display: block; height: 100%; }
+    #view .cx.dl .dl-pie { width: 140px; height: 140px; border-radius: 50%; margin: 8px 0; }
+    #view .cx.dl .dl-quote { background: #fff; color: #0f172a; border: 1px solid #e5e8eb; border-radius: 12px; padding: 20px; margin-top: 12px; }
+  `;
+  document.head.appendChild(css);
+
+  let dlMode = 'board';
+  let dlQuery = '';
+  let dlOwner = '';
+  let dlCloseFrom = '';
+  let dlCloseTo = '';
+  let dlMin = '';
+  let dlMax = '';
+  let dlStage = '';
+  let dlMenu = '';
+
+  function dealStages() {
+    const rows = (typeof stageList === 'function' ? stageList() : STAGES).slice();
+    if (!rows.some((row) => row[0] === 'CLOSED_LOST')) rows.push(['CLOSED_LOST', 'Closed lost', '#ef4444', 0]);
+    return rows;
+  }
+  function chanceOf(row, stageChance) {
+    const n = Number(row.probability);
+    return Number.isFinite(n) ? n : Number(stageChance || 0);
+  }
+  function lastAct(id) {
+    return (bag.activities || []).filter((row) => row.relatedId === id).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0] || null;
+  }
+  function dealHay(row) {
+    return [row.name, row.stage, row.nextStep, row.source, companyName(row.companyId), contactName(row.contactId), ownerName(row.ownerId)].join(' ');
+  }
+
+  window.setDl = function (key, value) {
+    if (key === 'mode') dlMode = value;
+    if (key === 'stage') dlStage = value;
+    if (key === 'menu') dlMenu = dlMenu === value ? '' : value;
+    if (key === 'query') {
+      dlQuery = value;
+      const box = document.querySelector('#view .cx-search');
+      window.__dlCaret = box ? box.selectionStart : String(value).length;
+    }
+    drawDealBoard();
+    if (key === 'query') {
+      const box = document.querySelector('#view .cx-search');
+      if (box) { box.focus(); const n = Math.min(window.__dlCaret || 0, box.value.length); box.setSelectionRange(n, n); }
+    }
+  };
+  window.dropDeal = async function (id, stage) {
+    const chance = (dealStages().find((row) => row[0] === stage) || [,,,0])[3];
+    const body = { stage, probability: stage === 'CLOSED_LOST' ? 0 : chance };
+    if (stage === 'CLOSED_LOST') {
+      const why = window.prompt('Why was it lost?');
+      if (!why) return;
+      body.lostReason = why;
+    }
+    const result = await api('/crm/api/deals/' + id, { method: 'PATCH', body: JSON.stringify(body) });
+    if (!result || result.error) return toast((result && result.error) || 'Could not move it');
+    toast('Stage updated');
+    refresh();
+  };
+  window.dropDealFrom = function (event, stage) {
+    event.preventDefault();
+    event.currentTarget.classList.remove('drop-target');
+    const id = event.dataTransfer.getData('text/plain');
+    if (id) dropDeal(id, stage);
+  };
+  window.quoteThisDeal = async function () {
+    const rec = window.__dealRec;
+    if (!rec) return;
+    const amount = Number(rec.amount || 0);
+    if (!amount) return toast('Put an amount on the deal before a quote');
+    const result = await api('/crm/api/quotes', { method: 'POST', body: JSON.stringify({ companyId: rec.companyId || '', contactId: rec.contactId || '', dealId: rec.id, lines: [{ description: rec.name, quantity: 1, unitPrice: amount }] }) });
+    if (!result || result.error) return toast((result && result.error) || 'Could not create the quote');
+    toast('Quote ' + (result.number || '') + ' created');
+    const sheet = document.getElementById('dlQuote');
+    if (!sheet) return;
+    const tax = Number(result.tax || 0);
+    const total = Number(result.total || 0);
+    sheet.hidden = false;
+    sheet.innerHTML = `<h2 style="margin:0 0 8px">${esc(result.number || 'Quote')}</h2><p class="cx-muted">${esc(companyName(rec.companyId) || 'No company')} · ${esc(rec.name)}</p><div class="cr-prop"><b>${esc(rec.name)}</b><span>${money(amount)}</span></div><div class="cr-prop"><span>VAT 7.5%</span><span>${money(tax)}</span></div><div class="cr-prop"><b>Total</b><b>${money(total)}</b></div><p class="cx-muted">Use the browser print dialog to save this as a PDF. Afri CRM does not email the file.</p><button type="button" class="cx-go" onclick="window.print()">Print / save PDF</button>`;
+  };
+
+  window.drawDealBoard = function () {
+    const showForm = openForm === 'deal';
+    const prefill = dealPrefill;
+    if (showForm) openForm = '';
+    dealPrefill = '';
+    const q = dlQuery.trim();
+    const headerQ = (document.getElementById('q') || {}).value || '';
+    let rows = (bag.deals || []).filter((row) => smartMatch(headerQ, dealHay(row)) && smartMatch(q, dealHay(row)));
+    if (dlOwner) rows = rows.filter((row) => row.ownerId === dlOwner);
+    if (dlStage) rows = rows.filter((row) => stageOf(row) === dlStage);
+    if (dlMin !== '') rows = rows.filter((row) => Number(row.amount || 0) >= Number(dlMin));
+    if (dlMax !== '') rows = rows.filter((row) => Number(row.amount || 0) <= Number(dlMax));
+    if (dlCloseFrom) rows = rows.filter((row) => row.closeDate && String(row.closeDate).slice(0, 10) >= dlCloseFrom);
+    if (dlCloseTo) rows = rows.filter((row) => row.closeDate && String(row.closeDate).slice(0, 10) <= dlCloseTo);
+    const stages = dealStages();
+    const today = new Date().toISOString().slice(0, 10);
+    const owners = (bag.people || []).map((row) => `<option value="${row.id}" ${dlOwner === row.id ? 'selected' : ''}>${esc(row.fullName || row.email)}</option>`).join('');
+    let body = '';
+    if (dlMode === 'list') {
+      const lines = rows.map((row) => {
+        const stage = stages.find((item) => item[0] === stageOf(row)) || [stageOf(row), stageOf(row), '#64748b', 0];
+        const act = lastAct(row.id);
+        const close = row.closeDate ? String(row.closeDate).slice(0, 10) : '';
+        return `<tr class="cx-row"><td><b class="cx-name" style="cursor:pointer" onclick="openRecord('deal','${row.id}')">${esc(row.name)}</b></td><td>${row.contactId ? `<button type="button" class="cx-link" onclick="openRecord('contact','${row.contactId}')">${esc(contactName(row.contactId))}</button>` : '—'}</td><td>${row.companyId ? `<button type="button" class="cx-link" onclick="openRecord('company','${row.companyId}')">${esc(companyName(row.companyId))}</button>` : '—'}</td><td>${esc(stage[1])}</td><td>${money(row.amount)}</td><td class="${close && close < today ? 'cx-muted' : ''}" style="${close && close < today ? 'color:#b91c1c' : ''}">${esc(close || '—')}</td><td>${chanceOf(row, stage[3])}%</td><td>${esc(ownerName(row.ownerId) || 'Unassigned')}</td><td>${esc(act ? (act.type || 'Note') + ' · ' + (relativeTime(act.createdAt) || '') : 'No activity')}</td></tr>`;
+      }).join('');
+      body = `<table class="cx-table"><tr><th>Deal</th><th>Contact</th><th>Company</th><th>Stage</th><th>Value</th><th>Close date</th><th>Probability</th><th>Owner</th><th>Last activity</th></tr>${lines || '<tr><td colspan="9"><div class="cx-muted" style="padding:16px">No deal in this view.</div></td></tr>'}</table>`;
+    } else if (dlMode === 'forecast') {
+      const won = rows.filter((row) => stageOf(row) === 'CLOSED_WON');
+      const open = rows.filter((row) => !String(stageOf(row)).startsWith('CLOSED'));
+      const risk = open.filter((row) => (row.closeDate && String(row.closeDate).slice(0, 10) < today) || (typeof stalled === 'function' && stalled(row)));
+      const riskIds = new Set(risk.map((row) => row.id));
+      const expectedRows = open.filter((row) => !riskIds.has(row.id));
+      const sum = (list, weighted) => list.reduce((total, row) => total + Number(row.amount || 0) * (weighted ? chanceOf(row, 0) / 100 : 1), 0);
+      const wonN = sum(won, false);
+      const expN = sum(expectedRows, true);
+      const riskN = sum(risk, false);
+      const pieTotal = wonN + expN + riskN || 1;
+      const months = {};
+      rows.forEach((row) => {
+        const key = String(row.closeDate || '').slice(0, 7) || 'No close date';
+        months[key] = months[key] || [];
+        months[key].push(row);
+      });
+      const keys = Object.keys(months).sort();
+      const max = Math.max(1, ...keys.map((key) => months[key].reduce((total, row) => total + Number(row.amount || 0), 0)));
+      const bars = keys.map((key) => {
+        const list = months[key];
+        const w = list.filter((row) => stageOf(row) === 'CLOSED_WON').reduce((total, row) => total + Number(row.amount || 0), 0);
+        const e = list.filter((row) => !String(stageOf(row)).startsWith('CLOSED') && !riskIds.has(row.id)).reduce((total, row) => total + Number(row.amount || 0) * chanceOf(row, 0) / 100, 0);
+        const p = list.filter((row) => !String(stageOf(row)).startsWith('CLOSED')).reduce((total, row) => total + Number(row.amount || 0), 0);
+        return `<div class="dl-bar"><b>${esc(key)}</b><div class="dl-track"><span style="width:${(w / max) * 100}%;background:#22c55e"></span><span style="width:${(e / max) * 100}%;background:#0d9488"></span><span style="width:${(Math.max(p - e, 0) / max) * 100}%;background:#f59e0b"></span></div><span>${money(p || w)}</span></div>`;
+      }).join('') || '<div class="cx-muted">No deal has a close month yet.</div>';
+      const table = keys.map((key) => months[key].map((row) => `<tr><td>${esc(key)}</td><td>${esc(row.name)}</td><td>${money(row.amount)}</td><td>${esc(stageOf(row))}</td></tr>`).join('')).join('');
+      body = `<div class="cx-panel" style="display:flex;gap:24px;align-items:center;flex-wrap:wrap"><div class="dl-pie" style="background:conic-gradient(#22c55e 0 ${(wonN / pieTotal) * 100}%, #0d9488 ${(wonN / pieTotal) * 100}% ${((wonN + expN) / pieTotal) * 100}%, #f59e0b ${((wonN + expN) / pieTotal) * 100}% 100%)"></div><div><div><b style="color:#22c55e">Won</b> ${money(wonN)}</div><div><b style="color:#0d9488">Expected</b> ${money(expN)} · open deals that are not late, times their chance</div><div><b style="color:#f59e0b">At risk</b> ${money(riskN)} · overdue or quiet for 14 days</div></div></div><div class="dl-bars">${bars}</div><p class="cx-muted">Each month: green is won, teal is the expected part of open deals, gold is the rest of the pipeline.</p><table class="cx-table"><tr><th>Month</th><th>Deal</th><th>Value</th><th>Stage</th></tr>${table || '<tr><td colspan="4"><div class="cx-muted" style="padding:12px">No deal in this view.</div></td></tr>'}</table>`;
+    } else {
+      body = `<div class="dl-board">${stages.map(([code, label, color, chance]) => {
+        const list = rows.filter((row) => stageOf(row) === code);
+        const total = list.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+        const cards = list.map((row) => {
+          const close = row.closeDate ? String(row.closeDate).slice(0, 10) : '';
+          const act = lastAct(row.id);
+          const owner = ownerName(row.ownerId);
+          const cls = code === 'CLOSED_WON' ? 'won' : code === 'CLOSED_LOST' ? 'lost' : '';
+          return `<article class="dl-card ${cls}" style="--stage:${color}" draggable="true" ondragstart="handleDealDragStart(event,'${row.id}')" ondragend="handleDealDragEnd(event)" onclick="openRecord('deal','${row.id}')"><div class="dl-menu"><button type="button" class="cx-tool" onclick="event.stopPropagation();setDl('menu','${row.id}')">⋮</button>${dlMenu === row.id ? `<div class="cx-pop"><button type="button" class="cx-tool" onclick="event.stopPropagation();openRecord('deal','${row.id}')">Open</button><button type="button" class="cx-tool" onclick="event.stopPropagation();dropDeal('${row.id}','CLOSED_WON')">Mark won</button><button type="button" class="cx-tool" onclick="event.stopPropagation();dropDeal('${row.id}','CLOSED_LOST')">Mark lost</button></div>` : ''}</div><b>${esc(row.name)}</b>${row.companyId ? `<div><button type="button" class="co" onclick="event.stopPropagation();openRecord('company','${row.companyId}')">${esc(companyName(row.companyId))}</button></div>` : '<div class="who">No company</div>'}<div class="who">${esc(contactName(row.contactId) || 'No contact')}</div><div class="amt">${money(row.amount)}</div><div class="when ${close && close < today ? 'late' : ''}">${close ? 'Closes ' + esc(close) : 'No close date'}</div><div class="foot"><span class="cx-av" style="width:24px;height:24px;font-size:10px;background:${avatarGradient(owner || '?')}">${esc(initials(owner || '?'))}</span><span>${esc(act ? act.type : 'No activity')}</span><span class="pct">${chanceOf(row, chance)}%</span></div></article>`;
+        }).join('') || '<div class="cx-muted">No deal in this stage.</div>';
+        return `<section class="dl-col" ondragover="handleColDragOver(event)" ondragleave="handleColDragLeave(event)" ondrop="dropDealFrom(event,'${code}')"><h3>${esc(label)} <span class="dl-count">${list.length}</span></h3><div class="dl-sum">${money(total)}</div>${cards}<button type="button" class="dl-add" onclick="dealPrefill='${code}';openForm='deal';drawDealBoard()">+ Add deal</button></section>`;
+      }).join('')}</div>`;
+    }
+    const form = `<div class="drawer dealbox" id="dealForm" ${showForm ? '' : 'hidden'} onclick="if(event.target.id==='dealForm')this.hidden=true"><aside><div class="sheethead"><h2>Create deal</h2><button type="button" class="ghost" onclick="document.getElementById('dealForm').hidden=true">Close</button></div><div class="dealform"><label>Deal name<input id="dName"></label><label>Pipeline<select id="dPipe"><option>Sales pipeline</option></select></label><label>Deal stage<select id="dStage">${stages.map(([id, label]) => `<option value="${id}" ${id === prefill ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select></label><label>Amount<input id="dAmount" inputmode="decimal" placeholder="0"></label><label>Close date<input id="dClose" type="date"></label><label>Contact<select id="dContact"><option value="">None</option>${(bag.contacts||[]).map((row)=>`<option value="${row.id}">${esc(person(row))}</option>`).join('')}</select></label><label>Company<select id="dCompany"><option value="">None</option>${(bag.companies||[]).map((row)=>`<option value="${row.id}">${esc(row.name)}</option>`).join('')}</select></label><label>Owner<select id="dOwner"><option value="">Me</option>${ownerOptions()}</select></label><label>Next step<input id="dNext"></label></div><div class="dealactions"><button type="button" onclick="saveDeal(false)">Create</button><button type="button" class="ghost" onclick="saveDeal(true)">Create and add another</button></div></aside></div>`;
+    document.getElementById('view').innerHTML = `<div class="cx dl">
+      <div class="cx-head"><div><h1>Deals</h1><div class="cx-muted">Sales pipeline · stage names come from this workspace</div></div><div><button type="button" class="cx-tool" onclick="go('import')">Import</button> <button type="button" class="cx-go" onclick="document.getElementById('dealForm').hidden=false">+ Create deal</button></div></div>
+      <div class="cx-bar"><div class="cx-left"><input class="cx-search" placeholder="Search deals..." value="${esc(q)}" oninput="setDl('query', this.value)"><select onchange="dlOwner=this.value;drawDealBoard()"><option value="">Owner</option>${owners}</select><input type="date" value="${dlCloseFrom}" title="Close from" onchange="dlCloseFrom=this.value;drawDealBoard()"><input type="date" value="${dlCloseTo}" title="Close to" onchange="dlCloseTo=this.value;drawDealBoard()"><input type="number" placeholder="Min" value="${esc(dlMin)}" style="width:90px" onchange="dlMin=this.value;drawDealBoard()"><input type="number" placeholder="Max" value="${esc(dlMax)}" style="width:90px" onchange="dlMax=this.value;drawDealBoard()"><select onchange="setDl('stage', this.value)"><option value="">Stage</option>${stages.map(([id, label]) => `<option value="${id}" ${dlStage===id?'selected':''}>${esc(label)}</option>`).join('')}</select></div><div class="cx-right"><button type="button" class="cx-tool ${dlMode==='board'?'on':''}" onclick="setDl('mode','board')">Board</button><button type="button" class="cx-tool ${dlMode==='list'?'on':''}" onclick="setDl('mode','list')">List</button><button type="button" class="cx-tool ${dlMode==='forecast'?'on':''}" onclick="setDl('mode','forecast')">Forecast</button></div></div>
+      ${body}<div class="cx-muted" style="margin-top:8px">${rows.length} deal${rows.length===1?'':'s'}</div>${form}</div>`;
+  };
+
+  drawDeals = function () { drawDealBoard(); };
+
+  let dlFilter = 'all';
+  window.setDlFilter = function (value) { dlFilter = value; drawRecord(); };
+  window.logOnDeal = async function (type) {
+    if (!focus) return;
+    const subject = window.prompt(type === 'note' ? 'Note' : 'Subject');
+    if (!subject) return;
+    if (type === 'note') {
+      const result = await api('/crm/api/notes', { method: 'POST', body: JSON.stringify({ body: subject, relatedType: 'deal', relatedId: focus.id }) });
+      if (!result || result.error) return toast((result && result.error) || 'Could not save');
+      toast('Note saved'); return drawRecord();
+    }
+    const result = await api('/crm/api/activities', { method: 'POST', body: JSON.stringify({ type: type.toUpperCase(), subject, status: 'DONE', relatedType: 'deal', relatedId: focus.id }) });
+    if (!result || result.error) return toast((result && result.error) || 'Could not save');
+    toast('Saved'); refresh();
+  };
+
+  const priorDealRecord = drawRecord;
+  drawRecord = async function () {
+    if (!focus || focus.type !== 'deal') return priorDealRecord();
+    const data = await api('/crm/api/record/deal/' + focus.id);
+    if (!data || data.error) { toast((data && data.error) || 'Could not open it'); return go('deals'); }
+    const rec = data.record;
+    window.__dealRec = rec;
+    const stages = dealStages();
+    const here = stages.findIndex((row) => row[0] === stageOf(rec));
+    const steps = stages.map((row, index) => `<button type="button" class="dl-step ${index < here ? 'done' : ''} ${index === here ? 'on' : ''}" onclick="dropDeal('${rec.id}','${row[0]}')">${esc(row[1])}</button>`).join('');
+    const bits = []
+      .concat((data.notes || []).map((row) => ({ kind: 'note', at: row.createdAt, title: 'Note', detail: row.body })))
+      .concat((data.activities || []).map((row) => ({ kind: String(row.type || 'task').toLowerCase(), at: row.createdAt || row.dueAt, title: row.subject || row.type, detail: row.notes || '' })))
+      .concat((data.history || []).map((row) => ({ kind: 'task', at: row.createdAt, title: row.action, detail: row.detail || '' })));
+    bits.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    const shown = bits.filter((row) => dlFilter === 'all' || row.kind === dlFilter);
+    const filters = ['all','note','call','email','meeting','task'].map((id) => `<button type="button" class="cx-tool ${dlFilter===id?'on':''}" onclick="setDlFilter('${id}')">${id === 'all' ? 'All activity' : id[0].toUpperCase()+id.slice(1)}</button>`).join('');
+    const entries = shown.map((row) => `<article class="cr-entry ${row.kind}"><b>${esc(row.title || row.kind)}</b><div class="cx-muted">${esc(row.detail || '')}</div><div class="cx-muted">${esc(relativeTime(row.at) || '')}</div></article>`).join('') || '<div class="cx-muted">Nothing on this deal yet.</div>';
+    const quotes = (bag.quotes || []).filter((row) => row.dealId === rec.id);
+    const quoteList = quotes.map((row) => `<div class="cr-prop"><b>${esc(row.number || 'Quote')}</b><span>${esc(row.status || '')} · ${money(row.total)}</span></div>`).join('') || '<div class="cx-muted">No quote on this deal.</div>';
+    const files = (bag.objects || []).filter((row) => row.kind === 'document' && (row.dealId === rec.id));
+    const fileList = files.map((row) => `<div class="cr-prop"><b>${esc(row.name)}</b></div>`).join('') || '<div class="cx-muted">No file is stored on this deal.</div>';
+    document.getElementById('view').innerHTML = `<div class="cx dl"><div class="cx-head"><div><div class="cx-muted">Deals</div><h1 style="margin:0">${esc(rec.name)}</h1><div class="cx-muted">${money(rec.amount)} · ${chanceOf(rec, 0)}%${rec.closeDate ? ' · closes ' + esc(String(rec.closeDate).slice(0,10)) : ''}</div></div><button type="button" class="cx-go" onclick="saveProfile()">Save</button></div>
+      <div class="dl-steps">${steps}</div>
+      <div class="cr">
+        <aside class="cr-side"><h2 style="font-size:13px">Properties</h2>
+          ${fieldBox('name','Name', rec.name)}${fieldBox('amount','Amount', rec.amount)}${fieldBox('stage','Stage', rec.stage)}${fieldBox('closeDate','Close date', rec.closeDate)}${fieldBox('probability','Chance', rec.probability)}${fieldBox('nextStep','Next step', rec.nextStep)}${fieldBox('source','Source', rec.source)}${fieldBox('lostReason','Lost reason', rec.lostReason)}${fieldBox('description','About', rec.description)}
+          <label>Owner<select data-key="ownerId"><option value="">Unassigned</option>${(bag.people||[]).map((row)=>`<option value="${row.id}" ${row.id===rec.ownerId?'selected':''}>${esc(row.fullName||row.email)}</option>`).join('')}</select></label>
+          <label>Contact<select data-key="contactId"><option value="">None</option>${(bag.contacts||[]).map((row)=>`<option value="${row.id}" ${row.id===rec.contactId?'selected':''}>${esc(person(row))}</option>`).join('')}</select></label>
+          <label>Company<select data-key="companyId"><option value="">None</option>${(bag.companies||[]).map((row)=>`<option value="${row.id}" ${row.id===rec.companyId?'selected':''}>${esc(row.name)}</option>`).join('')}</select></label>
+        </aside>
+        <section class="cr-main">
+          <div class="cr-feed">${filters}<button type="button" class="cx-go" onclick="document.getElementById('dlAdd').hidden=!document.getElementById('dlAdd').hidden">+ Add activity</button></div>
+          <div id="dlAdd" hidden class="cx-panel"><button type="button" class="cx-tool" onclick="logOnDeal('note')">Add note</button> <button type="button" class="cx-tool" onclick="logOnDeal('call')">Log call</button> <button type="button" class="cx-tool" onclick="logOnDeal('email')">Log email</button> <button type="button" class="cx-tool" onclick="logOnDeal('meeting')">Log meeting</button></div>
+          ${entries}
+        </section>
+        <aside class="cr-side">
+          <h2 style="font-size:14px">People</h2>
+          ${rec.contactId ? `<button type="button" class="cx-link" onclick="openRecord('contact','${rec.contactId}')">${esc(contactName(rec.contactId))}</button>` : '<div class="cx-muted">No contact</div>'}
+          <h2 style="font-size:14px">Company</h2>
+          ${rec.companyId ? `<button type="button" class="cx-link" onclick="openRecord('company','${rec.companyId}')">${esc(companyName(rec.companyId))}</button>` : '<div class="cx-muted">No company</div>'}
+          <h2 style="font-size:14px">Quotes</h2>${quoteList}
+          <button type="button" class="cx-go" onclick="quoteThisDeal()">Create quote</button>
+          <div id="dlQuote" hidden class="dl-quote"></div>
+          <h2 style="font-size:14px;margin-top:16px">Documents</h2>${fileList}
+        </aside>
+      </div></div>`;
+  };
+})();
