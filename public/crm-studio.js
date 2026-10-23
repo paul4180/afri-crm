@@ -7875,3 +7875,161 @@
     loadBell();
   };
 })();
+
+(function () {
+  const css = document.createElement('style');
+  css.textContent = `
+    #view:has(.dash) { background: #0d1117 !important; border: 0 !important; padding: 0 0 24px !important; color: #fff !important; }
+    .dash { color: #fff; }
+    .dash-hero {
+      position: relative; min-height: 220px; padding: 32px 32px 96px; overflow: hidden;
+      background:
+        radial-gradient(1.2px 1.2px at 8% 22%, #fff, transparent 60%),
+        radial-gradient(1px 1px at 18% 70%, #fff, transparent 60%),
+        radial-gradient(1.4px 1.4px at 28% 30%, #fff, transparent 60%),
+        radial-gradient(1px 1px at 42% 78%, #fff, transparent 60%),
+        radial-gradient(1.2px 1.2px at 55% 18%, #fff, transparent 60%),
+        radial-gradient(1px 1px at 66% 62%, #fff, transparent 60%),
+        radial-gradient(1.5px 1.5px at 78% 28%, #fff, transparent 60%),
+        radial-gradient(1px 1px at 88% 74%, #fff, transparent 60%),
+        radial-gradient(1.2px 1.2px at 94% 40%, #fff, transparent 60%),
+        radial-gradient(ellipse at 25% 40%, rgba(88, 28, 135, 0.55), transparent 55%),
+        radial-gradient(ellipse at 72% 55%, rgba(13, 148, 136, 0.28), transparent 50%),
+        linear-gradient(180deg, rgba(13,17,23,0.35), rgba(13,17,23,0.82)),
+        #070b16;
+    }
+    .dash-top { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+    .dash-today { margin: 0; font-family: "Space Grotesk", Inter, sans-serif !important; font-size: 40px !important; font-weight: 700 !important; color: #fff !important; letter-spacing: -0.03em; }
+    .dash-sub { margin: 6px 0 0; font-size: 15px !important; color: rgba(255,255,255,0.75) !important; }
+    .dash-links { display: flex; gap: 18px; padding-top: 8px; }
+    #view .dash button.dash-link { background: transparent !important; color: #fff !important; border: 0 !important; border-radius: 0 !important; padding: 0 !important; font-size: 14px !important; font-weight: 500 !important; box-shadow: none !important; }
+    #view .dash button.dash-link:hover { color: #5eead4 !important; }
+    .dash-kpis { display: grid; grid-template-columns: 1fr 1.45fr 1fr 1fr; gap: 12px; margin: -72px 28px 0; position: relative; z-index: 2; }
+    .dash-kpi { background: rgba(15,25,42,0.85); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px 24px; min-width: 0; }
+    .dash-num { font-family: "Space Grotesk", Inter, sans-serif; font-size: 48px; font-weight: 700; color: #fff !important; line-height: 1; letter-spacing: -0.03em; }
+    .dash-num.wide { font-size: 32px; }
+    .dash-num.gold { color: #f59e0b !important; }
+    .dash-label { margin-top: 8px; font-size: 11px; letter-spacing: 0.1em; color: #64748b !important; }
+    .dash-grid { display: grid; grid-template-columns: 1.15fr 1.15fr 0.95fr; gap: 16px; padding: 24px 28px 0; align-items: start; }
+    .dash-panel { background: #1a2332; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
+    .dash-ph { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .dash-ph span { font-size: 11px; letter-spacing: 0.1em; color: #94a3b8 !important; text-transform: uppercase; }
+    .dash-switch { width: 36px; height: 20px; border-radius: 999px; border: 0; background: #334155; position: relative; cursor: pointer; padding: 0; }
+    .dash-switch.on { background: #0d9488; }
+    .dash-switch i { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 999px; background: #fff; transition: left .15s ease; }
+    .dash-switch.on i { left: 18px; }
+    #view .dash button.dash-switch { background: #334155 !important; border-radius: 999px !important; width: 36px !important; height: 20px !important; min-height: 20px !important; padding: 0 !important; }
+    #view .dash button.dash-switch.on { background: #0d9488 !important; }
+    .dash-row { display: flex; justify-content: space-between; gap: 12px; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; background: transparent; width: 100%; text-align: left; border-left: 0; border-right: 0; border-top: 0; }
+    #view .dash button.dash-row { background: transparent !important; color: #fff !important; border-radius: 0 !important; }
+    .dash-row:hover { background: rgba(255,255,255,0.03) !important; }
+    .dash-name { font-size: 15px; font-weight: 600; color: #fff !important; }
+    .dash-meta, .dash-time { font-size: 13px; color: #64748b !important; }
+    .dash-right { text-align: right; }
+    .dash-time { display: flex; align-items: center; gap: 8px; }
+    .dash-tl { background: #1a2332; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0 0 12px; }
+    .dash-tl h2 { margin: 0; padding: 20px; font-family: "Space Grotesk", Inter, sans-serif; font-size: 18px !important; font-weight: 700 !important; color: #fff !important; }
+    .dash-card { margin: 0 12px 10px; padding: 16px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); color: #94a3b8 !important; font-size: 14px; cursor: pointer; text-align: left; width: calc(100% - 24px); }
+    #view .dash button.dash-card { background: rgba(255,255,255,0.05) !important; color: #94a3b8 !important; border-radius: 8px !important; }
+    .dash-card:hover { border-color: #0d9488 !important; background: rgba(13,148,136,0.08) !important; }
+    .dash-empty { padding: 16px 20px; color: #64748b !important; font-size: 13px; }
+    @media (max-width: 1100px) { .dash-kpis, .dash-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 720px) { .dash-top, .dash-kpis, .dash-grid { display: block; } .dash-kpi, .dash-panel { margin-bottom: 12px; } }
+  `;
+  document.head.appendChild(css);
+
+  function rel(value) {
+    const then = new Date(value || '');
+    if (Number.isNaN(then.getTime())) return '';
+    const days = Math.round((Date.now() - then.getTime()) / 86400000);
+    if (days <= 0) return 'Today';
+    if (days === 1) return '1 day ago';
+    return days + ' days ago';
+  }
+  function dueWord(row) {
+    const day = String(row.dueAt || '').slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    if (!day) return 'No date';
+    if (day < today) return 'Overdue';
+    if (day === today) return 'Due today';
+    const diff = Math.round((new Date(day + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
+    if (diff === 1) return 'Due tomorrow';
+    return 'Due in ' + diff + ' days';
+  }
+  function chip(row) {
+    if (row.priority === 'HIGH') return 'Urgent';
+    if (row.type === 'MEETING') return 'Meeting';
+    if (row.type === 'CALL') return 'Call';
+    if (row.type === 'EMAIL') return 'Email';
+    return 'Task';
+  }
+  function panels() {
+    try { return Object.assign({ contacts: 1, accounts: 1, deals: 1, tasks: 1 }, JSON.parse(localStorage.getItem('crm-home-panels') || '{}')); }
+    catch (e) { return { contacts: 1, accounts: 1, deals: 1, tasks: 1 }; }
+  }
+  window.toggleHomePanel = function (key) {
+    const state = panels();
+    state[key] = state[key] ? 0 : 1;
+    localStorage.setItem('crm-home-panels', JSON.stringify(state));
+    drawHome();
+  };
+  window.homeDemo = function () {
+    toast('This home shows the records in the workspace. Sample names are not added.');
+  };
+
+  drawHome = async function () {
+    if (!homePack) {
+      const [brain, day, guide] = await Promise.all([api('/crm/api/brain'), api('/crm/api/day'), api('/crm/api/guide')]);
+      homePack = { brain: brain || {}, day: day || {}, guide: guide || null };
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const dayOf = (row) => String(row.dueAt || '').slice(0, 10);
+    const openDeals = (bag.deals || []).filter((row) => !String(stageOf(row)).startsWith('CLOSED'));
+    const pipeline = openDeals.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const due = (bag.activities || []).filter((row) => (row.type === 'TASK' || row.type === 'CALL' || row.type === 'MEETING') && row.status === 'PLANNED' && dayOf(row) === today);
+    const hot = (bag.leads || []).filter((row) => row.rating === 'HOT');
+    const hour = new Date().getHours();
+    const hello = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    const when = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    const n = (count, one, many) => count + ' ' + (count === 1 ? one : many);
+    const show = panels();
+    const sw = (key) => `<button type="button" class="dash-switch ${show[key] ? 'on' : ''}" onclick="toggleHomePanel('${key}')" aria-label="Show or hide"><i></i></button>`;
+    const empty = '<div class="dash-empty">None yet.</div>';
+    const contacts = (bag.contacts || []).slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).slice(0, 4);
+    const accounts = (bag.companies || []).slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).slice(0, 4);
+    const deals = openDeals.slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).slice(0, 4);
+    const tasks = (bag.activities || []).filter((row) => row.type === 'TASK' || row.type === 'CALL' || row.type === 'MEETING' || row.type === 'EMAIL')
+      .slice().sort((a, b) => String(a.dueAt || a.createdAt || '').localeCompare(String(b.dueAt || b.createdAt || ''))).slice(0, 4);
+    const story = (bag.activities || []).slice().sort((a, b) => String(b.createdAt || b.dueAt || '').localeCompare(String(a.createdAt || a.dueAt || ''))).slice(0, 6);
+    const row = (click, name, meta, right) => `<button type="button" class="dash-row" onclick="${click}"><span><b class="dash-name">${esc(name)}</b><div class="dash-meta">${esc(meta || '')}</div></span><span class="dash-right dash-time">${right}</span></button>`;
+    const contactRows = contacts.map((rowx) => row(`openRecord('contact','${rowx.id}')`, person(rowx), rowx.email || rowx.phone || '', esc(rel(rowx.createdAt)))).join('') || empty;
+    const accountRows = accounts.map((rowx) => row(`openRecord('company','${rowx.id}')`, rowx.name, rowx.industry || rowx.city || '', esc(rel(rowx.createdAt)))).join('') || empty;
+    const dealRows = deals.map((rowx) => row(`openRecord('deal','${rowx.id}')`, rowx.name, money(rowx.amount), esc(rel(rowx.createdAt)))).join('') || empty;
+    const taskRows = tasks.map((rowx) => row(`go('tasks')`, rowx.subject || 'Task', dueWord(rowx), esc(chip(rowx)))).join('') || empty;
+    const cards = story.map((rowx) => {
+      const kind = rowx.relatedType && rowx.relatedId && ['contact', 'company', 'deal', 'lead'].includes(rowx.relatedType)
+        ? `openRecord('${rowx.relatedType}','${rowx.relatedId}')` : `go('tasks')`;
+      return `<button type="button" class="dash-card" onclick="${kind}">${esc(rowx.subject || rowx.type || 'Activity')}</button>`;
+    }).join('') || '<div class="dash-empty">No activity yet.</div>';
+    const panel = (key, label, body) => `<section class="dash-panel"><header class="dash-ph"><span>${label}</span>${sw(key)}</header>${show[key] ? body : ''}</section>`;
+    document.getElementById('view').innerHTML = `<div class="dash">
+      <section class="dash-hero">
+        <div class="dash-top">
+          <div><h1 class="dash-today">Today</h1><p class="dash-sub">${hello} · ${esc(when)} · ${n(openDeals.length, 'open deal', 'open deals')} · ${n(due.length, 'task due', 'tasks due')}</p></div>
+          <div class="dash-links"><button type="button" class="dash-link" onclick="go('guide')">↗ Start guide</button><button type="button" class="dash-link" onclick="homeDemo()">◈ Demo data</button><button type="button" class="dash-link" onclick="homePack=null;drawHome()">↻ Refresh</button></div>
+        </div>
+      </section>
+      <div class="dash-kpis">
+        <article class="dash-kpi"><div class="dash-num">${openDeals.length}</div><div class="dash-label">OPEN DEALS</div></article>
+        <article class="dash-kpi"><div class="dash-num wide">${money(pipeline)}</div><div class="dash-label">PIPELINE</div></article>
+        <article class="dash-kpi"><div class="dash-num">${due.length}</div><div class="dash-label">TASKS DUE</div></article>
+        <article class="dash-kpi"><div class="dash-num gold">${hot.length}</div><div class="dash-label">HOT LEADS</div></article>
+      </div>
+      <div class="dash-grid">
+        <div>${panel('contacts', 'Latest contacts', contactRows)}${panel('deals', 'Latest deals', dealRows)}</div>
+        <div>${panel('accounts', 'Latest accounts', accountRows)}${panel('tasks', 'Latest tasks', taskRows)}</div>
+        <aside class="dash-tl"><h2>Activity timeline</h2>${cards}</aside>
+      </div>
+    </div>`;
+  };
+})();
