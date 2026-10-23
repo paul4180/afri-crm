@@ -318,6 +318,7 @@ for (const [table, col, type] of [
   ['deals', 'paidAt', 'TEXT'],
   ['workflows', 'action', "TEXT DEFAULT 'task'"],
   ['workflows', 'target', 'TEXT'],
+  ['campaigns', 'channel', "TEXT DEFAULT 'EMAIL'"],
   ['workflow_runs', 'status', "TEXT DEFAULT 'OK'"],
   ['workflow_runs', 'detail', 'TEXT'],
   ['workflow_runs', 'ranAt', 'TEXT'],
@@ -3042,7 +3043,7 @@ export function registerCrm(app, prisma) {
 
   app.get('/crm/api/campaigns', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
-    return db.prepare('SELECT id, name, subject, status, sent, createdAt FROM campaigns WHERE tenantId = ? ORDER BY createdAt DESC').all(user.tenantId);
+    return db.prepare('SELECT id, name, subject, status, sent, channel, createdAt FROM campaigns WHERE tenantId = ? ORDER BY createdAt DESC').all(user.tenantId);
   });
   app.post('/crm/api/campaigns', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
@@ -3074,6 +3075,18 @@ export function registerCrm(app, prisma) {
     if (!sent) return reply.code(400).send({ error: 'Nothing was sent. Connect Gmail or Outlook, or add the mail key.' });
     const id = crypto.randomUUID();
     db.prepare('INSERT INTO campaigns (id, tenantId, name, subject, body, status, sent) VALUES (?,?,?,?,?,?,?)').run(id, user.tenantId, String(body.name).slice(0, 120), String(body.subject).slice(0, 200), String(body.body).slice(0, 4000), 'SENT', sent);
+    return { id, sent };
+  });
+
+  app.post('/crm/api/campaigns/log', async (req, reply) => {
+    const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+    const body = req.body || {};
+    const channel = ['WHATSAPP', 'SMS', 'LINKEDIN'].includes(body.channel) ? body.channel : '';
+    const name = String(body.name || '').trim().slice(0, 120);
+    if (!channel || !name) return reply.code(400).send({ error: 'Name the send and pick WhatsApp, SMS, or LinkedIn' });
+    const sent = Math.max(0, Math.min(100000, Math.round(Number(body.sent || 0))));
+    const id = crypto.randomUUID();
+    db.prepare('INSERT INTO campaigns (id, tenantId, name, subject, body, status, sent, channel) VALUES (?,?,?,?,?,?,?,?)').run(id, user.tenantId, name, channel, 'Logged by you. Afri did not send this.', 'LOGGED', sent, channel);
     return { id, sent };
   });
 

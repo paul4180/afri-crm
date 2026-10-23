@@ -7560,27 +7560,61 @@
       <div class="card"><h2>Ask this workspace</h2><label>Question<textarea id="ask" style="height:80px" placeholder="Which deals are still open?"></textarea></label><button type="button" onclick="askAgent()">Ask</button><p id="answer" class="hello"></p></div>`;
   };
 
+  const studioCss = document.createElement('style');
+  studioCss.textContent = `
+    #view .ms { background: #f4f6f8; border-radius: 16px; padding: 20px; color: #0f172a; }
+    #view .ms-hero { display: grid; grid-template-columns: 1.2fr .8fr; gap: 24px; align-items: center; }
+    #view .ms h1 { font-size: 36px; font-weight: 400; line-height: 1.2; margin: 8px 0 16px; color: #0f172a !important; }
+    #view .ms-kicker { font-size: 14px; color: #64748b; }
+    #view .ms-point { display: flex; gap: 8px; margin: 8px 0; font-size: 14px; }
+    #view .ms-point span { color: #0f766e; }
+    #view .ms-next { margin-top: 14px; background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 12px 14px; }
+    #view .ms-stage { position: relative; height: 280px; }
+    #view .ms-orb { position: absolute; width: 220px; height: 220px; border-radius: 50%; background: #ccfbf1; right: 20px; top: 20px; }
+    #view .ms-card { position: absolute; width: 180px; background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 12px; box-shadow: 0 8px 24px rgba(15,23,42,.08); }
+    #view .ms-card.c1 { left: 10px; top: 24px; transform: rotate(-6deg); }
+    #view .ms-card.c2 { right: 16px; top: 70px; transform: rotate(4deg); }
+    #view .ms-card.c3 { left: 50px; bottom: 10px; transform: rotate(-2deg); }
+    #view .ms-opt { display: block; margin: 18px auto; background: transparent !important; color: #334155 !important; border: 1px solid #cbd5e1 !important; box-shadow: none !important; }
+    #view .ms .ghost { background: #fff !important; color: #334155 !important; border: 1px solid #d0d7e2 !important; box-shadow: none !important; }
+    @media (max-width: 900px) { #view .ms-hero { grid-template-columns: 1fr; } #view .ms h1 { font-size: 28px; } }
+  `;
+  document.head.appendChild(studioCss);
+  window.mktOpt = function () {
+    const off = localStorage.getItem('crm-studio-off') === '1';
+    if (off) localStorage.removeItem('crm-studio-off');
+    else localStorage.setItem('crm-studio-off', '1');
+    drawMarketing();
+  };
+  window.mktLog = async function () {
+    const result = await api('/crm/api/campaigns/log', { method: 'POST', body: JSON.stringify({ name: document.getElementById('logName').value, channel: document.getElementById('logChannel').value, sent: document.getElementById('logSent').value }) });
+    if (!result || result.error) return toast((result && result.error) || 'Could not record it');
+    toast('Recorded. Afri did not send it.');
+    drawMarketing();
+  };
   const rawMarketing = drawMarketing;
   drawMarketing = async function () {
     if (mktTab !== 'studio') return rawMarketing();
     const rows = await api('/crm/api/campaigns');
     const list = Array.isArray(rows) ? rows : [];
-    const forms = (bag.objects || []).filter((row) => row.kind === 'form');
-    document.getElementById('view').innerHTML = `
-      <div class="hs-split">
-        <div>
-          <p class="hs-kicker">Marketing Studio</p>
-          <h1 class="hs-lead">Campaigns, forms, and the spend you record. Nothing here is a sample.</h1>
-          <div class="hs-point"><span>→</span><div><b>Send one email.</b> It goes to contacts who have an address, through Gmail, Outlook, or the mail key. If none of those is connected, it does not pretend to send.</div></div>
-          <div class="hs-point"><span>→</span><div><b>A form becomes a lead.</b> The public page is the one you save. A visitor’s answers land in Leads.</div></div>
-          <p><button type="button" onclick="mktTab='emails';drawMarketing()">Write an email</button> <button type="button" class="ghost" onclick="mktTab='forms';drawMarketing()">Make a form</button> <button type="button" class="ghost" onclick="mktTab='ads';drawMarketing()">Record ad spend</button></p>
-        </div>
-        <div class="hs-stack">
-          <article class="hs-mini"><b>Campaigns</b><div class="meta">${list.length} saved · ${list.reduce((sum, row) => sum + Number(row.sent || 0), 0)} sent</div></article>
-          <article class="hs-mini"><b>Forms</b><div class="meta">${forms.length} public form${forms.length === 1 ? '' : 's'}</div></article>
-          <article class="hs-mini"><b>Latest</b><div class="meta">${list[0] ? esc(list[0].name) + ' · ' + esc(list[0].status || '') : 'No campaign yet'}</div></article>
-        </div>
-      </div>`;
+    const reachable = (bag.contacts || []).filter((row) => row.email).length;
+    const names = { EMAIL: 'Email', WHATSAPP: 'WhatsApp', SMS: 'SMS', LINKEDIN: 'LinkedIn' };
+    const ranked = list.map((row) => {
+      const sent = Number(row.sent || 0);
+      const channel = row.channel || 'EMAIL';
+      const age = Math.max(0, (Date.now() - new Date(row.createdAt || 0).getTime()) / 86400000);
+      let score = 10;
+      let advice = 'Sent. Opens and clicks are not tracked.';
+      if (!sent) { score = 90; advice = 'Not sent yet.'; }
+      else if (channel === 'EMAIL' && reachable && sent < reachable) { score = 40 + Math.min(40, reachable - sent); advice = 'Reached ' + sent + ' of ' + reachable + ' addresses.'; }
+      else if (age > 21) { score = 30; advice = 'Last send was ' + Math.round(age) + ' days ago.'; }
+      return Object.assign({}, row, { channel, score, advice });
+    }).sort((a, b) => b.score - a.score || Number(b.sent || 0) - Number(a.sent || 0));
+    const next = ranked[0] ? ranked[0].name + ' — ' + ranked[0].advice : (reachable ? 'No campaign yet. ' + reachable + ' contacts have an email.' : 'No campaign yet, and no contact has an email.');
+    const off = localStorage.getItem('crm-studio-off') === '1';
+    const hero = off ? '' : `<div class="ms-hero"><div><div class="ms-kicker">Marketing Studio</div><h1>Campaigns just got smarter. Meet Marketing Studio — built to help your team create, collaborate, and improve performance.</h1><div class="ms-point"><span>→</span><div><b>Spend less time in dashboards.</b> The list below is ordered by what needs a send, not by a guessed open rate.</div></div><div class="ms-point"><span>→</span><div><b>Turn performance into action.</b> ${esc(next)}</div></div><div class="ms-point"><span>→</span><div><b>One campaign record.</b> Email is sent from here. WhatsApp, SMS, and LinkedIn are only recorded after you send them yourself.</div></div><p><button type="button" onclick="mktTab='emails';drawMarketing()">Write an email</button> <button type="button" class="ghost" onclick="mktTab='forms';drawMarketing()">Make a form</button> <button type="button" class="ghost" onclick="mktTab='ads';drawMarketing()">Record ad spend</button></p></div><div class="ms-stage"><div class="ms-orb"></div><article class="ms-card c1"><b>Next</b><div class="cx-muted">${esc(ranked[0] ? ranked[0].advice : 'Nothing to rank')}</div></article><article class="ms-card c2"><b>${reachable}</b><div class="cx-muted">contacts with an email</div></article><article class="ms-card c3"><b>${list.reduce((sum, row) => sum + Number(row.sent || 0), 0)}</b><div class="cx-muted">sends recorded</div></article></div></div>`;
+    const table = ranked.map((row) => `<tr><td>${esc(row.name)}</td><td>${names[row.channel] || 'Email'}</td><td>${Number(row.sent || 0)}</td><td>—</td><td>—</td><td>—</td><td>${esc(row.status || '')}</td><td>${esc(row.advice)}</td></tr>`).join('') || '<tr><td colspan="8">No campaign yet.</td></tr>';
+    document.getElementById('view').innerHTML = `<div class="ms">${hero}<button type="button" class="ms-opt" onclick="mktOpt()">${off ? 'Show Marketing Studio' : 'Opt out of Marketing Studio'}</button><div class="ws-card"><table class="ws-table"><thead><tr><th>Campaign</th><th>Type</th><th>Sends</th><th>Open</th><th>Click</th><th>Replies</th><th>Status</th><th>Next</th></tr></thead><tbody>${table}</tbody></table><p class="cx-muted">Open, click, and replies are not tracked, so those columns stay empty. The order uses sends, how many addresses you have, and how long since the send.</p></div><div class="ws-card"><b>Record a send Afri did not make</b><div class="ah-form"><label>Name<input id="logName" placeholder="March price list"></label><label>Type<select id="logChannel"><option value="WHATSAPP">WhatsApp</option><option value="SMS">SMS</option><option value="LINKEDIN">LinkedIn</option></select></label><label>How many you sent<input id="logSent" inputmode="numeric" value="0"></label><div><button type="button" class="ghost" onclick="mktLog()">Record</button></div></div></div></div>`;
   };
 
   const route = draw;
