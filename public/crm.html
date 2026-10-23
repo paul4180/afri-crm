@@ -539,6 +539,8 @@
 <div class="launcher" id="launcher"><div class="launch-top"><b>More</b><button type="button" class="ghost" onclick="closeLauncher()">Close</button></div><div class="launch-grid"><nav class="hubs" id="hubs"></nav><div class="hubitems" id="hubitems"></div></div></div>
 <script>
 const money = (n) => (localStorage.getItem('crm-currency') || 'NGN') + ' ' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 0 });
+function zoneToday() { return new Intl.DateTimeFormat('en-CA', { timeZone: localStorage.getItem('crm-timezone') || 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
+function paintLogo(logo) { const el = document.getElementById('whoMark'); if (!el) return; if (logo) el.innerHTML = '<img alt="" src="' + logo + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'; }
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c]));
 const STAGES = [
   ['PROSPECTING', 'Prospecting', '#2563eb', 10],
@@ -737,6 +739,10 @@ async function boot() {
   const [user, setup] = await Promise.all([api('/crm/api/me'), api('/crm/api/setup')]);
   if (!user) return;
   me = user; company = user.company || 'Afri CRM'; workspace = setup || {};
+  if (setup && setup.currency) localStorage.setItem('crm-currency', setup.currency);
+  if (setup && setup.timezone) localStorage.setItem('crm-timezone', setup.timezone);
+  if (setup && setup.logo) paintLogo(setup.logo);
+  api('/crm/api/note-prefs').then((data) => { if (data && Array.isArray(data.off)) { localStorage.setItem('crm-note-off', JSON.stringify(data.off)); if (typeof loadBell === 'function') loadBell(); } });
   paintNav();
   const name = me.fullName || me.email || 'You';
   document.getElementById('whoMark').textContent = initials(name);
@@ -1002,6 +1008,7 @@ async function enter() {
   paintSetupCard();
   await refresh();
 }
+function noteStages(stages) { if (Array.isArray(stages)) { bag.stages = stages; homePack = null; } }
 async function refresh() {
   const names = ['contacts','companies','deals','activities','quotes','leads','products'];
   const rows = await Promise.all(names.map((name) => api('/crm/api/' + name)));
@@ -1090,7 +1097,7 @@ async function drawHome() {
   const brain = homePack.brain;
   const day = homePack.day;
   const guide = homePack.guide;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = zoneToday();
   const due = (row) => String(row.dueAt || '').slice(0, 10);
   const tasks = (bag.activities || []).filter((row) => row.type === 'TASK' || row.type === 'CALL' || row.type === 'MEETING');
   const overdue = tasks.filter((row) => row.status === 'PLANNED' && due(row) && due(row) < today);
@@ -1394,7 +1401,7 @@ function drawDeals() {
     const list = rows.filter((row) => stageOf(row) === id);
     const total = list.reduce((sum, row) => sum + Number(row.amount || 0), 0);
     const weighted = list.reduce((sum, row) => sum + Number(row.amount || 0) * (Number(row.probability || chance) / 100), 0);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = zoneToday();
     const soon = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
     const isClosed = id === 'CLOSED_WON' || id === 'CLOSED_LOST';
     const cards = list.map((row) => {
@@ -1575,7 +1582,7 @@ function stageProgress(chance) {
 }
 
 function drawContacts() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = zoneToday();
   let rows = (bag.contacts || []).slice();
   if (contactView === 'mine') rows = rows.filter((row) => row.ownerId === me.sub);
   if (contactView === 'open') rows = rows.filter((row) => !row.ownerId);
@@ -1703,7 +1710,7 @@ async function bulkTask() {
   if (!ids.length) return toast('Select people first');
   const subject = window.prompt('Task for each selected person');
   if (!subject) return;
-  const dueAt = new Date().toISOString().slice(0, 10);
+  const dueAt = zoneToday();
   for (const id of ids) await api('/crm/api/activities', { method: 'POST', body: JSON.stringify({ subject, type: 'TASK', status: 'PLANNED', dueAt, relatedType: 'contact', relatedId: id }) });
   toast('Task added for ' + ids.length);
   refresh();
@@ -1793,7 +1800,7 @@ function relatedName(row) {
   return '';
 }
 function drawTasks() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = zoneToday();
   const q = document.getElementById('q').value.trim().toLowerCase();
   let rows = (bag.activities || []).filter((row) => row.type === 'TASK' || row.type === 'CALL' || row.type === 'MEETING');
   const due = (row) => String(row.dueAt || '').slice(0, 10);
@@ -1921,7 +1928,7 @@ function columnChart(rows, pick) {
   return `<div class="chartbox"><div class="bars">${list.map((row) => `<div style="height:${Math.max(8, Math.round(row.n / max * 120))}px" title="${row.n}"><span>${row.n}</span></div>`).join('')}</div><div class="meta" style="display:flex;justify-content:space-between">${list.map((row) => `<span>${row.label}</span>`).join('')}</div></div>`;
 }
 function playQueue() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = zoneToday();
   return (bag.activities || []).filter((row) => ['TASK','CALL','MEETING','EMAIL','WHATSAPP'].includes(row.type) && (row.status === 'PLANNED' || row.status === 'IN_PROGRESS') && String(row.dueAt || '').slice(0, 10) && String(row.dueAt).slice(0, 10) <= today);
 }
 function drawPlayer() {
@@ -2822,7 +2829,7 @@ async function drawCalendar() {
   const cells = Array(pad).fill('').concat(Array.from({ length: count }, (_, index) => index + 1));
   while (cells.length % 7) cells.push('');
   const stamp = (day) => year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = zoneToday();
   const items = (bag.activities || []).filter((row) => row.dueAt);
   const heads = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((name) => `<div class="head">${name}</div>`).join('');
   const days = cells.map((day) => {
@@ -2860,7 +2867,7 @@ function drawFeed() {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(row);
   });
-  const today = new Date().toISOString().slice(0, 10);
+  const today = zoneToday();
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   const label = (key) => key === today ? 'Today' : key === yesterday ? 'Yesterday' : key;
   const feed = [...groups.entries()].map(([key, list]) => `<h2>${esc(label(key))}</h2>` + list.map((row) => `<article><div class="board-head"><b>${esc(row.type)} · ${esc(row.subject)}</b><span class="meta">${esc(row.status || '')}</span></div><div class="meta">${esc(relatedName(row) || 'Not tied to a record')} · ${esc(String(row.createdAt || row.dueAt || '').slice(0, 16).replace('T', ' '))}</div>${row.notes ? `<div>${esc(row.notes)}</div>` : ''}</article>`).join('')).join('') || '<div class="empty"><h2>No activity yet.</h2><p class="hello">A call, a task, or a meeting shows up here once it is on a record.</p></div>';
@@ -3057,7 +3064,7 @@ document.getElementById('email').value = localStorage.getItem('crmEmail') || '';
   if (token) boot();
 })();
 </script>
-<script src="/crm-studio.js?v=96"></script>
+<script src="/crm-studio.js?v=97"></script>
 </body>
 </html>
 

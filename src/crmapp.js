@@ -323,6 +323,7 @@ for (const [table, col, type] of [
   ['workspace', 'timezone', "TEXT DEFAULT 'Africa/Lagos'"],
   ['workspace', 'currency', "TEXT DEFAULT 'NGN'"],
   ['workspace', 'scoreNudge', 'TEXT'],
+  ['crm_prefs', 'noteOff', 'TEXT'],
   ['workflow_runs', 'status', "TEXT DEFAULT 'OK'"],
   ['workflow_runs', 'detail', 'TEXT'],
   ['workflow_runs', 'ranAt', 'TEXT'],
@@ -2221,6 +2222,21 @@ export function registerCrm(app, prisma) {
     const beat = setInterval(() => { try { reply.raw.write(': ping\n\n'); } catch { clearInterval(beat); } }, 25000);
     req.raw.on('close', () => { clearInterval(beat); ears.delete(ear); });
   });
+  app.get('/crm/api/note-prefs', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    const row = db.prepare('SELECT noteOff FROM crm_prefs WHERE tenantId = ? AND userId = ?').get(user.tenantId, user.sub);
+    let off = [];
+    try { off = JSON.parse((row && row.noteOff) || '[]'); } catch (err) { off = []; }
+    return { off: Array.isArray(off) ? off : [] };
+  });
+  app.post('/crm/api/note-prefs', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    const allowed = ['lead', 'deal', 'task', 'overdue', 'reply', 'sequence'];
+    const off = (Array.isArray(req.body?.off) ? req.body.off : []).filter((item) => allowed.includes(item));
+    db.prepare('INSERT INTO crm_prefs (tenantId, userId, noteOff) VALUES (?,?,?) ON CONFLICT(tenantId, userId) DO UPDATE SET noteOff = excluded.noteOff').run(user.tenantId, user.sub, JSON.stringify(off));
+    return { off };
+  });
+
   app.get('/crm/api/setup', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     const saved = db.prepare('SELECT * FROM workspace WHERE tenantId = ?').get(user.tenantId) || { done: 0 };

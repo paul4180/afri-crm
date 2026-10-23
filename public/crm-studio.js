@@ -2440,7 +2440,7 @@
     const deals = openDeals.slice(0, 4);
     const tasks = (bag.activities || []).filter((row) => row.type === 'TASK').slice(0, 4);
     const meetings = (bag.activities || []).filter((row) => row.type === 'MEETING').slice(0, 4);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = zoneToday();
     const tasksDue = (bag.activities || []).filter((row) => row.type === 'TASK' && row.status === 'PLANNED' && row.dueAt && String(row.dueAt).slice(0, 10) <= today).length;
     const pipelineValue = openDeals.reduce((sum, row) => sum + Number(row.amount || 0), 0);
     const hotLeads = (bag.leads || []).filter((row) => row.rating === 'HOT' && row.status !== 'CONVERTED' && row.status !== 'DEAD').length;
@@ -4329,7 +4329,7 @@
   var origDrawTasks = (typeof drawTasks === 'function') ? drawTasks : null;
   if (origDrawTasks) {
     drawTasks = function () {
-      var today = new Date().toISOString().slice(0, 10);
+      var today = zoneToday();
       var q = (document.getElementById('q').value || '').trim().toLowerCase();
       var rows = (bag.activities || []).filter(function(row) { return row.type === 'TASK' || row.type === 'CALL' || row.type === 'MEETING'; });
       var due = function(row) { return String(row.dueAt || '').slice(0, 10); };
@@ -6218,7 +6218,7 @@
     var meetings = (day && day.events) ? day.events.slice(0, 3) : [];
 
     // Compute stats from actual bag data (bag.home is never populated by refresh())
-    var todayStr = new Date().toISOString().slice(0, 10);
+    var todayStr = zoneToday();
     var allDeals = bag.deals || [];
     var openDeals = allDeals.filter(function(d) { return d.stage !== 'WON' && d.stage !== 'LOST'; }).length;
     var pipelineVal = allDeals.filter(function(d) { return d.stage !== 'WON' && d.stage !== 'LOST'; }).reduce(function(s, d) { return s + (Number(d.amount) || 0); }, 0);
@@ -6570,7 +6570,7 @@
     var view = document.getElementById('view');
     if (!view) return;
     var tasks = (bag.activities || []).filter(function (a) { return a.type === 'TASK' || a.type === 'TODO' || a.type === 'CALL' || a.type === 'MEETING'; }).slice(0, 30);
-    var today = new Date().toISOString().slice(0, 10);
+    var today = zoneToday();
     var overdue = tasks.filter(function (t) { return t.dueAt && t.dueAt < today && t.status !== 'HELD' && t.status !== 'DONE'; });
     var todayTasks = tasks.filter(function (t) { return t.dueAt === today && t.status !== 'HELD' && t.status !== 'DONE'; });
     var upcoming = tasks.filter(function (t) { return t.dueAt && t.dueAt > today && t.status !== 'HELD' && t.status !== 'DONE'; }).slice(0, 5);
@@ -7422,7 +7422,7 @@
       const [brain, day, guide] = await Promise.all([api('/crm/api/brain'), api('/crm/api/day'), api('/crm/api/guide')]);
       homePack = { brain: brain || {}, day: day || {}, guide: guide || null };
     }
-    const today = new Date().toISOString().slice(0, 10);
+    const today = zoneToday();
     const due = (row) => String(row.dueAt || '').slice(0, 10);
     const tasks = (bag.activities || []).filter((row) => row.type === 'TASK' || row.type === 'CALL' || row.type === 'MEETING');
     const dueToday = tasks.filter((row) => row.status === 'PLANNED' && due(row) === today);
@@ -7504,7 +7504,7 @@
   function planned(row) { return row.status === 'PLANNED'; }
 
   function drawSales() {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = zoneToday();
     const tasks = (bag.activities || []).filter((row) => row.type === 'TASK' || row.type === 'CALL' || row.type === 'MEETING');
     const meetings = tasks.filter((row) => row.type === 'MEETING' && planned(row) && (!dueDay(row) || dueDay(row) === today));
     const dueToday = tasks.filter((row) => planned(row) && dueDay(row) === today);
@@ -7544,7 +7544,7 @@
 
   drawAgent = function () {
     const hot = (bag.leads || []).filter((row) => row.rating === 'HOT');
-    const today = new Date().toISOString().slice(0, 10);
+    const today = zoneToday();
     const tasks = (bag.activities || []).filter((row) => (row.type === 'TASK' || row.type === 'CALL') && row.status === 'PLANNED' && dueDay(row) && dueDay(row) <= today);
     const open = (bag.deals || []).filter((row) => !String(stageOf(row)).startsWith('CLOSED'));
     const worth = open.reduce((sum, row) => sum + Number(row.amount || 0), 0);
@@ -8002,7 +8002,7 @@
   }
   function dueWord(row) {
     const day = String(row.dueAt || '').slice(0, 10);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = zoneToday();
     if (!day) return 'No date';
     if (day < today) return 'Overdue';
     if (day === today) return 'Due today';
@@ -8036,7 +8036,7 @@
       const [brain, day, guide] = await Promise.all([api('/crm/api/brain'), api('/crm/api/day'), api('/crm/api/guide')]);
       homePack = { brain: brain || {}, day: day || {}, guide: guide || null };
     }
-    const today = new Date().toISOString().slice(0, 10);
+    const today = zoneToday();
     const dayOf = (row) => String(row.dueAt || '').slice(0, 10);
     const stageHit0 = (value) => (bag.stages || []).find((row) => row.id === value || row.code === value) || null;
     const openDeals = (bag.deals || []).filter((row) => { const stage = stageHit0(row.stage); if (stage) return !(stage.closed || String(stage.code || '').startsWith('CLOSED')); return !String(stageOf(row) || '').startsWith('CLOSED'); });
@@ -8839,7 +8839,7 @@ window.openSearchHit = function (kind, id) {
     if (dlCloseFrom) rows = rows.filter((row) => row.closeDate && String(row.closeDate).slice(0, 10) >= dlCloseFrom);
     if (dlCloseTo) rows = rows.filter((row) => row.closeDate && String(row.closeDate).slice(0, 10) <= dlCloseTo);
     const stages = dealStages();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = zoneToday();
     const owners = (bag.people || []).map((row) => `<option value="${row.id}" ${dlOwner === row.id ? 'selected' : ''}>${esc(row.fullName || row.email)}</option>`).join('');
     let body = '';
     if (dlMode === 'list') {
@@ -8997,6 +8997,7 @@ window.openSearchHit = function (kind, id) {
   let ldPackAt = 0;
   let ldFetching = false;
   function forgetScores() { ldPack = null; ldPackAt = 0; ldScore = null; }
+  window.forgetScores = forgetScores;
   function loadScores() {
     if (ldFetching || (ldPack && Date.now() - ldPackAt < 12000)) return;
     ldFetching = true;
@@ -9204,7 +9205,7 @@ window.openSearchHit = function (kind, id) {
   function stateOf(row) {
     if (isDone(row)) return ['done', 'Done'];
     const due = dueOf(row);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = zoneToday();
     if (due && due < today) return ['late', 'Overdue'];
     if (row.status === 'IN_PROGRESS') return ['run', 'In progress'];
     return ['open', 'Open'];
@@ -9262,7 +9263,7 @@ window.openSearchHit = function (kind, id) {
   window.drawTaskBoard = function () {
     const showForm = openForm === 'task';
     if (showForm) openForm = '';
-    const today = new Date().toISOString().slice(0, 10);
+    const today = zoneToday();
     const mine = me.sub || me.id;
     const q = tkQuery.trim();
     const headerQ = (document.getElementById('q') || {}).value || '';
@@ -9411,7 +9412,7 @@ window.openSearchHit = function (kind, id) {
   function parseKey(key) { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d); }
   function addDays(date, n) { return new Date(date.getFullYear(), date.getMonth(), date.getDate() + n); }
   function weekStart(date) { return addDays(date, -((date.getDay() + 6) % 7)); }
-  function todayKey() { return new Date().toISOString().slice(0, 10); }
+  function todayKey() { return zoneToday(); }
   function localItems() { return (bag.activities || []).filter((row) => row.dueAt); }
   function isSeq(row) { return /Opened by the flow/i.test(row.notes || ''); }
   function openTask(row) { return row.status === 'PLANNED' || row.status === 'IN_PROGRESS'; }
@@ -9468,7 +9469,7 @@ window.openSearchHit = function (kind, id) {
     if (wall && !(/Z$|[+-]\d{2}:\d{2}$/.test(text))) return Number(wall[1]);
     const date = new Date(text);
     if (Number.isNaN(date.getTime())) return null;
-    return Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', hour: '2-digit', hourCycle: 'h23' }).format(date));
+    return Number(new Intl.DateTimeFormat('en-GB', { timeZone: localStorage.getItem('crm-timezone') || 'Africa/Lagos', hour: '2-digit', hourCycle: 'h23' }).format(date));
   }
   function clashText(time) {
     if (!calPlan || !time) return '';
@@ -10219,7 +10220,7 @@ window.openSearchHit = function (kind, id) {
       for (const row of unanswered().slice(0, 20)) {
         const subject = 'Follow up: ' + person(row);
         if ((bag.activities || []).some((item) => item.relatedId === row.id && item.status === 'PLANNED' && String(item.subject || '').startsWith('Follow up:'))) continue;
-        const result = await api('/crm/api/activities', { method: 'POST', body: JSON.stringify({ type: 'TASK', subject, status: 'PLANNED', dueAt: new Date().toISOString().slice(0, 10), relatedType: 'contact', relatedId: row.id }) });
+        const result = await api('/crm/api/activities', { method: 'POST', body: JSON.stringify({ type: 'TASK', subject, status: 'PLANNED', dueAt: zoneToday(), relatedType: 'contact', relatedId: row.id }) });
         if (result && !result.error) made += 1;
       }
       toast(made ? made + ' follow-up tasks opened' : 'No unanswered email or WhatsApp older than 2 days');
@@ -10255,7 +10256,7 @@ window.openSearchHit = function (kind, id) {
     for (const item of rows) {
       const kind = item.amount != null && item.stage ? 'deal' : item.companyName != null && item.status ? 'lead' : 'contact';
       const subject = row.name + ': ' + (item.name || person(item));
-      const result = await api('/crm/api/activities', { method: 'POST', body: JSON.stringify({ type: 'TASK', subject, status: 'PLANNED', dueAt: new Date().toISOString().slice(0, 10), relatedType: kind, relatedId: item.id }) });
+      const result = await api('/crm/api/activities', { method: 'POST', body: JSON.stringify({ type: 'TASK', subject, status: 'PLANNED', dueAt: zoneToday(), relatedType: kind, relatedId: item.id }) });
       if (result && !result.error) made += 1;
     }
     toast(made + ' tasks opened');
@@ -10359,14 +10360,20 @@ window.openSearchHit = function (kind, id) {
     off = off.filter((item) => item !== type);
     if (!on) off.push(type);
     localStorage.setItem('crm-note-off', JSON.stringify(off));
+    api('/crm/api/note-prefs', { method: 'POST', body: JSON.stringify({ off }) });
     if (typeof loadBell === 'function') loadBell();
   };
   window.setSaveAccount = async function () {
     const current = await api('/crm/api/setup');
     const body = Object.assign({}, current || {}, { name: document.getElementById('setBiz').value, industry: document.getElementById('setIndustry').value, channel: document.getElementById('setChannel').value, goal: document.getElementById('setGoal').value, timezone: document.getElementById('setZone').value, currency: document.getElementById('setCur').value, logo: document.getElementById('setLogo').value, done: 1 });
     const result = await api('/crm/api/setup', { method: 'POST', body: JSON.stringify(body) });
-    if (result && !result.error) { localStorage.setItem('crm-currency', result.currency || 'NGN'); toast('Saved'); }
-    else toast((result && result.error) || 'Could not save');
+    if (result && !result.error) {
+      localStorage.setItem('crm-currency', result.currency || 'NGN');
+      localStorage.setItem('crm-timezone', result.timezone || 'Africa/Lagos');
+      if (result.name) { company = result.name; const who = document.getElementById('whoName'); if (who) who.textContent = result.name; }
+      if (typeof paintLogo === 'function') paintLogo(result.logo || '');
+      toast('Saved. Amounts and today use this now.');
+    } else toast((result && result.error) || 'Could not save');
   };
   window.setLogo = function (input) {
     const file = input.files && input.files[0];
@@ -10378,7 +10385,8 @@ window.openSearchHit = function (kind, id) {
   };
   window.setStage = async function (id) {
     const result = await api('/crm/api/stages/' + id, { method: 'PATCH', body: JSON.stringify({ name: document.getElementById('sn-' + id).value, probability: Number(document.getElementById('sp-' + id).value) }) });
-    toast(Array.isArray(result) ? 'Stage saved' : (result && result.error) || 'Could not save');
+    if (Array.isArray(result) && typeof noteStages === 'function') noteStages(result);
+    toast(Array.isArray(result) ? 'Stage saved. Deals use this chance now.' : (result && result.error) || 'Could not save');
     if (Array.isArray(result)) drawSettings();
   };
   window.setMove = async function (id, dir) {
@@ -10388,11 +10396,13 @@ window.openSearchHit = function (kind, id) {
     const other = stages[index + dir];
     if (index < 0 || !other) return;
     await api('/crm/api/stages/' + id, { method: 'PATCH', body: JSON.stringify({ position: other.position }) });
-    await api('/crm/api/stages/' + other.id, { method: 'PATCH', body: JSON.stringify({ position: stages[index].position }) });
+    const moved = await api('/crm/api/stages/' + other.id, { method: 'PATCH', body: JSON.stringify({ position: stages[index].position }) });
+    if (Array.isArray(moved) && typeof noteStages === 'function') noteStages(moved);
     drawSettings();
   };
   window.setAddStage = async function () {
     const result = await api('/crm/api/stages', { method: 'POST', body: JSON.stringify({ name: document.getElementById('newStage').value, probability: Number(document.getElementById('newChance').value || 50) }) });
+    if (Array.isArray(result) && typeof noteStages === 'function') noteStages(result);
     toast(Array.isArray(result) ? 'Stage added' : (result && result.error) || 'Could not add');
     if (Array.isArray(result)) drawSettings();
   };
@@ -10410,7 +10420,8 @@ window.openSearchHit = function (kind, id) {
     const current = await api('/crm/api/setup');
     const scoreNudge = { contact: document.getElementById('nContact').value, engagement: document.getElementById('nEngage').value, deal: document.getElementById('nDeal').value };
     const result = await api('/crm/api/setup', { method: 'POST', body: JSON.stringify(Object.assign({}, current || {}, { scoreNudge, done: 1 })) });
-    toast(result && !result.error ? 'Scores updated' : (result && result.error) || 'Could not save');
+    if (result && !result.error && typeof forgetScores === 'function') forgetScores();
+    toast(result && !result.error ? 'Scores updated. Open Leads to see them.' : (result && result.error) || 'Could not save');
     if (result && !result.error) drawSettings();
   };
   window.setImport = async function (input) {
@@ -10418,9 +10429,27 @@ window.openSearchHit = function (kind, id) {
     if (!file) return;
     if (/\.xlsx?$/i.test(file.name)) return toast('Save the Excel file as CSV, then import that');
     const text = await file.text();
-    const lines = text.split(/\r?\n/).filter((line) => line.trim());
-    if (lines.length < 2) return toast('The file has no rows');
-    const split = (line) => line.split(',').map((cell) => cell.trim().replace(/^"|"$/g, ''));
+    const rowsRaw = [];
+    let cell = '', row = [], quoted = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (quoted) {
+        if (ch === '"' && text[i + 1] === '"') { cell += '"'; i += 1; }
+        else if (ch === '"') quoted = false;
+        else cell += ch;
+      } else if (ch === '"') quoted = true;
+      else if (ch === ',') { row.push(cell.trim()); cell = ''; }
+      else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && text[i + 1] === '\n') i += 1;
+        row.push(cell.trim());
+        if (row.some(Boolean)) rowsRaw.push(row);
+        row = []; cell = '';
+      } else cell += ch;
+    }
+    if (cell || row.length) { row.push(cell.trim()); if (row.some(Boolean)) rowsRaw.push(row); }
+    if (rowsRaw.length < 2) return toast('The file has no rows');
+    const lines = rowsRaw;
+    const split = (line) => line;
     const head = split(lines[0]).map((cell) => cell.toLowerCase());
     const pick = (names) => head.findIndex((cell) => names.includes(cell));
     const cols = { firstName: pick(['first name', 'firstname', 'first']), lastName: pick(['last name', 'lastname', 'last']), email: pick(['email', 'email address']), phone: pick(['phone', 'phone number', 'mobile']) };
@@ -10439,7 +10468,7 @@ window.openSearchHit = function (kind, id) {
   };
   window.setHook = async function () {
     const result = await api('/crm/api/webhooks', { method: 'POST', body: JSON.stringify({ name: document.getElementById('hookName').value, url: document.getElementById('hookUrl').value, events: document.getElementById('hookOn').value }) });
-    toast(result && result.id ? 'Webhook saved' : (result && result.error) || 'Could not save');
+    toast(result && result.id ? 'Webhook saved. Secret: ' + (result.secret || '') : (result && result.error) || 'Could not save');
     if (result && result.id) drawSettings();
   };
   window.setDrop = async function (kind, id) {
