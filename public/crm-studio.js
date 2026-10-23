@@ -7749,7 +7749,7 @@
         ${navItem('calendar', 'Calendar', icon('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/>'))}
         ${navItem('reports', 'Reports', icon('<path d="M4 19V5M4 19h16"/><path d="M8 16v-5M12 16V8M16 16v-3"/>'))}
         ${navItem('sequences', 'Sequences', icon('<path d="M13 2 3 14h8l-1 8 10-12h-8z"/>'))}
-        ${navItem('sales', 'Sales workspace', icon('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>'))}
+        ${navItem('workspace', 'Sales workspace', icon('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>'))}
         ${navItem('agent', 'Agent hub', icon('<path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/>'))}
         <button type="button" id="moreBtn" data-tooltip="More" title="More" onclick="toggleLauncher()"><span class="ico">${icon('<circle cx="6" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="18" cy="12" r="1"/>')}</span></button>
       </div>
@@ -9791,4 +9791,196 @@ window.openSearchHit = function (kind, id) {
       <div class="seq-side" style="margin-top:12px"><h2>New sequence</h2><label>Name<input id="sName"></label><label>Stage<select id="sStage">${stages}</select></label><label>First task<input id="sTask"></label><label>Wait days<input id="sDays" value="1"></label><p><button type="button" class="seq-btn go" onclick="saveSequence()">Add sequence</button></p></div></div>`;
   };
   if (page === 'sequences') drawSequences();
+})();
+
+(function () {
+  const css = document.createElement('style');
+  css.textContent = `
+    #view .ws { background: #f4f6f8 !important; color: #0f172a !important; border-radius: 16px; padding: 16px; min-height: 72vh; }
+    #view .ws h1, #view .ws h2, #view .ws b { color: #0f172a !important; }
+    #view .ws h1 { margin: 0; font-size: 22px; }
+    #view .ws .cx-muted { color: #64748b !important; }
+    #view .ws button.ws-btn:not(.ghost):not(.x):not(.iconbtn) { background: #fff !important; color: #334155 !important; border: 1px solid #d0d7e2 !important; border-radius: 8px !important; padding: 6px 10px !important; box-shadow: none !important; width: auto !important; }
+    #view .ws button.ws-btn.on:not(.ghost):not(.x):not(.iconbtn), #view .ws button.ws-btn.go:not(.ghost):not(.x):not(.iconbtn) { background: #0f766e !important; color: #fff !important; border-color: #0f766e !important; }
+    #view .ws-tabs { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+    #view .ws-split { display: grid; grid-template-columns: 1.7fr 1fr; gap: 14px; align-items: start; }
+    #view .ws-card { background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+    #view .ws-line { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid #eef2f6; }
+    #view .ws-slot { display: grid; grid-template-columns: 64px 1fr; min-height: 36px; border-top: 1px solid #eef2f6; position: relative; font-size: 12px; }
+    #view .ws-slot span { color: #64748b; padding: 6px; }
+    #view .ws-now { position: absolute; left: 64px; right: 8px; height: 2px; background: #2563eb; }
+    #view .ws-chip { display: inline-block; background: #ccfbf1; color: #0f766e; border-radius: 6px; padding: 2px 6px; margin: 4px 4px 0 0; }
+    @media (max-width: 960px) { #view .ws-split { grid-template-columns: 1fr; } }
+  `;
+  document.head.appendChild(css);
+  let wsTab = 'summary';
+  let side = 'schedule';
+  let wsDay = 0;
+  let fold = {};
+  try { fold = JSON.parse(localStorage.getItem('ws-fold') || '{}'); } catch (e) { fold = {}; }
+  const dayKey = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return d.toISOString().slice(0, 10); };
+  function stageOfRow(row) {
+    return (bag.stages || []).find((item) => item.id === row.stage || item.code === row.stage) || null;
+  }
+  function isWon(row) {
+    const stage = stageOfRow(row);
+    return row.stage === 'CLOSED_WON' || Boolean(stage && (stage.code === 'CLOSED_WON' || (stage.closed && /won/i.test(stage.name || ''))));
+  }
+  function isOpen(row) {
+    const stage = stageOfRow(row);
+    if (isWon(row)) return false;
+    if (stage && (stage.closed || String(stage.code || '').startsWith('CLOSED') || /lost/i.test(stage.name || ''))) return false;
+    return !String(row.stage || '').startsWith('CLOSED');
+  }
+  function latest(id) {
+    return (bag.activities || []).filter((row) => row.relatedId === id).map((row) => row.createdAt || '').sort().pop() || '';
+  }
+  function quiet(id, days) {
+    const stamp = latest(id);
+    return !stamp || Date.now() - new Date(stamp).getTime() > days * 86400000;
+  }
+  function profile() {
+    const won = (bag.deals || []).filter(isWon);
+    const companies = bag.companies || [];
+    const counts = {};
+    const cities = {};
+    won.forEach((deal) => {
+      const company = companies.find((row) => row.id === deal.companyId);
+      if (!company) return;
+      if (company.industry) counts[company.industry] = (counts[company.industry] || 0) + 1;
+      if (company.city) cities[company.city] = (cities[company.city] || 0) + 1;
+    });
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    const city = Object.entries(cities).sort((a, b) => b[1] - a[1])[0];
+    return { won: won.length, industry: top ? top[0] : '', city: city ? city[0] : '' };
+  }
+  function prospectScore(row, icp, kind) {
+    let score = 0;
+    const why = [];
+    const company = (bag.companies || []).find((item) => item.id === row.companyId) || {};
+    const industry = row.industry || company.industry || '';
+    const city = row.city || company.city || '';
+    if (icp.industry && industry && industry.toLowerCase() === icp.industry.toLowerCase()) { score += 40; why.push('Same industry as deals you won: ' + icp.industry); }
+    if (icp.city && city && city.toLowerCase() === icp.city.toLowerCase()) { score += 15; why.push('Same city: ' + icp.city); }
+    if (row.rating === 'HOT') { score += 25; why.push('You marked this lead hot'); }
+    if ((row.email || company.email) && (row.phone || row.mobile)) { score += 10; why.push('Email and phone are on the record'); }
+    if (kind === 'lead' && row.status === 'NEW') { score += 5; why.push('Not worked yet'); }
+    return { score, why };
+  }
+  function prospects(icp) {
+    if (!icp.won) return [];
+    const openContact = new Set((bag.deals || []).filter(isOpen).map((row) => row.contactId).filter(Boolean));
+    const leads = (bag.leads || []).filter((row) => row.status !== 'CONVERTED' && row.status !== 'DEAD').map((row) => ({ row, kind: 'lead', ...prospectScore(row, icp, 'lead') }));
+    const contacts = (bag.contacts || []).filter((row) => !openContact.has(row.id)).map((row) => ({ row, kind: 'contact', ...prospectScore(row, icp, 'contact') }));
+    return leads.concat(contacts).filter((row) => row.score >= 25).sort((a, b) => b.score - a.score).slice(0, 5);
+  }
+  function outreach(day) {
+    const rows = (bag.activities || []).filter((row) => String(row.createdAt || '').slice(0, 10) === day);
+    const count = (type) => rows.filter((row) => row.type === type).length;
+    const history = {};
+    for (let i = 1; i <= 14; i++) {
+      const key = dayKey(-i);
+      const batch = (bag.activities || []).filter((row) => String(row.createdAt || '').slice(0, 10) === key);
+      ['EMAIL', 'CALL', 'WHATSAPP', 'MEETING'].forEach((type) => { history[type] = history[type] || []; history[type].push(batch.filter((row) => row.type === type).length); });
+    }
+    const target = (type) => {
+      const nums = (history[type] || []).slice().sort((a, b) => a - b);
+      if (!nums.length || nums.every((n) => !n)) return null;
+      return nums[Math.floor(nums.length / 2)];
+    };
+    return { email: count('EMAIL'), call: count('CALL'), whatsapp: count('WHATSAPP'), meeting: count('MEETING'), target };
+  }
+  function callHour() {
+    const hours = (bag.activities || []).filter((row) => row.type === 'CALL' && (row.status === 'HELD' || row.status === 'DONE')).map((row) => {
+      const match = String(row.dueAt || row.createdAt || '').match(/T(\d{2})/);
+      return match ? Number(match[1]) : null;
+    }).filter((n) => n != null);
+    if (hours.length < 3) return null;
+    const buckets = {};
+    hours.forEach((hour) => { buckets[hour] = (buckets[hour] || 0) + 1; });
+    const best = Object.entries(buckets).sort((a, b) => b[1] - a[1])[0];
+    return { hour: Number(best[0]), count: Number(best[1]), total: hours.length };
+  }
+  function rel(value) {
+    const then = new Date(value || '');
+    if (Number.isNaN(then.getTime())) return '';
+    const min = Math.round((Date.now() - then.getTime()) / 60000);
+    if (min < 60) return (min < 1 ? 1 : min) + 'm ago';
+    const hr = Math.round(min / 60);
+    if (hr < 24) return hr + 'h ago';
+    return Math.round(hr / 24) + 'd ago';
+  }
+  window.wsSet = function (key, value) {
+    if (key === 'tab') wsTab = value;
+    if (key === 'side') side = value;
+    if (key === 'day') wsDay += value;
+    drawWorkspace();
+  };
+  window.wsFold = function (key) { fold[key] = !fold[key]; localStorage.setItem('ws-fold', JSON.stringify(fold)); drawWorkspace(); };
+  function card(key, title, body) {
+    return `<section class="ws-card"><div class="ws-line" style="border:0"><b>${title}</b><button type="button" class="ws-btn" onclick="wsFold('${key}')">${fold[key] ? 'Show' : 'Hide'}</button></div>${fold[key] ? '' : body}</section>`;
+  }
+  function schedule(day) {
+    const rows = (bag.activities || []).filter((row) => String(row.dueAt || row.createdAt || '').slice(0, 10) === day && row.status !== 'HELD');
+    let html = '';
+    const now = new Date();
+    for (let hour = 8; hour <= 18; hour++) {
+      const hits = rows.filter((row) => { const match = String(row.dueAt || '').match(/T(\d{2})/); return match && Number(match[1]) === hour; });
+      const label = (hour % 12 || 12) + (hour < 12 ? ' AM' : ' PM');
+      const line = wsDay === 0 && now.getHours() === hour ? `<i class="ws-now" style="top:${Math.round(now.getMinutes() / 60 * 100)}%"></i>` : '';
+      html += `<div class="ws-slot"><span>${label}</span><div>${line}${hits.map((row) => `<span class="ws-chip">${esc(row.subject || row.type)}</span>`).join('')}</div></div>`;
+    }
+    const loose = rows.filter((row) => !/T\d{2}/.test(String(row.dueAt || ''))).map((row) => `<span class="ws-chip">${esc(row.subject || row.type)}</span>`).join('');
+    return (loose ? `<div class="cx-muted">No time: ${loose}</div>` : '') + html;
+  }
+  window.drawWorkspace = function () {
+    const name = (me && (me.fullName || me.email)) || 'You';
+    const today = dayKey(wsDay);
+    const label = new Date(today + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    const tasks = (bag.activities || []).filter((row) => (row.type === 'TASK' || row.type === 'CALL' || row.type === 'MEETING') && row.status !== 'HELD' && row.status !== 'DONE' && String(row.dueAt || '').slice(0, 10) === dayKey(0));
+    const open = (bag.deals || []).filter(isOpen);
+    const stalled = open.filter((row) => quiet(row.id, 14));
+    const icp = profile();
+    const people = prospects(icp);
+    const out = outreach(dayKey(0));
+    const hour = callHour();
+    const tabs = [['summary', 'Summary'], ['contacts', 'Contacts'], ['deals', 'Deals'], ['tasks', 'Tasks'], ['schedule', 'Schedule'], ['dashboard', 'Dashboard']].map(([id, text]) => `<button type="button" class="ws-btn ${wsTab === id ? 'on' : ''}" onclick="wsSet('tab','${id}')">${text}</button>`).join('');
+    let main = '';
+    if (wsTab === 'contacts') {
+      main = (bag.contacts || []).slice(0, 12).map((row) => `<div class="ws-line"><div><b>${esc(person(row))}</b><div class="cx-muted">${esc(row.email || '')}</div></div><button type="button" class="ws-btn" onclick="openRecord('contact','${row.id}')">Open</button></div>`).join('') || '<p class="cx-muted">No contact yet.</p>';
+    } else if (wsTab === 'deals') {
+      main = open.map((row) => `<div class="ws-line"><div><b>${esc(row.name)}</b><div class="cx-muted">${money(row.amount)}</div></div><button type="button" class="ws-btn" onclick="openRecord('deal','${row.id}')">Open</button></div>`).join('') || '<p class="cx-muted">No open deal.</p>';
+    } else if (wsTab === 'tasks') {
+      main = tasks.map((row) => `<div class="ws-line"><label><input type="checkbox" onclick="hold('${row.id}')"> ${esc(row.subject || 'Task')}</label><span class="cx-muted">${esc(row.type)}</span></div>`).join('') || '<p class="cx-muted">Nothing is due today.</p><button type="button" class="ws-btn go" onclick="go(\'tasks\',\'task\')">Create a task</button>';
+    } else if (wsTab === 'schedule') {
+      main = `<div class="ws-line" style="border:0"><b>${esc(label)}</b><span><button type="button" class="ws-btn" onclick="wsSet('day',-1)">‹</button> <button type="button" class="ws-btn" onclick="wsSet('day',1)">›</button></span></div>${schedule(today)}`;
+    } else if (wsTab === 'dashboard') {
+      const worth = open.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+      main = `<div class="ws-line"><span>Open pipeline</span><b>${money(worth)}</b></div><div class="ws-line"><span>Open deals</span><b>${open.length}</b></div><div class="ws-line"><span>Quiet 14 days</span><b>${stalled.length}</b></div><div class="ws-line"><span>Won deals</span><b>${icp.won}</b></div>`;
+    } else {
+      const taskBody = tasks.length ? tasks.map((row) => `<div class="ws-line"><label><input type="checkbox" onclick="hold('${row.id}')"> ${esc(row.subject || 'Task')}</label></div>`).join('') : '<p class="cx-muted">Nothing is due today.</p><button type="button" class="ws-btn go" onclick="go(\'tasks\',\'task\')">Create a task</button>';
+      const bar = (label, n, goal) => `<div class="ws-line"><span>${label}</span><b>${n}${goal == null ? '' : ' / ' + goal}</b></div>`;
+      const outBody = bar('Emails logged', out.email, out.target('EMAIL')) + bar('Calls logged', out.call, out.target('CALL')) + bar('WhatsApp logged', out.whatsapp, out.target('WHATSAPP')) + bar('Meetings logged', out.meeting, out.target('MEETING')) + '<p class="cx-muted">The target is the median of the last 14 days. No number means there is no history, so no target is invented.</p>';
+      const sug = people.length ? people.map((item) => {
+        const who = item.kind === 'lead' ? person(item.row) : person(item.row);
+        const action = item.kind === 'lead' ? `<button type="button" class="ws-btn go" onclick="convert('${item.row.id}')">Add to CRM</button>` : `<button type="button" class="ws-btn" onclick="openRecord('contact','${item.row.id}')">Open</button>`;
+        return `<div class="ws-line"><div><b>${esc(who)}</b><div class="cx-muted">${esc(item.why[0] || '')}</div></div>${action}</div>`;
+      }).join('') : `<p class="cx-muted">${icp.won ? 'Nobody scores high enough yet. A suggestion needs the same industry as a won deal, a hot lead, or a matching city.' : 'No won deal yet, so there is no profile to match. Win one and this list can start.'}</p>`;
+      const insights = [
+        [stalled.length + ' open deal' + (stalled.length === 1 ? '' : 's') + ' with no activity for 14 days', stalled.length ? `<button type="button" class="ws-btn" onclick="go('deals')">Open deals</button>` : ''],
+        hour ? `Most completed calls were logged around ${hour.hour % 12 || 12}${hour.hour < 12 ? ' AM' : ' PM'} (${hour.count} of ${hour.total})` : 'Not enough completed calls to pick an hour. Log at least 3.',
+      ];
+      const feed = (bag.activities || []).slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).slice(0, 8).map((row) => `<div class="ws-line"><div><b>${esc(row.subject || row.type || 'Activity')}</b><div class="cx-muted">${esc(row.type || '')} · ${esc(rel(row.createdAt))}</div></div></div>`).join('') || '<p class="cx-muted">No activity logged.</p>';
+      const sideBody = side === 'insights' ? insights.map((row) => `<div class="ws-line"><div>${esc(row[0])}</div>${row[1] || ''}</div>`).join('') : side === 'feed' ? '<p class="cx-muted">This is activity on the records. Page visits and email opens are not tracked.</p>' + feed : `<div class="ws-line" style="border:0"><b>${esc(label)}</b><span><button type="button" class="ws-btn" onclick="wsSet('day',-1)">‹</button> <button type="button" class="ws-btn" onclick="wsSet('day',1)">›</button></span></div>${schedule(today)}`;
+      const sideTabs = [['schedule', 'Schedule'], ['insights', 'Insights'], ['feed', 'Feed']].map(([id, text]) => `<button type="button" class="ws-btn ${side === id ? 'on' : ''}" onclick="wsSet('side','${id}')">${text}</button>`).join(' ');
+      main = `<div class="ws-split"><div>${card('tasks', 'Tasks', taskBody)}${card('out', 'Outreach today', outBody)}${card('pro', 'Prospects', sug)}</div><aside class="ws-card"><div class="ws-tabs">${sideTabs}</div>${sideBody}</aside></div>`;
+    }
+    document.getElementById('view').innerHTML = `<div class="ws"><div class="cal-toolbar"><h1>Sales <span class="cx-muted">| ${esc(name)}</span></h1></div><div class="ws-tabs">${tabs}</div>${wsTab === 'summary' ? '' : '<div class="ws-card">'}${main}${wsTab === 'summary' ? '' : '</div>'}</div>`;
+  };
+  const prev = draw;
+  draw = function () {
+    if (page === 'workspace' || page === 'sales') return drawWorkspace();
+    return prev();
+  };
+  if (page === 'workspace' || page === 'sales') drawWorkspace();
 })();
