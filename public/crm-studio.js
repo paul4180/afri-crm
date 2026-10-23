@@ -7599,3 +7599,279 @@
     set(value) { salesTab = value; },
   });
 })();
+
+(function () {
+  const shell = document.createElement('style');
+  shell.textContent = `
+    .app, .app.rail { display: block !important; height: 100vh !important; overflow: hidden !important; background: #f5f8fa !important; }
+    #nav {
+      position: fixed !important; top: 0 !important; left: 0 !important; bottom: 0 !important;
+      width: 56px !important; min-width: 56px !important; max-width: 56px !important;
+      background: #0d1117 !important; border-right: 1px solid rgba(255,255,255,0.06) !important;
+      z-index: 50 !important; display: flex !important; flex-direction: column !important;
+      align-items: center !important; padding: 14px 0 8px !important; overflow: hidden !important;
+    }
+    #nav .brand { padding: 0 !important; margin: 0 0 10px !important; justify-content: center !important; width: 56px !important; }
+    #nav .brand div, #nav .navlabel, #nav .nav-section-header, #nav .fold, #nav .chev, #nav #setupCard,
+    #nav button span:not(.ico) { display: none !important; }
+    #nav .logo {
+      width: 28px !important; height: 28px !important; border-radius: 8px !important;
+      background: #0d9488 !important; color: #fff !important; font-size: 13px !important; font-weight: 800 !important;
+      display: grid !important; place-items: center !important;
+    }
+    #nav .navscroll {
+      flex: 1 !important; width: 56px !important; overflow: auto !important; align-items: center !important;
+      gap: 0 !important; padding: 0 !important; scrollbar-width: none !important;
+    }
+    #nav .navscroll::-webkit-scrollbar { display: none; }
+    #nav .navscroll button, #nav #moreBtn {
+      width: 44px !important; height: 44px !important; min-height: 44px !important; padding: 0 !important;
+      margin: 0 auto !important; display: flex !important; align-items: center !important; justify-content: center !important;
+      background: transparent !important; box-shadow: none !important; border: 0 !important; border-radius: 8px !important;
+      position: relative !important; color: #64748b !important;
+    }
+    #nav .ico, #nav [data-page] .ico, #nav #moreBtn .ico {
+      width: 36px !important; height: 36px !important; border-radius: 8px !important;
+      background: transparent !important; color: #64748b !important;
+      display: grid !important; place-items: center !important;
+    }
+    #nav .ico svg { width: 20px !important; height: 20px !important; }
+    #nav [data-page]:hover .ico, #nav #moreBtn:hover .ico { background: rgba(255,255,255,0.06) !important; color: #fff !important; }
+    #nav [data-page].on .ico, #nav #moreBtn.on .ico { background: #0d9488 !important; color: #fff !important; }
+    #nav [data-tooltip]:hover::after {
+      content: attr(data-tooltip);
+      position: absolute; left: 50px; top: 50%; transform: translateY(-50%);
+      background: #1a2332; color: #fff; font-size: 12px; font-weight: 600;
+      padding: 6px 8px; border-radius: 6px; white-space: nowrap; z-index: 80;
+      pointer-events: none; opacity: 0; animation: shelltip .01s linear .3s forwards;
+      box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    }
+    @keyframes shelltip { to { opacity: 1; } }
+    #nav .navfoot { width: 56px !important; padding: 6px 0 4px !important; display: flex !important; flex-direction: column !important; align-items: center !important; border-top: 1px solid rgba(255,255,255,0.06); }
+    #nav .rail-me {
+      width: 32px; height: 32px; border-radius: 999px; border: 0; background: #0d9488; color: #fff;
+      font-weight: 700; font-size: 12px; cursor: pointer;
+    }
+    #railMe {
+      position: fixed; left: 64px; bottom: 12px; width: 200px; background: #1a2332;
+      border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 6px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.6); z-index: 70; display: none;
+    }
+    #railMe button { width: 100%; text-align: left; background: transparent; color: #e7edf5; border-radius: 8px; }
+    #railMe button:hover { background: rgba(255,255,255,0.06); }
+    .app > header {
+      position: fixed !important; top: 0 !important; left: 56px !important; right: 0 !important; height: 56px !important;
+      background: rgba(13,17,23,0.85) !important; backdrop-filter: blur(12px) !important;
+      border-bottom: 1px solid rgba(255,255,255,0.07) !important; z-index: 40 !important;
+      display: flex !important; align-items: center !important; gap: 8px !important; padding: 0 12px !important;
+    }
+    .mobile-pill {
+      flex: none; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px;
+      border-radius: 999px; background: rgba(13,148,136,0.15); border: 1px solid rgba(13,148,136,0.35);
+      color: #0d9488; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .app > header .search { margin: 0 auto !important; width: min(480px, 46vw) !important; flex: none !important; position: relative !important; }
+    .app > header .search input {
+      width: 100% !important; height: 36px !important; background: rgba(255,255,255,0.05) !important;
+      border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 8px !important; color: #fff !important;
+      padding: 0 52px 0 34px !important;
+    }
+    .app > header .search input::placeholder { color: #64748b !important; }
+    .app > header .search input:focus { border-color: #0d9488 !important; box-shadow: 0 0 0 3px rgba(13,148,136,0.25) !important; outline: none !important; }
+    .app > header .search::before {
+      content: ""; position: absolute; left: 12px; top: 10px; width: 14px; height: 14px;
+      border: 1.6px solid #64748b; border-radius: 999px; pointer-events: none;
+    }
+    .app > header .search::after {
+      content: ""; position: absolute; left: 23px; top: 21px; width: 6px; height: 1.6px; background: #64748b;
+      transform: rotate(45deg); pointer-events: none;
+    }
+    .app > header .shortcut { background: rgba(255,255,255,0.08) !important; color: #94a3b8 !important; border-radius: 4px !important; font-size: 11px !important; }
+    .app > header .tools { display: flex !important; align-items: center !important; gap: 4px !important; }
+    .app > header .iconbtn { width: 36px !important; height: 36px !important; color: #cbd5e1 !important; background: transparent !important; border-radius: 8px !important; }
+    .app > header .iconbtn:hover { background: rgba(255,255,255,0.06) !important; }
+    .app > header .iconbtn[title="Ask the records"]:hover { background: rgba(168,85,247,0.12) !important; color: #d8b4fe !important; }
+    .status-dot { width: 10px; height: 10px; border-radius: 999px; display: inline-block; background: #22c55e; }
+    .status-dot.busy { background: #ef4444; }
+    .status-dot.away { background: #f59e0b; }
+    #statusMenu, #shellHits {
+      position: absolute; top: 46px; right: 0; background: #1a2332; border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px; padding: 6px; z-index: 70; min-width: 160px; box-shadow: 0 16px 40px rgba(0,0,0,.45);
+    }
+    #shellHits { left: 0; right: auto; width: 100%; max-height: 360px; overflow: auto; }
+    #shellHits b.grp { display: block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #64748b; padding: 8px 10px 2px; }
+    #shellHits button, #statusMenu button { width: 100%; text-align: left; background: transparent; color: #e7edf5; border-radius: 8px; }
+    #shellHits button:hover, #statusMenu button:hover { background: rgba(255,255,255,0.06); }
+    #shellHits .sub { color: #94a3b8; font-size: 12px; }
+    .work { margin: 56px 0 0 56px !important; height: calc(100vh - 56px) !important; overflow: auto !important; background: #f5f8fa !important; display: block !important; }
+    #bellList.shell-drawer {
+      position: fixed !important; top: 56px !important; right: 0 !important; bottom: 0 !important; left: auto !important;
+      width: 380px !important; max-height: none !important; margin: 0 !important; border-radius: 0 !important;
+      background: #1a2332 !important; color: #e7edf5 !important; border-left: 1px solid rgba(255,255,255,0.08) !important;
+      box-shadow: 0 20px 60px rgba(0,0,0,.6) !important; z-index: 65 !important; overflow: auto !important; padding: 0 !important;
+    }
+    .nd-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px 8px; }
+    .nd-head b { font-size: 18px; color: #fff; }
+    .nd-head button { background: transparent !important; color: #0d9488 !important; padding: 0 !important; }
+    .nd-tabs { display: flex; gap: 6px; padding: 0 16px 10px; flex-wrap: wrap; }
+    .nd-tabs button { background: transparent !important; color: #94a3b8 !important; border-radius: 999px !important; padding: 4px 10px !important; }
+    .nd-tabs button.on { background: rgba(13,148,136,0.18) !important; color: #5eead4 !important; }
+    .shell-drawer .note { display: grid !important; grid-template-columns: 28px 1fr auto; gap: 10px; width: 100% !important; text-align: left !important;
+      background: transparent !important; color: #e7edf5 !important; border-radius: 0 !important; border-bottom: 1px solid rgba(255,255,255,0.06) !important; padding: 14px 20px !important; }
+    .shell-drawer .note:hover { background: rgba(255,255,255,0.04) !important; }
+    .shell-drawer .note.unread { box-shadow: inset 2px 0 0 #0d9488; background: rgba(255,255,255,0.03) !important; }
+    .shell-drawer .note b { color: #fff !important; font-size: 14px; }
+    .shell-drawer .note .meta { color: #94a3b8 !important; font-size: 13px; }
+    .shell-drawer .when { color: #64748b; font-size: 12px; white-space: nowrap; }
+    .ndot { width: 16px; height: 16px; border-radius: 999px; margin-top: 2px; }
+    .ndot.contact { background: #0d9488; } .ndot.deal { background: #f59e0b; } .ndot.task { background: #ef4444; } .ndot.system { background: #3b82f6; }
+    #phoneBox { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 80; display: none; place-items: center; }
+    #phoneBox.on { display: grid; }
+    #phoneBox .card { width: min(420px, calc(100% - 32px)); background: #1a2332; color: #e7edf5; border-radius: 16px; padding: 20px; }
+    #phoneBox h2 { margin: 0 0 8px; color: #fff; }
+    #phoneBox code { display: block; background: #0d1117; padding: 10px 12px; border-radius: 8px; margin: 12px 0; word-break: break-all; }
+  `;
+  document.head.appendChild(shell);
+
+  const icon = (d) => svg(d);
+  const priorNav = paintNav;
+  paintNav = function () {
+    priorNav();
+    const mark = (document.getElementById('whoMark') || {}).textContent || 'A';
+    document.getElementById('nav').innerHTML = `<div class="brand"><span class="logo">A</span></div>
+      <div class="navscroll">
+        ${navItem('home', 'Home', icon('<path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/>'))}
+        ${navItem('contacts', 'Contacts', icon('<path d="M4 7h16M4 12h16M4 17h10"/>'))}
+        ${navItem('companies', 'Companies', icon('<path d="M4 21V5h9v16M13 9h7v12"/><path d="M7 9h2M7 13h2M16 13h2"/>'))}
+        ${navItem('deals', 'Deals', icon('<path d="M3 8h18v10H3z"/><path d="M3 12h18M8 8V6h8v2"/>'))}
+        ${navItem('leads', 'Leads', icon('<circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/>'))}
+        ${navItem('teams', 'Teams', icon('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="3"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'))}
+        ${navItem('tasks', 'Tasks', icon('<path d="M9 11l2 2 4-4"/><rect x="4" y="4" width="16" height="16" rx="2"/>'))}
+        ${navItem('calendar', 'Calendar', icon('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/>'))}
+        ${navItem('dashboard', 'Reports', icon('<path d="M4 19V5M4 19h16"/><path d="M8 16v-5M12 16V8M16 16v-3"/>'))}
+        ${navItem('sequences', 'Sequences', icon('<path d="M13 2 3 14h8l-1 8 10-12h-8z"/>'))}
+        ${navItem('sales', 'Sales workspace', icon('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>'))}
+        ${navItem('agent', 'Agent hub', icon('<path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/>'))}
+        <button type="button" id="moreBtn" data-tooltip="More" title="More" onclick="toggleLauncher()"><span class="ico">${icon('<circle cx="6" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="18" cy="12" r="1"/>')}</span></button>
+      </div>
+      <div class="navfoot"><button type="button" class="rail-me" id="railMeBtn" title="Account">${esc(mark)}</button><div id="setupCard" hidden></div></div>`;
+    document.querySelectorAll('#nav button').forEach((el) => el.classList.toggle('on', el.dataset.page === page));
+    const meBtn = document.getElementById('railMeBtn');
+    if (meBtn) meBtn.onclick = toggleRailMe;
+  };
+
+  function toggleRailMe() {
+    const box = document.getElementById('railMe');
+    box.style.display = box.style.display === 'block' ? 'none' : 'block';
+  }
+  window.toggleRailMe = toggleRailMe;
+  const rail = document.createElement('div');
+  rail.id = 'railMe';
+  rail.innerHTML = '<button type="button" onclick="go(\'users\');toggleRailMe()">My profile</button><button type="button" onclick="go(\'settings\');toggleRailMe()">Settings</button><button type="button" onclick="logout()">Sign out</button>';
+  document.body.appendChild(rail);
+
+  const header = document.querySelector('.app > header');
+  if (header && !document.getElementById('mobilePill')) {
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.id = 'mobilePill';
+    pill.className = 'mobile-pill';
+    pill.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg> Mobile app';
+    pill.onclick = () => document.getElementById('phoneBox').classList.add('on');
+    header.insertBefore(pill, header.firstChild);
+    const tools = header.querySelector('.tools');
+    const status = document.createElement('button');
+    status.type = 'button';
+    status.className = 'iconbtn';
+    status.id = 'statusBtn';
+    status.title = 'Status';
+    status.innerHTML = '<span class="status-dot" id="statusDot"></span>';
+    status.onclick = (event) => {
+      event.stopPropagation();
+      const menu = document.getElementById('statusMenu');
+      menu.hidden = !menu.hidden;
+    };
+    if (tools) tools.appendChild(status);
+    const menu = document.createElement('div');
+    menu.id = 'statusMenu';
+    menu.hidden = true;
+    menu.innerHTML = '<button type="button" onclick="setPresence(\'available\')">Available</button><button type="button" onclick="setPresence(\'busy\')">Busy</button><button type="button" onclick="setPresence(\'away\')">Away</button>';
+    header.appendChild(menu);
+    const hits = document.createElement('div');
+    hits.id = 'shellHits';
+    hits.hidden = true;
+    header.querySelector('.search').appendChild(hits);
+  }
+  const phone = document.createElement('div');
+  phone.id = 'phoneBox';
+  phone.innerHTML = '<div class="card"><h2>Open Afri CRM on your phone</h2><p class="hello">This is the same workspace. In the phone browser, use Add to Home Screen. There is no separate store app.</p><code id="phoneUrl"></code><button type="button" onclick="navigator.clipboard.writeText(document.getElementById(\'phoneUrl\').textContent).then(()=>toast(\'Copied\'))">Copy the address</button> <button type="button" class="ghost" onclick="document.getElementById(\'phoneBox\').classList.remove(\'on\')">Close</button></div>';
+  phone.addEventListener('click', (event) => { if (event.target.id === 'phoneBox') phone.classList.remove('on'); });
+  document.body.appendChild(phone);
+  const urlEl = () => { const el = document.getElementById('phoneUrl'); if (el) el.textContent = location.origin + '/crm'; };
+  urlEl();
+
+  window.setPresence = function (value) {
+    localStorage.setItem('crm-status', value);
+    const dot = document.getElementById('statusDot');
+    if (dot) dot.className = 'status-dot' + (value === 'available' ? '' : ' ' + value);
+    const menu = document.getElementById('statusMenu');
+    if (menu) menu.hidden = true;
+  };
+  setPresence(localStorage.getItem('crm-status') || 'available');
+
+  const q = document.getElementById('q');
+  if (q) q.addEventListener('input', () => {
+    const box = document.getElementById('shellHits');
+    if (!box) return;
+    const query = q.value.trim().toLowerCase();
+    if (!query) { box.hidden = true; box.innerHTML = ''; return; }
+    const block = (title, rows) => rows.length ? `<b class="grp">${title}</b>${rows.join('')}` : '';
+    const contacts = (bag.contacts || []).filter((row) => (person(row) + ' ' + (row.email || '')).toLowerCase().includes(query)).slice(0, 4)
+      .map((row) => `<button type="button" onclick="document.getElementById('shellHits').hidden=true;openRecord('contact','${row.id}')"><b>${esc(person(row))}</b><div class="sub">${esc(row.email || 'Contact')}</div></button>`);
+    const companies = (bag.companies || []).filter((row) => (row.name || '').toLowerCase().includes(query)).slice(0, 4)
+      .map((row) => `<button type="button" onclick="document.getElementById('shellHits').hidden=true;openRecord('company','${row.id}')"><b>${esc(row.name)}</b><div class="sub">Company</div></button>`);
+    const deals = (bag.deals || []).filter((row) => (row.name || '').toLowerCase().includes(query)).slice(0, 4)
+      .map((row) => `<button type="button" onclick="document.getElementById('shellHits').hidden=true;openRecord('deal','${row.id}')"><b>${esc(row.name)}</b><div class="sub">${money(row.amount)}</div></button>`);
+    const tasks = (bag.activities || []).filter((row) => (row.type === 'TASK' || row.type === 'CALL') && (row.subject || '').toLowerCase().includes(query)).slice(0, 4)
+      .map((row) => `<button type="button" onclick="document.getElementById('shellHits').hidden=true;go('tasks')"><b>${esc(row.subject)}</b><div class="sub">${esc(row.type)}</div></button>`);
+    const html = block('Contacts', contacts) + block('Companies', companies) + block('Deals', deals) + block('Tasks', tasks);
+    box.innerHTML = html || '<div class="sub" style="padding:10px">No record matches.</div>';
+    box.hidden = false;
+  });
+
+  document.getElementById('bellList').classList.add('shell-drawer');
+  let noteFilter = 'all';
+  function ago(value) {
+    const t = new Date(value || '').getTime();
+    if (!t) return '';
+    const min = Math.round((Date.now() - t) / 60000);
+    if (min < 1) return 'just now';
+    if (min < 60) return min + 'm ago';
+    const hr = Math.round(min / 60);
+    if (hr < 24) return hr + 'h ago';
+    return Math.round(hr / 24) + 'd ago';
+  }
+  loadBell = async function () {
+    const data = await api('/crm/api/notifications');
+    if (!data || data.error) return;
+    setBell(data.unread || 0);
+    const items = (data.items || []).filter((row) => {
+      const type = row.recordType || '';
+      if (noteFilter === 'tasks') return type === 'task';
+      if (noteFilter === 'deals') return type === 'deal';
+      if (noteFilter === 'mentions') return /mention|@/i.test((row.title || '') + ' ' + (row.body || ''));
+      if (noteFilter === 'system') return !['task', 'deal', 'contact', 'lead'].includes(type);
+      return true;
+    });
+    const tab = (id, label) => `<button type="button" class="${noteFilter === id ? 'on' : ''}" onclick="noteFilter='${id}';loadBell()">${label}</button>`;
+    const tone = (row) => row.recordType === 'deal' ? 'deal' : row.recordType === 'contact' || row.recordType === 'lead' ? 'contact' : row.recordType === 'task' ? 'task' : 'system';
+    document.getElementById('bellList').innerHTML = `<div class="nd-head"><b>Notifications</b><button type="button" onclick="readNotes()">Mark all read</button></div><div class="nd-tabs">${tab('all','All')}${tab('mentions','Mentions')}${tab('tasks','Tasks')}${tab('deals','Deals')}${tab('system','System')}</div>` +
+      (items.map((row) => `<button type="button" class="note ${row.readAt ? '' : 'unread'}" onclick="openNote('${row.id}','${esc(row.recordType || '')}','${esc(row.recordId || '')}')"><span class="ndot ${tone(row)}"></span><span><b>${esc(row.title)}</b><div class="meta">${esc(row.body || '')}</div></span><span class="when">${ago(row.createdAt)}</span></button>`).join('') || '<div class="alertempty"><b>Nothing in this filter</b></div>');
+  };
+  Object.defineProperty(window, 'noteFilter', { get() { return noteFilter; }, set(v) { noteFilter = v; } });
+  readNotes = async function () {
+    const data = await api('/crm/api/notifications/read', { method: 'POST', body: JSON.stringify({ all: true }) });
+    if (data && data.unread != null) setBell(data.unread);
+    loadBell();
+  };
+})();
