@@ -9253,28 +9253,54 @@ window.openSearchHit = function (kind, id) {
 (function () {
   const css = document.createElement('style');
   css.textContent = `
-    #view .calx { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; align-items: start; }
-    #view .cal-side, #view .cal-card { background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 12px; }
-    #view .cal-mini { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-    #view .cal-mini button, #view .cal-mini span { height: 26px; border: 0; background: transparent; border-radius: 6px; font-size: 12px; }
-    #view .cal-mini button.on { background: #0d9488; color: #fff; }
-    #view .cal-mini button.has { box-shadow: inset 0 -2px 0 #0d9488; }
+    #view .cal-board { background: #f4f6f8 !important; color: #0f172a !important; border-radius: 16px; padding: 16px; min-height: 72vh; }
+    #view .cal-board h1 { margin: 0 !important; font-size: 22px !important; color: #0f172a !important; line-height: 1.2 !important; }
+    #view .cal-board h2, #view .cal-board b { color: #0f172a !important; }
+    #view .cal-board .cx-muted, #view .cal-board .cal-head { color: #64748b !important; }
+    #view .cal-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+    #view .cal-nav { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    #view .cal-board button.cal-btn:not(.ghost):not(.x):not(.iconbtn) {
+      background: #fff !important; color: #334155 !important; border: 1px solid #d0d7e2 !important;
+      border-radius: 8px !important; padding: 6px 12px !important; font-weight: 600 !important;
+      box-shadow: none !important; width: auto !important; min-height: 32px !important; display: inline-flex !important; align-items: center !important;
+    }
+    #view .cal-board button.cal-btn.on:not(.ghost):not(.x):not(.iconbtn),
+    #view .cal-board button.cal-btn.go:not(.ghost):not(.x):not(.iconbtn) {
+      background: #0f766e !important; color: #fff !important; border-color: #0f766e !important;
+    }
+    #view .calx { display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 12px; align-items: start; }
+    #view .cal-side, #view .cal-main, #view .cal-card {
+      background: #fff !important; color: #0f172a !important; border: 1px solid #e5e8eb !important; border-radius: 12px; padding: 12px;
+    }
+    #view .cal-main { padding: 0; overflow: auto; }
+    #view .cal-mini { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    #view .cal-mini .cal-head { text-align: center; font-size: 11px; padding: 4px 0; }
+    #view .cal-day { height: 28px; display: grid; place-items: center; border-radius: 8px; font-size: 12px; cursor: pointer; color: #334155; }
+    #view .cal-day.today { box-shadow: inset 0 0 0 1px #0f766e; }
+    #view .cal-day.on { background: #0f766e; color: #fff; }
+    #view .cal-day.has { box-shadow: inset 0 -3px 0 #0f766e; }
     #view .cal-src { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid #eef2f6; font-size: 13px; }
-    #view .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
-    #view .cal-cell { min-height: 92px; text-align: left; background: #fff; border: 1px solid #e5e8eb; border-radius: 8px; padding: 6px; cursor: pointer; }
-    #view .cal-cell.today { border-color: #0d9488; }
-    #view .cal-cell.on { outline: 2px solid #0d9488; }
-    #view .ev { display: block; width: 100%; text-align: left; border: 0; border-radius: 999px; padding: 2px 8px; margin-top: 4px; font-size: 11px; cursor: pointer; }
+    #view .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+    #view .cal-cell { min-height: 108px; background: #fff; border-top: 1px solid #e8edf2; border-left: 1px solid #e8edf2; padding: 6px; cursor: pointer; }
+    #view .cal-cell.today { background: #f0fdfa; }
+    #view .cal-cell.on { box-shadow: inset 0 0 0 2px #0f766e; }
+    #view .cal-week { display: grid; min-width: 720px; }
+    #view .cal-week.days-7 { grid-template-columns: 64px repeat(7, minmax(88px, 1fr)); }
+    #view .cal-week.days-1 { grid-template-columns: 64px minmax(0, 1fr); min-width: 0; }
+    #view .cal-week .slot { border-top: 1px solid #e8edf2; min-height: 48px; padding: 2px 4px; background: #fff; }
+    #view .cal-week .slot.today, #view .cal-week .cal-head.today { background: #f0fdfa; }
+    #view .cal-week .cal-head { border-bottom: 1px solid #e8edf2; background: #fff; }
+    #view .cal-all { display: flex; flex-direction: column; gap: 4px; min-height: 52px; }
+    #view .ev { display: block; border-radius: 6px; padding: 4px 6px; margin: 0 0 4px; font-size: 12px; line-height: 1.3; cursor: pointer; white-space: normal; }
     #view .ev.meet { background: #dbeafe; color: #1d4ed8; }
     #view .ev.call { background: #dcfce7; color: #15803d; }
     #view .ev.task { background: #fef3c7; color: #b45309; }
     #view .ev.seq { background: #f3e8ff; color: #7e22ce; }
     #view .ev.late { background: #fee2e2; color: #b91c1c; }
     #view .ev.gcal { background: #e0f2fe; color: #0369a1; }
-    #view .cal-week { display: grid; grid-template-columns: 52px repeat(7, minmax(0, 1fr)); }
-    #view .cal-week div, #view .cal-dayrow { border-top: 1px solid #eef2f6; min-height: 36px; padding: 2px; font-size: 11px; }
-    #view .cal-head { font-size: 12px; font-weight: 700; color: #64748b; padding: 6px; }
-    @media (max-width: 900px) { #view .calx { grid-template-columns: 1fr; } }
+    #view .cal-card label { display: block; margin: 8px 0; font-size: 13px; color: #334155; }
+    #view .cal-card input, #view .cal-card select { display: block; width: 100%; margin-top: 4px; background: #fff !important; color: #0f172a !important; border: 1px solid #d0d7e2; border-radius: 8px; padding: 8px; }
+    @media (max-width: 900px) { #view .calx { grid-template-columns: 1fr; } #view .cal-week.days-7 { min-width: 640px; } }
   `;
   document.head.appendChild(css);
 
@@ -9335,7 +9361,7 @@ window.openSearchHit = function (kind, id) {
     if (calView === 'week') { const a = weekStart(calCursor); const b = addDays(a, 6); return a.getDate() + '–' + b.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }
     return calCursor.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   }
-  function pill(item) { return `<button type="button" class="ev ${item.kind[0]}" onclick="openCalEvent('${item.id}', event)">${esc(item.title)}</button>`; }
+  function pill(item) { return `<div class="ev ${item.kind[0]}" onclick="openCalEvent('${item.id}', event)">${esc(item.title)}</div>`; }
 
   window.setCalView = function (view) { calView = view; calOpen = ''; drawCalPage(); };
   window.moveCal = function (step) {
@@ -9419,11 +9445,11 @@ window.openSearchHit = function (kind, id) {
       if (!day) return '<span></span>';
       const key = keyOf(new Date(calCursor.getFullYear(), calCursor.getMonth(), day));
       const has = onDay(key).length ? ' has' : '';
-      return `<button type="button" class="${calPick === key ? 'on' : ''}${has}" onclick="pickCalDay('${key}')">${day}</button>`;
+      return `<div class="cal-day ${calPick === key ? 'on' : ''}${has}${key === today ? ' today' : ''}" onclick="pickCalDay('${key}')">${day}</div>`;
     }).join('');
     const sources = (calExt.sources || [{ id: 'afri', name: 'Afri CRM', on: true, live: true }, { id: 'google', name: 'Google Calendar', on: false }, { id: 'outlook', name: 'Outlook', on: false }]);
     const google = sources.find((row) => row.id === 'google') || { on: false, live: false };
-    const srcHtml = sources.map((row) => `<div class="cal-src"><span>${esc(row.name)}${row.email ? '<div class="cx-muted">' + esc(row.email) + '</div>' : ''}</span><b>${row.on ? (row.live ? 'Connected' : 'Not answering') : 'Not connected'}</b></div>`).join('') + (google.on ? `<button type="button" class="cx-tool" onclick="syncCal()">Sync Google</button>${google.live ? '' : ' <button type="button" class="cx-tool" onclick="connectTool(\'calendar\')">Reconnect</button>'}` : '<button type="button" class="cx-go" onclick="connectTool(\'calendar\')">Connect Google Calendar</button>');
+    const srcHtml = sources.map((row) => `<div class="cal-src"><span>${esc(row.name)}${row.email ? '<div class="cx-muted">' + esc(row.email) + '</div>' : ''}</span><b>${row.on ? (row.live ? 'Connected' : 'Not answering') : 'Not connected'}</b></div>`).join('') + (google.on ? `<button type="button" class="cal-btn" onclick="syncCal()">Sync Google</button>${google.live ? '' : ' <button type="button" class="cal-btn" onclick="connectTool(\'calendar\')">Reconnect</button>'}` : '<button type="button" class="cal-btn go" onclick="connectTool(\'calendar\')">Connect Google Calendar</button>');
     let grid = '';
     if (calView === 'month') {
       const padN = (monthStart.getDay() + 6) % 7;
@@ -9446,13 +9472,13 @@ window.openSearchHit = function (kind, id) {
     } else {
       const days = calView === 'day' ? [keyOf(new Date(calCursor.getFullYear(), calCursor.getMonth(), calCursor.getDate()))] : Array.from({ length: 7 }, (_, i) => keyOf(addDays(weekStart(calCursor), i)));
       const hours = Array.from({ length: 11 }, (_, i) => i + 8);
-      const head = `<div class="cal-head"></div>` + days.map((key) => `<div class="cal-head">${esc(key.slice(8))} ${esc(parseKey(key).toLocaleDateString('en-GB', { weekday: 'short' }))}</div>`).join('');
-      const all = `<div class="cal-head">All day</div>` + days.map((key) => `<div>${onDay(key).filter((item) => !String(item.when).includes('T')).map(pill).join('')}</div>`).join('');
+      const head = `<div class="cal-head"></div>` + days.map((key) => `<div class="cal-head ${key === today ? 'today' : ''}">${esc(parseKey(key).toLocaleDateString('en-GB', { weekday: 'short' }))}<div>${esc(key.slice(8))}</div></div>`).join('');
+      const all = `<div class="cal-head">All day</div>` + days.map((key) => `<div class="slot cal-all ${key === today ? 'today' : ''}">${onDay(key).filter((item) => !String(item.when).includes('T')).map(pill).join('')}</div>`).join('');
       const rows = hours.map((hour) => `<div class="cal-head">${hour}:00</div>` + days.map((key) => {
         const list = onDay(key).filter((item) => hourOf(item.when) === hour);
-        return `<div>${list.map(pill).join('')}</div>`;
+        return `<div class="slot ${key === today ? 'today' : ''}">${list.map(pill).join('')}</div>`;
       }).join('')).join('');
-      grid = `<div class="cal-week">${head}${all}${rows}</div>`;
+      grid = `<div class="cal-week days-${days.length}">${head}${all}${rows}</div>`;
     }
     const picked = [];
     const walk = (date) => onDay(keyOf(date)).forEach((item) => picked.push(item));
@@ -9461,15 +9487,19 @@ window.openSearchHit = function (kind, id) {
     let panel = '';
     if (open) {
       const who = open.row ? relatedName(open.row) : '';
-      panel = `<div class="cal-card" style="margin-bottom:12px"><div class="cx-head"><div><b>${esc(open.title)}</b><div class="cx-muted">${esc(open.kind[1])} · ${esc(String(open.when || '').replace('T', ' ').slice(0, 16))}</div></div><button type="button" class="cx-tool" onclick="calOpen='';drawCalPage()">Close</button></div>${who ? `<button type="button" class="cx-link" onclick="openRecord('${open.row.relatedType}','${open.row.relatedId}')">${esc(who)}</button>` : ''}${open.row ? '' : '<p class="cx-muted">This came from the connected calendar. Afri does not change it here.</p>'}</div>`;
+      panel = `<div class="cal-card" style="margin-bottom:12px"><div class="cx-head"><div><b>${esc(open.title)}</b><div class="cx-muted">${esc(open.kind[1])} · ${esc(String(open.when || '').replace('T', ' ').slice(0, 16))}</div></div><button type="button" class="cal-btn" onclick="calOpen='';drawCalPage()">Close</button></div>${who ? `<button type="button" class="cx-link" onclick="openRecord('${open.row.relatedType}','${open.row.relatedId}')">${esc(who)}</button>` : ''}${open.row ? '' : '<p class="cx-muted">This came from the connected calendar. Afri does not change it here.</p>'}</div>`;
     } else if (calNew && calPick) {
-      const slots = ((calPlan && calPlan.slots) || []).map((slot) => `<button type="button" class="cx-tool ${calTime===slot?'on':''}" onclick="useSlot('${slot}')">${slot}</button>`).join(' ');
-      panel = `<div class="cal-card" style="margin-bottom:12px"><div class="cx-head"><b>New event · ${esc(calPick)}</b><button type="button" class="cx-tool" onclick="calNew=false;drawCalPage()">Close</button></div><label>What<input id="calWhat" value="${esc(calDraft)}" oninput="calDraft=this.value"></label><label>Kind<select id="calKind"><option value="MEETING">Meeting</option><option value="CALL">Call</option><option value="TASK">Task</option></select></label><label>Time<input id="calTime" type="time" value="${esc(calTime)}" oninput="calTime=this.value;var n=document.getElementById('calClash');if(n)n.textContent=clashText(this.value)"></label><label>Length<select id="calMinutes" onchange="calMinutes=Number(this.value);calPlanKey='';drawCalPage()"><option value="30" ${calMinutes===30?'selected':''}>30 min</option><option value="60" ${calMinutes===60?'selected':''}>60 min</option></select></label><div class="cx-muted">Free on this day</div><div>${slots || 'Looking for a free time…'}</div><p id="calClash" class="cx-muted">${esc(clashText(calTime))}</p><label>Contact<select id="calWho"><option value="">None</option>${(bag.contacts || []).map((row) => `<option value="${row.id}">${esc(person(row))}</option>`).join('')}</select></label><button type="button" class="cx-go" onclick="saveCal()">Put it on this day</button></div>`;
+      const slots = ((calPlan && calPlan.slots) || []).map((slot) => `<button type="button" class="cal-btn ${calTime===slot?'on':''}" onclick="useSlot('${slot}')">${slot}</button>`).join(' ');
+      panel = `<div class="cal-card" style="margin-bottom:12px"><div class="cx-head"><b>New event · ${esc(calPick)}</b><button type="button" class="cal-btn" onclick="calNew=false;drawCalPage()">Close</button></div><label>What<input id="calWhat" value="${esc(calDraft)}" oninput="calDraft=this.value"></label><label>Kind<select id="calKind"><option value="MEETING">Meeting</option><option value="CALL">Call</option><option value="TASK">Task</option></select></label><label>Time<input id="calTime" type="time" value="${esc(calTime)}" oninput="calTime=this.value;var n=document.getElementById('calClash');if(n)n.textContent=clashText(this.value)"></label><label>Length<select id="calMinutes" onchange="calMinutes=Number(this.value);calPlanKey='';drawCalPage()"><option value="30" ${calMinutes===30?'selected':''}>30 min</option><option value="60" ${calMinutes===60?'selected':''}>60 min</option></select></label><div class="cx-muted">Free on this day</div><div>${slots || 'Looking for a free time…'}</div><p id="calClash" class="cx-muted">${esc(clashText(calTime))}</p><label>Contact<select id="calWho"><option value="">None</option>${(bag.contacts || []).map((row) => `<option value="${row.id}">${esc(person(row))}</option>`).join('')}</select></label><button type="button" class="cal-btn go" onclick="saveCal()">Put it on this day</button></div>`;
     }
     const views = [['month', 'Month'], ['week', 'Week'], ['day', 'Day'], ['agenda', 'Agenda']];
-    document.getElementById('view').innerHTML = `<div class="calx">
-      <aside class="cal-side"><div class="cx-head"><b>${esc(calCursor.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }))}</b></div><div class="cal-mini">${miniHtml}</div><h2 style="font-size:13px;margin:16px 0 4px">My calendars</h2>${srcHtml}<p class="cx-muted">Times are West Africa Time, 08:00 to 18:00. A meeting or call with a time is sent to Google after you connect. If an older connection can only read, reconnect once.</p></aside>
-      <div><div class="cx-head"><h1 style="margin:0">${esc(title())}</h1><div><button type="button" class="cx-tool" onclick="moveCal(-1)">‹</button> <button type="button" class="cx-tool" onclick="todayCal()">Today</button> <button type="button" class="cx-tool" onclick="moveCal(1)">›</button> ${views.map(([id, label]) => `<button type="button" class="cx-tool ${calView===id?'on':''}" onclick="setCalView('${id}')">${label}</button>`).join(' ')}</div></div>${panel}${grid}</div>
+    const nav = `<button type="button" class="cal-btn" onclick="moveCal(-1)">Back</button> <button type="button" class="cal-btn" onclick="todayCal()">Today</button> <button type="button" class="cal-btn" onclick="moveCal(1)">Next</button> ` + views.map(([id, label]) => `<button type="button" class="cal-btn ${calView===id?'on':''}" onclick="setCalView('${id}')">${label}</button>`).join(' ');
+    document.getElementById('view').innerHTML = `<div class="cal-board">
+      <div class="cal-toolbar"><h1>${esc(title())}</h1><div class="cal-nav">${nav}</div></div>
+      <div class="calx">
+        <div class="cal-side"><b>${esc(calCursor.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }))}</b><div class="cal-mini">${miniHtml}</div><h2 style="font-size:13px;margin:14px 0 4px">Calendars</h2>${srcHtml}<p class="cx-muted">West Africa Time. Meetings with a time can be sent to Google.</p></div>
+        <div class="cal-main">${panel}${grid}</div>
+      </div>
     </div>`;
   };
   drawCalendar = function () { drawCalPage(); };
