@@ -10072,7 +10072,9 @@ window.openSearchHit = function (kind, id) {
     .ah-bars { display: grid; gap: 6px; margin-top: 8px; }
     .ah-bars div { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; align-items: center; font-size: 12px; color: rgba(255,255,255,.8); }
     .ah-bars i { display: block; height: 8px; border-radius: 99px; background: #2dd4bf; }
-    #view .ah-brain { background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 14px; margin: 12px 0; }
+    #view .ah-next { display: flex; justify-content: space-between; align-items: center; gap: 12px; background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 12px 14px; margin: 12px 0; }
+    #view .ah-pick { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px solid #eef2f6; font-size: 13px; }
+    #view .ah-pick span { color: #64748b !important; text-align: right; }
     @media (max-width: 900px) { #view .ah-grid, #view .ah-form, .ah-preview { grid-template-columns: 1fr; } }
   `;
   document.head.appendChild(css);
@@ -10217,7 +10219,12 @@ window.openSearchHit = function (kind, id) {
     const order = ranked();
     const meta = { cr: ['CR', '#db2777', 'Churn Risk', 'Quiet days times the open amount times the chance already on the deal.'], ls: ['LS', '#d97706', 'Lead Scorer', 'New leads with no activity for 3 days. They rank below any deal that has an amount.'], fu: ['FU', '#0f766e', 'Follow-up', 'Days since the last email or WhatsApp, times the open amount and the chance.'], pr: ['PR', '#2563eb', 'Prospect Finder', 'Leads in an industry you have won. The typical won amount is shown, and it is not added into the rank.'], sa: ['SA', '#7c3aed', 'Sales Assistant', 'Deals with no next step whose close date is inside 14 days.'], ro: ['RO', '#15803d', 'Revenue Oracle', 'Open deals with no chance. Their amount is not in the weighted total.'] };
     const top = order[0];
-    const cards = order.map((item, index) => { const [mark, color, name, about] = meta[item.id]; return `<article class="ah-card"><div class="ah-top"><span class="ah-mark" style="background:${color}">${mark}</span><div><b>${name}</b><div class="ah-status ${on(item.id) ? 'on' : ''}"><i></i>${on(item.id) ? 'Published' : 'Draft'} · ${index + 1}</div></div></div><p class="cx-muted">${about}</p><div class="ah-metric">${esc(item.why)}</div><div><button type="button" class="ah-btn ${on(item.id) ? '' : 'go'}" onclick="${on(item.id) ? `ahMode('view','${item.id}')` : `ahRun('${item.id}')`}">${on(item.id) ? 'View' : 'Activate'}</button></div></article>`; }).join('');
+    const cards = order.map((item, index) => {
+      const [mark, color, name, about] = meta[item.id];
+      const picks = (item.rows || []).slice(0, 3).map((row) => `<div class="ah-pick"><b>${esc(row.row.name || person(row.row) || 'Record')}</b><span>${esc(row.why || '')}</span></div>`).join('') || '<div class="ah-pick"><span>Nothing matches.</span></div>';
+      const writes = item.id === 'cr' || item.id === 'fu';
+      return `<article class="ah-card"><div class="ah-top"><span class="ah-mark" style="background:${color}">${mark}</span><div><b>${name}</b><div class="ah-status ${on(item.id) ? 'on' : ''}"><i></i>${index + 1} · ${esc(item.why)}</div></div></div><p class="cx-muted">${about}</p>${picks}<div><button type="button" class="ah-btn ${writes && item.count ? 'go' : ''}" onclick="${writes && item.count ? `ahRun('${item.id}')` : `ahMode('view','${item.id}')`}">${writes && item.count ? 'Open tasks' : 'Open list'}</button></div></article>`;
+    }).join('');
     const custom = (bag.objects || []).filter((row) => row.kind === 'agent').map((row) => `<article class="ah-card"><div class="ah-top"><span class="ah-mark" style="background:#334155">AG</span><div><b>${esc(row.name)}</b><div class="ah-status on"><i></i>${esc(row.status || 'PUBLISHED')}</div></div></div><p class="cx-muted">Your rule. Test counted records. Run writes a task only if you chose that.</p><div><button type="button" class="ah-btn" onclick="ahCustom('${row.id}')">Run</button></div></article>`).join('');
     let extra = '';
     if (hubMode === 'build') {
@@ -10228,8 +10235,7 @@ window.openSearchHit = function (kind, id) {
       extra = `<div class="ah-card" style="margin-top:12px"><b>What this agent sees</b>${rows}<p class="cx-muted">These are records already in the workspace.</p></div>`;
       if (focusId === 'sa') extra += `<div class="ah-card" style="margin-top:12px"><b>Ask</b><textarea id="ask" style="height:70px" placeholder="Draft a follow-up for the first open deal. Do not invent a price."></textarea><p><button type="button" class="ah-btn go" onclick="askAgent()">Ask</button></p><p id="answer" class="cx-muted"></p></div>`;
     }
-    document.getElementById('view').innerHTML = `<div class="ah"><div class="cal-toolbar"><h1>Agent Hub</h1><button type="button" class="ah-btn go" onclick="ahMode('build')">New agent</button></div><p class="cx-muted">Start with ${esc(top.why)}. The order is the amount at stake. A deal with no chance adds nothing, so it is not treated as a likely win.</p><div id="ahBrain" class="ah-brain"><p class="cx-muted">The brain is reading the workspace.</p></div><div class="ah-grid">${cards}${custom}</div>${extra}</div>`;
-    if (skipBrain) skipBrain = false; else ahBrain(false);
+    document.getElementById('view').innerHTML = `<div class="ah"><div class="cal-toolbar"><h1>Agent Hub</h1><button type="button" class="ah-btn go" onclick="ahMode('build')">New agent</button></div><div class="ah-next"><div><b>Next · ${esc(meta[top.id][2])}</b><div class="cx-muted">${esc(top.why)}. A deal with no chance is not treated as a likely win.</div></div><button type="button" class="ah-btn go" onclick="${top.id === 'cr' || top.id === 'fu' ? `ahRun('${top.id}')` : `ahMode('view','${top.id}')`}">${top.id === 'cr' || top.id === 'fu' ? 'Open tasks' : 'Open list'}</button></div><div class="ah-grid">${cards}${custom}</div>${extra}</div>`;
     if (!localStorage.getItem('crm-agent-welcome') && !document.getElementById('ahWelcome')) {
       const shade = document.createElement('div');
       shade.id = 'ahWelcome';
@@ -10238,7 +10244,259 @@ window.openSearchHit = function (kind, id) {
       openDeals().forEach((row) => { const stage = stageHit(row); const name = (stage && stage.name) || 'Open'; tally[name] = (tally[name] || 0) + Number(row.amount || 0) * chanceOf(row); });
       const peak = Math.max(1, ...Object.values(tally));
       const bars = Object.entries(tally).slice(0, 4).map(([name, value]) => `<div><span>${esc(name)}</span><i style="width:${Math.max(6, Math.round(value / peak * 100))}%"></i><b>${money(value)}</b></div>`).join('') || '<div><span>No open deal</span><i style="width:6%"></i><b>—</b></div>';
-      shade.innerHTML = `<div class="ah-modal"><h2>Welcome to Agent Hub</h2><p>The brain reads your records, ranks the six agents, and writes a task only when you run it.</p><div class="ah-preview"><article class="ah-face"><div class="ah-top"><span class="ah-mark" style="background:#db2777">CR</span><div><b>Churn Risk</b><div>${churn().length ? 'Quiet on an open deal' : 'Nothing is quiet'}</div></div></div><div class="big">${churn().length}</div><div>Contacts with an open deal and no activity for 30 days.</div></article><article><div>Weighted pipeline</div><div class="ah-money">${money(weighted())}</div><div class="ah-bars">${bars}</div><div>Each bar is open amount times the chance already on the deal. Not a target.</div></article></div><button type="button" class="ah-btn go" onclick="ahDismiss();ahMode('build')">Build agent</button> <button type="button" class="ah-btn ghost" onclick="ahDismiss()">Dismiss</button></div>`;
+      shade.innerHTML = `<div class="ah-modal"><h2>Welcome to Agent Hub</h2><p>The agents are ordered by the amount at stake on your own records. A task is opened only from Churn Risk or Follow-up.</p><div class="ah-preview"><article class="ah-face"><div class="ah-top"><span class="ah-mark" style="background:#db2777">CR</span><div><b>Churn Risk</b><div>${churn().length ? 'Quiet on an open deal' : 'Nothing is quiet'}</div></div></div><div class="big">${churn().length}</div><div>Contacts with an open deal and no activity for 30 days.</div></article><article><div>Weighted pipeline</div><div class="ah-money">${money(weighted())}</div><div class="ah-bars">${bars}</div><div>Each bar is open amount times the chance already on the deal. Not a target.</div></article></div><button type="button" class="ah-btn go" onclick="ahDismiss();ahMode('build')">Build agent</button> <button type="button" class="ah-btn ghost" onclick="ahDismiss()">Dismiss</button></div>`;
+      document.body.appendChild(shade);
+    }
+  };
+
+  const prev = draw;
+  draw = function () {
+    if (page === 'workspace' || page === 'sales') return drawWorkspace();
+    return prev();
+  };
+  if (page === 'workspace' || page === 'sales') drawWorkspace();
+})();
+
+(function () {
+  const css = document.createElement('style');
+  css.textContent = `
+    #view table { width: 100%; border-collapse: separate !important; border-spacing: 0 !important; background: #fff !important; }
+    #view table th { text-align: left !important; font-size: 11px !important; font-weight: 600 !important; letter-spacing: .06em !important; text-transform: uppercase !important; color: #64748b !important; background: #f8fafc !important; padding: 8px 10px !important; border-bottom: 1px solid #e5e8eb !important; }
+    #view table td { padding: 10px !important; border-bottom: 1px solid #f1f5f9 !important; font-size: 13px !important; background: #fff !important; vertical-align: middle !important; font-variant-numeric: tabular-nums; }
+    #view table tbody tr:hover td { background: #f8fafc !important; }
+    #view .ws-dot i { width: 8px; height: 8px; border-radius: 99px; display: inline-block; }
+    #view .ws-dot { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #334155 !important; }
+  `;
+  document.head.appendChild(css);
+  const types = {
+    CALL: ['Call', '#16a34a'], EMAIL: ['Email', '#2563eb'], MEETING: ['Meeting', '#7c3aed'],
+    WHATSAPP: ['WhatsApp', '#0f766e'], TASK: ['Task', '#d97706'], NOTE: ['Note', '#64748b'],
+    Call: ['Call', '#16a34a'], Email: ['Email', '#2563eb'], Meeting: ['Meeting', '#7c3aed'],
+    WhatsApp: ['WhatsApp', '#0f766e'], Task: ['Task', '#d97706'], Note: ['Note', '#64748b'],
+  };
+  function dress() {
+    document.querySelectorAll('#view td').forEach((td) => {
+      if (td.dataset.typed || td.children.length) return;
+      const hit = types[td.textContent.trim()];
+      if (!hit) return;
+      td.dataset.typed = '1';
+      td.innerHTML = '<span class="ws-dot"><i style="background:' + hit[1] + '"></i>' + hit[0] + '</span>';
+    });
+  }
+  const view = document.getElementById('view');
+  if (!view) return;
+  let timer;
+  new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(dress, 40); }).observe(view, { childList: true, subtree: true });
+  dress();
+})();
+
+(function () {
+  const css = document.createElement('style');
+  css.textContent = `
+    #view .ah { background: #f4f6f8 !important; color: #0f172a !important; border-radius: 16px; padding: 16px; min-height: 72vh; }
+    #view .ah h1, #view .ah h2, #view .ah b { color: #0f172a !important; }
+    #view .ah h1 { margin: 0; font-size: 24px; }
+    #view .ah .cx-muted { color: #64748b !important; }
+    #view .ah-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+    #view .ah-card { background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-height: 180px; }
+    #view .ah-top { display: flex; gap: 10px; align-items: center; }
+    #view .ah-mark { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 13px; flex: none; }
+    #view .ah-status { font-size: 12px; color: #64748b !important; }
+    #view .ah-status i { display: inline-block; width: 8px; height: 8px; border-radius: 99px; margin-right: 4px; background: #94a3b8; }
+    #view .ah-status.on i { background: #16a34a; }
+    #view .ah button.ah-btn:not(.ghost):not(.x):not(.iconbtn) { background: #fff !important; color: #334155 !important; border: 1px solid #d0d7e2 !important; border-radius: 8px !important; padding: 6px 12px !important; box-shadow: none !important; width: auto !important; }
+    #view .ah button.ah-btn.go:not(.ghost):not(.x):not(.iconbtn) { background: #0f766e !important; color: #fff !important; border-color: #0f766e !important; }
+    #view .ah-metric { font-size: 13px; color: #334155 !important; }
+    #view .ah input, #view .ah select, #view .ah textarea { width: 100%; margin-top: 4px; border: 1px solid #d0d7e2; border-radius: 8px; padding: 8px; background: #fff; color: #0f172a; }
+    #view .ah-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 14px; margin-top: 12px; }
+    .ah-shade { position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 80; display: grid; place-items: center; padding: 16px; }
+    .ah-modal { width: min(800px, 100%); background: #1a2332; color: #fff; border-radius: 16px; padding: 28px; }
+    .ah-modal h2 { margin: 0 0 8px; font-size: 32px; color: #fff !important; }
+    .ah-modal p { color: rgba(255,255,255,.75) !important; }
+    .ah-preview { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 18px 0; }
+    .ah-preview article { background: #111827; border-radius: 12px; padding: 14px; }
+    .ah-modal button.ah-btn { background: transparent !important; color: #fff !important; border: 1px solid rgba(255,255,255,.3) !important; border-radius: 8px !important; }
+    .ah-modal button.ah-btn.go { background: #0f766e !important; border-color: #0f766e !important; }
+    .ah-modal button.ah-btn.go { background: #0f766e !important; color: #fff !important; border: 0 !important; }
+    .ah-modal button.ah-btn.ghost { background: transparent !important; color: #fff !important; border: 1px solid rgba(255,255,255,.4) !important; box-shadow: none !important; }
+    .ah-face { display: grid; gap: 8px; }
+    .ah-face .big, .ah-money { font-size: 28px; font-weight: 700; color: #fff !important; }
+    .ah-bars { display: grid; gap: 6px; margin-top: 8px; }
+    .ah-bars div { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; align-items: center; font-size: 12px; color: rgba(255,255,255,.8); }
+    .ah-bars i { display: block; height: 8px; border-radius: 99px; background: #2dd4bf; }
+    #view .ah-next { display: flex; justify-content: space-between; align-items: center; gap: 12px; background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 12px 14px; margin: 12px 0; }
+    #view .ah-pick { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px solid #eef2f6; font-size: 13px; }
+    #view .ah-pick span { color: #64748b !important; text-align: right; }
+    @media (max-width: 900px) { #view .ah-grid, #view .ah-form, .ah-preview { grid-template-columns: 1fr; } }
+  `;
+  document.head.appendChild(css);
+  let hubMode = 'grid';
+  let focusId = '';
+  const flags = () => { try { return JSON.parse(localStorage.getItem('crm-agent-on') || '{}'); } catch (e) { return {}; } };
+  const setFlag = (id, on) => { const all = flags(); all[id] = on ? 1 : 0; localStorage.setItem('crm-agent-on', JSON.stringify(all)); };
+  const on = (id) => Boolean(flags()[id]);
+  const stageHit = (row) => (bag.stages || []).find((item) => item.id === row.stage || item.code === row.stage) || null;
+  const isOpen = (row) => { const stage = stageHit(row); if (stage && (stage.closed || String(stage.code || '').startsWith('CLOSED'))) return false; return !String(row.stage || '').startsWith('CLOSED'); };
+  const latest = (id) => (bag.activities || []).filter((row) => row.relatedId === id).map((row) => row.createdAt || '').sort().pop() || '';
+  const quiet = (id, days) => { const stamp = latest(id); return !stamp || Date.now() - new Date(stamp).getTime() > days * 86400000; };
+  const openDeals = () => (bag.deals || []).filter(isOpen);
+  const churn = () => (bag.contacts || []).filter((row) => quiet(row.id, 30) && openDeals().some((deal) => deal.contactId === row.id));
+  const unanswered = () => {
+    const rows = [];
+    (bag.contacts || []).forEach((row) => {
+      const acts = (bag.activities || []).filter((item) => item.relatedId === row.id).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+      const last = acts[0];
+      if (!last || (last.type !== 'EMAIL' && last.type !== 'WHATSAPP')) return;
+      if (Date.now() - new Date(last.createdAt || 0).getTime() < 2 * 86400000) return;
+      rows.push(row);
+    });
+    return rows;
+  };
+  const prospects = () => {
+    const won = (bag.deals || []).filter((row) => { const stage = stageHit(row); return row.stage === 'CLOSED_WON' || (stage && (stage.code === 'CLOSED_WON' || (stage.closed && /won/i.test(stage.name || '')))); });
+    const counts = {};
+    won.forEach((deal) => { const company = (bag.companies || []).find((row) => row.id === deal.companyId); if (company && company.industry) counts[company.industry] = (counts[company.industry] || 0) + 1; });
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    if (!top) return [];
+    return (bag.leads || []).filter((row) => row.status !== 'CONVERTED' && row.status !== 'DEAD' && String(row.industry || row.companyName || '').toLowerCase().includes(String(top[0]).toLowerCase()) || false);
+  };
+  const weighted = () => openDeals().reduce((sum, row) => {
+    const stage = stageHit(row);
+    const chance = Number(row.probability || (stage && stage.probability) || 0) / 100;
+    return sum + Number(row.amount || 0) * chance;
+  }, 0);
+  const noStep = () => openDeals().filter((row) => !String(row.nextStep || '').trim());
+  const ageDays = (id) => { const stamp = latest(id); if (!stamp) return 45; const days = (Date.now() - new Date(stamp).getTime()) / 86400000; return Math.min(90, Math.max(0, days)); };
+  const chanceOf = (row) => { const stage = stageHit(row); const value = Number(row.probability || (stage && stage.probability) || 0); return Math.min(100, Math.max(0, value)) / 100; };
+  const dealsOf = (id) => openDeals().filter((row) => row.contactId === id);
+  function stakeOf(deals, days, cap) {
+    const silence = Math.min(1, days / cap);
+    return deals.reduce((sum, deal) => sum + Number(deal.amount || 0) * chanceOf(deal) * silence, 0);
+  }
+  function ranked() {
+    const cr = churn().map((row) => { const days = ageDays(row.id); const stake = stakeOf(dealsOf(row.id), days, 30); return { row, stake, why: Math.round(days) + ' days quiet' + (stake ? ' · ' + money(stake) + ' weighted' : ' · no chance on the deal, so the amount is not counted') }; }).sort((a, b) => b.stake - a.stake || ageDays(b.row.id) - ageDays(a.row.id));
+    const fu = unanswered().map((row) => { const days = ageDays(row.id); const stake = stakeOf(dealsOf(row.id), days, 7); return { row, stake, why: Math.round(days) + ' days since the last email or WhatsApp' + (stake ? ' · ' + money(stake) + ' weighted' : '') }; }).sort((a, b) => b.stake - a.stake);
+    const soon = noStep().filter((row) => { const close = String(row.closeDate || '').slice(0, 10); const limit = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10); return close && close <= limit; });
+    const saStake = soon.reduce((sum, row) => sum + Number(row.amount || 0) * chanceOf(row), 0);
+    const missing = openDeals().filter((row) => !chanceOf(row));
+    const won = (bag.deals || []).filter((row) => { const stage = stageHit(row); return row.stage === 'CLOSED_WON' || (stage && stage.code === 'CLOSED_WON'); });
+    const avgWon = won.length ? won.reduce((sum, row) => sum + Number(row.amount || 0), 0) / won.length : 0;
+    const found = prospects();
+    const fresh = (bag.leads || []).filter((row) => (row.status === 'NEW' || row.status === 'WORKING') && quiet(row.id, 3));
+    const pack = [
+      { id: 'cr', stake: cr.reduce((sum, row) => sum + row.stake, 0), count: cr.length, why: cr.length ? money(cr.reduce((sum, row) => sum + row.stake, 0)) + ' is quiet on an open deal' : 'Nobody on an open deal has gone quiet', rows: cr },
+      { id: 'fu', stake: fu.reduce((sum, row) => sum + row.stake, 0), count: fu.length, why: fu.length ? fu.length + ' unanswered, ' + money(fu.reduce((sum, row) => sum + row.stake, 0)) + ' weighted' : 'No email or WhatsApp is waiting', rows: fu },
+      { id: 'sa', stake: saStake, count: soon.length, why: soon.length ? soon.length + ' deals have no next step and close within 14 days' : 'No close date is inside 14 days without a next step', rows: soon.map((row) => ({ row, why: (row.closeDate || '').slice(0, 10) })) },
+      { id: 'ro', stake: missing.reduce((sum, row) => sum + Number(row.amount || 0), 0) * 0.01, count: missing.length, why: missing.length ? missing.length + ' open deals have no chance, so they are left out of the weighted total' : 'Every open deal has a chance', rows: missing.map((row) => ({ row, why: 'No chance on this deal' })) },
+      { id: 'ls', stake: fresh.length * 100, count: fresh.length, why: fresh.length + ' new leads have had no activity for 3 days', rows: fresh.map((row) => ({ row, why: 'Not touched' })) },
+      { id: 'pr', stake: found.length * 100, count: found.length, why: found.length ? found.length + ' leads look like a won industry' + (avgWon ? '. A typical won deal was ' + money(avgWon) + ', which is not added to the rank.' : '') : 'No lead matches a won industry', rows: found.map((row) => ({ row, why: 'Same industry as a won deal' })) },
+    ];
+    pack.sort((a, b) => b.stake - a.stake || b.count - a.count);
+    return pack;
+  }
+  function ruleRows(rule) {
+    let rows = [];
+    if (rule.trigger === 'lead.new') rows = (bag.leads || []).filter((row) => row.status === 'NEW' || row.status === 'WORKING');
+    else if (rule.trigger === 'contact.quiet') rows = (bag.contacts || []).filter((row) => quiet(row.id, 30));
+    else if (rule.trigger === 'deal.quiet') rows = openDeals().filter((row) => quiet(row.id, 14));
+    else rows = openDeals();
+    if (rule.condition === 'email') rows = rows.filter((row) => row.email || row.phone || row.mobile);
+    if (rule.condition === 'amount') rows = rows.filter((row) => Number(row.amount || 0) > 0);
+    if (rule.condition === 'quiet14') rows = rows.filter((row) => quiet(row.id, 14));
+    return rows;
+  }
+  window.ahMode = function (mode, id) { hubMode = mode; focusId = id || ''; drawAgent(); };
+  window.ahToggle = function (id) { setFlag(id, !on(id)); drawAgent(); };
+  window.ahDismiss = function () { localStorage.setItem('crm-agent-welcome', '1'); const el = document.getElementById('ahWelcome'); if (el) el.remove(); };
+  window.ahRun = async function (id) {
+    if (id === 'cr') {
+      const result = await api('/crm/api/quiet-check', { method: 'POST', body: '{}' });
+      toast((result && result.opened) ? result.opened + ' check-in tasks opened' : 'Nobody new to check in');
+      setFlag(id, 1); refresh(); return;
+    }
+    if (id === 'ls') {
+      const rows = await api('/crm/api/lead-scores');
+      const list = Array.isArray(rows) ? rows : (rows && (rows.rows || rows.scores)) || [];
+      toast(list.length ? list.length + ' leads scored' : 'No lead to score');
+      setFlag(id, 1); return;
+    }
+    if (id === 'fu') {
+      let made = 0;
+      for (const row of unanswered().slice(0, 20)) {
+        const subject = 'Follow up: ' + person(row);
+        if ((bag.activities || []).some((item) => item.relatedId === row.id && item.status === 'PLANNED' && String(item.subject || '').startsWith('Follow up:'))) continue;
+        const result = await api('/crm/api/activities', { method: 'POST', body: JSON.stringify({ type: 'TASK', subject, status: 'PLANNED', dueAt: new Date().toISOString().slice(0, 10), relatedType: 'contact', relatedId: row.id }) });
+        if (result && !result.error) made += 1;
+      }
+      toast(made ? made + ' follow-up tasks opened' : 'No unanswered email or WhatsApp older than 2 days');
+      setFlag(id, 1); refresh(); return;
+    }
+    setFlag(id, 1);
+    focusId = id;
+    drawAgent();
+  };
+  window.ahTest = function () {
+    const rule = { trigger: document.getElementById('agWhen').value, condition: document.getElementById('agIf').value };
+    const rows = ruleRows(rule);
+    document.getElementById('agTest').textContent = rows.length + ' records match. Nothing was written.';
+  };
+  window.ahSave = async function () {
+    const name = document.getElementById('agName').value.trim();
+    if (!name) return toast('Name the agent');
+    const meta = { trigger: document.getElementById('agWhen').value, condition: document.getElementById('agIf').value, action: document.getElementById('agDo').value };
+    const result = await api('/crm/api/objects', { method: 'POST', body: JSON.stringify({ kind: 'agent', name, status: 'PUBLISHED', body: meta.action, meta }) });
+    if (!result || result.error) return toast((result && result.error) || 'Could not save');
+    toast('Agent published');
+    hubMode = 'grid';
+    refresh();
+  };
+  window.ahCustom = async function (id) {
+    const row = (bag.objects || []).find((item) => item.id === id);
+    if (!row) return;
+    let meta = {};
+    try { meta = JSON.parse(row.meta || '{}'); } catch (e) { meta = {}; }
+    const rows = ruleRows(meta).slice(0, 20);
+    if (meta.action !== 'task') { toast(rows.length + ' match. This agent only reports, it does not write.'); return; }
+    let made = 0;
+    for (const item of rows) {
+      const kind = item.amount != null && item.stage ? 'deal' : item.companyName != null && item.status ? 'lead' : 'contact';
+      const subject = row.name + ': ' + (item.name || person(item));
+      const result = await api('/crm/api/activities', { method: 'POST', body: JSON.stringify({ type: 'TASK', subject, status: 'PLANNED', dueAt: new Date().toISOString().slice(0, 10), relatedType: kind, relatedId: item.id }) });
+      if (result && !result.error) made += 1;
+    }
+    toast(made + ' tasks opened');
+    refresh();
+  };
+  drawAgent = function () {
+    const order = ranked();
+    const meta = { cr: ['CR', '#db2777', 'Churn Risk', 'Quiet days times the open amount times the chance already on the deal.'], ls: ['LS', '#d97706', 'Lead Scorer', 'New leads with no activity for 3 days. They rank below any deal that has an amount.'], fu: ['FU', '#0f766e', 'Follow-up', 'Days since the last email or WhatsApp, times the open amount and the chance.'], pr: ['PR', '#2563eb', 'Prospect Finder', 'Leads in an industry you have won. The typical won amount is shown, and it is not added into the rank.'], sa: ['SA', '#7c3aed', 'Sales Assistant', 'Deals with no next step whose close date is inside 14 days.'], ro: ['RO', '#15803d', 'Revenue Oracle', 'Open deals with no chance. Their amount is not in the weighted total.'] };
+    const top = order[0];
+    const cards = order.map((item, index) => {
+      const [mark, color, name, about] = meta[item.id];
+      const picks = (item.rows || []).slice(0, 3).map((row) => `<div class="ah-pick"><b>${esc(row.row.name || person(row.row) || 'Record')}</b><span>${esc(row.why || '')}</span></div>`).join('') || '<div class="ah-pick"><span>Nothing matches.</span></div>';
+      const writes = item.id === 'cr' || item.id === 'fu';
+      return `<article class="ah-card"><div class="ah-top"><span class="ah-mark" style="background:${color}">${mark}</span><div><b>${name}</b><div class="ah-status ${on(item.id) ? 'on' : ''}"><i></i>${index + 1} · ${esc(item.why)}</div></div></div><p class="cx-muted">${about}</p>${picks}<div><button type="button" class="ah-btn ${writes && item.count ? 'go' : ''}" onclick="${writes && item.count ? `ahRun('${item.id}')` : `ahMode('view','${item.id}')`}">${writes && item.count ? 'Open tasks' : 'Open list'}</button></div></article>`;
+    }).join('');
+    const custom = (bag.objects || []).filter((row) => row.kind === 'agent').map((row) => `<article class="ah-card"><div class="ah-top"><span class="ah-mark" style="background:#334155">AG</span><div><b>${esc(row.name)}</b><div class="ah-status on"><i></i>${esc(row.status || 'PUBLISHED')}</div></div></div><p class="cx-muted">Your rule. Test counted records. Run writes a task only if you chose that.</p><div><button type="button" class="ah-btn" onclick="ahCustom('${row.id}')">Run</button></div></article>`).join('');
+    let extra = '';
+    if (hubMode === 'build') {
+      extra = `<div class="ah-form"><label>Name<input id="agName" placeholder="Quiet deals"></label><label>When<select id="agWhen"><option value="deal.quiet">A deal has been quiet 14 days</option><option value="contact.quiet">A contact has been quiet 30 days</option><option value="lead.new">A lead is still new</option><option value="deal.open">A deal is open</option></select></label><label>And<select id="agIf"><option value="any">No extra condition</option><option value="email">They can be reached</option><option value="amount">The deal has an amount</option><option value="quiet14">No activity for 14 days</option></select></label><label>Do<select id="agDo"><option value="task">Open a task</option><option value="count">Only count them</option></select></label><div style="grid-column:1/-1"><button type="button" class="ah-btn" onclick="ahTest()">Test</button> <button type="button" class="ah-btn go" onclick="ahSave()">Publish</button> <span id="agTest" class="cx-muted"></span></div></div>`;
+    } else if (hubMode === 'view') {
+      const found = order.find((item) => item.id === focusId);
+      const rows = ((found && found.rows) || []).slice(0, 8).map((item) => `<div class="ah-metric">${esc(item.row.name || person(item.row) || 'Record')}<div class="cx-muted">${esc(item.why || '')}</div></div>`).join('') || '<p class="cx-muted">None right now.</p>';
+      extra = `<div class="ah-card" style="margin-top:12px"><b>What this agent sees</b>${rows}<p class="cx-muted">These are records already in the workspace.</p></div>`;
+      if (focusId === 'sa') extra += `<div class="ah-card" style="margin-top:12px"><b>Ask</b><textarea id="ask" style="height:70px" placeholder="Draft a follow-up for the first open deal. Do not invent a price."></textarea><p><button type="button" class="ah-btn go" onclick="askAgent()">Ask</button></p><p id="answer" class="cx-muted"></p></div>`;
+    }
+    document.getElementById('view').innerHTML = `<div class="ah"><div class="cal-toolbar"><h1>Agent Hub</h1><button type="button" class="ah-btn go" onclick="ahMode('build')">New agent</button></div><div class="ah-next"><div><b>Next · ${esc(meta[top.id][2])}</b><div class="cx-muted">${esc(top.why)}. A deal with no chance is not treated as a likely win.</div></div><button type="button" class="ah-btn go" onclick="${top.id === 'cr' || top.id === 'fu' ? `ahRun('${top.id}')` : `ahMode('view','${top.id}')`}">${top.id === 'cr' || top.id === 'fu' ? 'Open tasks' : 'Open list'}</button></div><div class="ah-grid">${cards}${custom}</div>${extra}</div>`;
+    if (!localStorage.getItem('crm-agent-welcome') && !document.getElementById('ahWelcome')) {
+      const shade = document.createElement('div');
+      shade.id = 'ahWelcome';
+      shade.className = 'ah-shade';
+      const tally = {};
+      openDeals().forEach((row) => { const stage = stageHit(row); const name = (stage && stage.name) || 'Open'; tally[name] = (tally[name] || 0) + Number(row.amount || 0) * chanceOf(row); });
+      const peak = Math.max(1, ...Object.values(tally));
+      const bars = Object.entries(tally).slice(0, 4).map(([name, value]) => `<div><span>${esc(name)}</span><i style="width:${Math.max(6, Math.round(value / peak * 100))}%"></i><b>${money(value)}</b></div>`).join('') || '<div><span>No open deal</span><i style="width:6%"></i><b>—</b></div>';
+      shade.innerHTML = `<div class="ah-modal"><h2>Welcome to Agent Hub</h2><p>The agents are ordered by the amount at stake on your own records. A task is opened only from Churn Risk or Follow-up.</p><div class="ah-preview"><article class="ah-face"><div class="ah-top"><span class="ah-mark" style="background:#db2777">CR</span><div><b>Churn Risk</b><div>${churn().length ? 'Quiet on an open deal' : 'Nothing is quiet'}</div></div></div><div class="big">${churn().length}</div><div>Contacts with an open deal and no activity for 30 days.</div></article><article><div>Weighted pipeline</div><div class="ah-money">${money(weighted())}</div><div class="ah-bars">${bars}</div><div>Each bar is open amount times the chance already on the deal. Not a target.</div></article></div><button type="button" class="ah-btn go" onclick="ahDismiss();ahMode('build')">Build agent</button> <button type="button" class="ah-btn ghost" onclick="ahDismiss()">Dismiss</button></div>`;
       document.body.appendChild(shade);
     }
   };

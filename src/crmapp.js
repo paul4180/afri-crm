@@ -3860,7 +3860,7 @@ function agentBrain(tenantId) {
       }
     }
     const summary = (plan.top.why || 'Nothing to do').slice(0, 240);
-    db.prepare('INSERT INTO agent_runs (id, tenantId, summary, topId, stake, detail, acted) VALUES (?,?,?,?,?,?,?)').run(
+    if (execute) db.prepare('INSERT INTO agent_runs (id, tenantId, summary, topId, stake, detail, acted) VALUES (?,?,?,?,?,?,?)').run(
       crypto.randomUUID(), user.tenantId, summary, plan.top.id, Number(plan.top.stake || 0), JSON.stringify(plan.order).slice(0, 4000), acted
     );
     const history = db.prepare('SELECT summary, topId, stake, acted, createdAt FROM agent_runs WHERE tenantId = ? ORDER BY createdAt DESC LIMIT 8').all(user.tenantId);
