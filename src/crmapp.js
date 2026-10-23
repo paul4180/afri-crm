@@ -337,6 +337,7 @@ for (const [table, col, type] of [
   ['companies', 'sample', 'INTEGER DEFAULT 0'],
   ['contacts', 'sample', 'INTEGER DEFAULT 0'],
   ['deals', 'sample', 'INTEGER DEFAULT 0'],
+  ['leads', 'sample', 'INTEGER DEFAULT 0'],
   ['activities', 'sample', 'INTEGER DEFAULT 0'],
   ['notes', 'sample', 'INTEGER DEFAULT 0'],
 ]) {
@@ -4684,23 +4685,40 @@ function agentBrain(tenantId) {
     if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only an owner or admin can remove sample data.' });
     const tenantId = user.tenantId;
     markSample(tenantId);
+    const names = DEMO_COMPANIES.flatMap((name) => [name, '[Sample] ' + name]);
+    db.prepare('UPDATE leads SET sample = 1 WHERE tenantId = ? AND (email IN (' + DEMO_EMAILS.map(() => '?').join(',') + ') OR companyName IN (' + names.map(() => '?').join(',') + '))').run(tenantId, ...DEMO_EMAILS, ...names);
     const contacts = db.prepare('SELECT id FROM contacts WHERE tenantId = ? AND sample = 1').all(tenantId);
     const deals = db.prepare('SELECT id FROM deals WHERE tenantId = ? AND sample = 1').all(tenantId);
     const companies = db.prepare('SELECT id FROM companies WHERE tenantId = ? AND sample = 1').all(tenantId);
-    const ids = contacts.concat(deals).map((row) => row.id);
+    const leads = db.prepare('SELECT id FROM leads WHERE tenantId = ? AND COALESCE(sample, 0) = 1').all(tenantId);
+    const ids = contacts.concat(deals, companies, leads).map((row) => row.id);
+    const drop = (sql, ...args) => { try { db.prepare(sql).run(...args); } catch (e) { log.warn('demo.clear.skip', { err: e.message }); } };
     for (const id of ids) {
-      db.prepare('DELETE FROM activities WHERE tenantId = ? AND relatedId = ?').run(tenantId, id);
-      db.prepare('DELETE FROM notes WHERE tenantId = ? AND relatedId = ?').run(tenantId, id);
+      drop('DELETE FROM activities WHERE tenantId = ? AND relatedId = ?', tenantId, id);
+      drop('DELETE FROM notes WHERE tenantId = ? AND relatedId = ?', tenantId, id);
+      drop('DELETE FROM emails WHERE tenantId = ? AND contactId = ?', tenantId, id);
+      drop('DELETE FROM quotes WHERE tenantId = ? AND (contactId = ? OR companyId = ? OR dealId = ?)', tenantId, id, id, id);
+      drop('DELETE FROM tickets WHERE tenantId = ? AND (contactId = ? OR companyId = ?)', tenantId, id, id);
+      drop('DELETE FROM record_tags WHERE tenantId = ? AND recordId = ?', tenantId, id);
+      drop('DELETE FROM field_values WHERE tenantId = ? AND recordId = ?', tenantId, id);
+      drop('DELETE FROM notifications WHERE tenantId = ? AND (recordId = ? OR sourceId = ?)', tenantId, id, id);
+      drop('DELETE FROM sequence_runs WHERE tenantId = ? AND dealId = ?', tenantId, id);
+      drop('DELETE FROM workflow_runs WHERE tenantId = ? AND recordId = ?', tenantId, id);
+      drop('DELETE FROM inbox_emails WHERE tenantId = ? AND matchedContactId = ?', tenantId, id);
+      for (const table of ['contacts', 'companies', 'deals', 'leads', 'activities']) ftsDelete(table, id);
     }
-    db.prepare('DELETE FROM activities WHERE tenantId = ? AND sample = 1').run(tenantId);
-    db.prepare('DELETE FROM notes WHERE tenantId = ? AND sample = 1').run(tenantId);
-    db.prepare('DELETE FROM deals WHERE tenantId = ? AND sample = 1').run(tenantId);
-    db.prepare('DELETE FROM contacts WHERE tenantId = ? AND sample = 1').run(tenantId);
-    db.prepare('DELETE FROM companies WHERE tenantId = ? AND sample = 1').run(tenantId);
-    db.prepare("DELETE FROM activities WHERE tenantId = ? AND subject IN ('Update pricing sheet for Q4','Send contract to Zenith Foods','Check in with Emeka on training','[Sample] Update pricing sheet for Q4')").run(tenantId);
-    db.prepare("DELETE FROM crm_accounts WHERE workspaceId = ? AND email LIKE '%@sample.invalid'").run(tenantId);
+    drop('DELETE FROM inbox_emails WHERE tenantId = ? AND fromEmail IN (' + DEMO_EMAILS.map(() => '?').join(',') + ')', tenantId, ...DEMO_EMAILS);
+    const people = ['Ada Okafor','Bola Adeyemi','Chidi Nwosu','Fatima Bello','Emeka Obi','Grace Eze','Tunde Adesanya','Zainab Yusuf','Ngozi Eze','Tunde Bakare','Amaka Okonkwo','Yusuf Ibrahim','Sade Williams'];
+    for (const name of people.concat(DEMO_COMPANIES)) drop("DELETE FROM activities WHERE tenantId = ? AND subject LIKE ?", tenantId, '%' + name + '%');
+    drop('DELETE FROM activities WHERE tenantId = ? AND sample = 1', tenantId);
+    drop('DELETE FROM notes WHERE tenantId = ? AND sample = 1', tenantId);
+    drop('DELETE FROM deals WHERE tenantId = ? AND sample = 1', tenantId);
+    drop('DELETE FROM contacts WHERE tenantId = ? AND sample = 1', tenantId);
+    drop('DELETE FROM companies WHERE tenantId = ? AND sample = 1', tenantId);
+    drop('DELETE FROM leads WHERE tenantId = ? AND COALESCE(sample, 0) = 1', tenantId);
+    drop("DELETE FROM crm_accounts WHERE workspaceId = ? AND email LIKE '%@sample.invalid'", tenantId);
     writeAudit(tenantId, user.sub, 'demo-clear', 'workspace', tenantId, 'Sample data removed');
-    return { ok: true, removed: { companies: companies.length, contacts: contacts.length, deals: deals.length } };
+    return { ok: true, removed: { companies: companies.length, contacts: contacts.length, deals: deals.length, leads: leads.length } };
   });
 
   app.post('/crm/api/setup/demo', async (req, reply) => {
