@@ -10562,17 +10562,22 @@ window.openSearchHit = function (kind, id) {
 (function () {
   const css = document.createElement('style');
   css.textContent = `
-    .gc-shade { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 70; display: grid; place-items: start center; padding-top: 12vh; }
-    .gc-cmd { width: min(640px, calc(100vw - 24px)); background: #1a2332; color: #fff; border-radius: 12px; border: 1px solid rgba(255,255,255,.12); box-shadow: 0 20px 60px rgba(0,0,0,.6); overflow: hidden; }
-    .gc-cmd input { width: 100%; border: 0 !important; background: transparent !important; color: #fff !important; font-size: 18px; padding: 16px 18px; box-shadow: none !important; }
-    .gc-cmd input::placeholder { color: rgba(255,255,255,.45); }
-    .gc-list { max-height: 360px; overflow: auto; }
-    .gc-label { padding: 8px 16px 4px; font-size: 11px; letter-spacing: .08em; color: #94a3b8; }
-    .gc-row { display: flex; gap: 10px; align-items: center; width: 100%; text-align: left; background: transparent !important; color: #fff !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; padding: 8px 16px !important; }
-    .gc-row.on, .gc-row:hover { background: rgba(255,255,255,.06) !important; }
-    .gc-row b { display: block; font-size: 14px; }
-    .gc-row span { color: #94a3b8; font-size: 12px; }
-    .gc-foot { display: flex; gap: 14px; padding: 8px 16px; color: #64748b; font-size: 12px; border-top: 1px solid rgba(255,255,255,.08); }
+    .gc-shade { position: fixed; inset: 0; background: rgba(0,0,0,.72); z-index: 80; display: grid; place-items: start center; padding: 10vh 16px 16px; }
+    .gc-cmd { width: min(640px, 100%); background: #1a2332; color: #fff; border-radius: 16px; border: 1px solid rgba(255,255,255,.12); box-shadow: 0 24px 70px rgba(0,0,0,.55); overflow: hidden; }
+    #gcPalette .gc-find { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid rgba(255,255,255,.08); }
+    #gcPalette .gc-find svg { margin-left: 16px; flex: none; color: #94a3b8; }
+    #gcPalette input { flex: 1; width: auto !important; border: 0 !important; background: transparent !important; color: #fff !important; font-size: 18px !important; padding: 18px 16px 18px 0 !important; border-radius: 0 !important; box-shadow: none !important; }
+    #gcPalette input::placeholder { color: rgba(255,255,255,.45); }
+    .gc-list { max-height: min(420px, 55vh); overflow: auto; padding: 6px; }
+    .gc-label { padding: 10px 12px 4px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #64748b; }
+    #gcPalette .gc-row { display: flex !important; align-items: center !important; gap: 12px !important; width: 100% !important; margin: 0 0 2px !important; text-align: left; background: transparent !important; color: #fff !important; border: 0 !important; border-radius: 10px !important; box-shadow: none !important; padding: 8px 10px !important; font-weight: 500 !important; }
+    #gcPalette .gc-row.on, #gcPalette .gc-row:hover { background: rgba(13,148,136,.22) !important; }
+    #gcPalette .gc-mark { width: 34px; height: 34px; border-radius: 10px; background: #134e4a; color: #99f6e4; display: grid; place-items: center; font-size: 11px; font-weight: 750; flex: none; }
+    #gcPalette .gc-copy { flex: 1; min-width: 0; display: grid; }
+    #gcPalette .gc-copy b { font-size: 14px; color: #fff; font-weight: 650; }
+    #gcPalette .gc-copy em { font-style: normal; color: #94a3b8; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #gcPalette .gc-kind { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: #94a3b8; background: rgba(255,255,255,.06); border-radius: 99px; padding: 3px 8px; }
+    .gc-foot { display: flex; gap: 14px; padding: 10px 16px; color: #64748b; font-size: 12px; border-top: 1px solid rgba(255,255,255,.08); }
     .gc-sheet { position: fixed; top: 0; right: 0; height: 100vh; width: min(480px, 100vw); background: #fff; z-index: 72; box-shadow: -12px 0 40px rgba(0,0,0,.25); padding: 18px; overflow: auto; color: #0f172a; }
     .gc-sheet input, .gc-sheet select, .gc-sheet textarea { background: #fff !important; color: #0f172a !important; border: 1px solid #cbd5e1 !important; width: 100%; }
     .gc-modal { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 80; display: grid; place-items: center; padding: 16px; }
@@ -10591,14 +10596,28 @@ window.openSearchHit = function (kind, id) {
     @keyframes gc-spin { to { transform: rotate(360deg); } }
     .gc-tabs { display: none; }
     html[data-theme="light"] { --bg-base: #f8fafc; --bg-surface: #fff; --bg-card: #f1f5f9; --text-primary: #0f172a; --text-secondary: #475569; --border: rgba(0,0,0,.08); }
-    @media (max-width: 768px) {
+    .gc-tabs button.on { color: #5eead4 !important; box-shadow: inset 0 2px 0 #14b8a6 !important; }
+    @media (max-width: 900px) {
+      .app, .app.rail { grid-template-columns: 1fr !important; }
       #nav { display: none !important; }
-      .gc-tabs { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; background: #0d1117; }
-      .gc-tabs button { background: transparent !important; color: #cbd5e1 !important; border: 0 !important; box-shadow: none !important; border-radius: 0 !important; font-size: 11px !important; padding: 10px 4px !important; }
-      #view { padding-bottom: 64px !important; }
-      #view .pulse, #view .kpis { grid-template-columns: 1fr 1fr !important; }
-      #view .sheet, #view .board { overflow-x: auto; }
-      #view .split, #view .cx { display: block !important; }
+      header .tools { display: none !important; }
+      #whoName { display: none !important; }
+      header { padding: 0 10px !important; gap: 8px !important; }
+      header .search { flex: 1; min-width: 0; }
+      header .search kbd { display: none; }
+      main, #view { padding: 12px 12px 84px !important; }
+      h1 { font-size: 28px !important; }
+      .pulse { grid-template-columns: 1fr 1fr !important; }
+      .homegrid, .split, .record, .overview, .calwrap, .reports, .guides, #view .cx { display: block !important; }
+      .sheet, .board { overflow-x: auto; }
+      .sheet table, .board table { min-width: 640px; }
+      .drop { max-width: calc(100vw - 16px); }
+      .gc-tabs { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; background: #0d1117; border-top: 1px solid rgba(255,255,255,.08); padding-bottom: env(safe-area-inset-bottom); }
+      .gc-tabs button { background: transparent !important; color: #94a3b8 !important; border: 0 !important; box-shadow: none !important; border-radius: 0 !important; font-size: 11px !important; padding: 12px 4px !important; }
+      .gc-shade { padding: 0; }
+      .gc-cmd { width: 100%; min-height: 100%; border-radius: 0; }
+      .gc-list { max-height: none; }
+      .gc-sheet { width: 100%; }
     }
   `;
   document.head.appendChild(css);
@@ -10696,15 +10715,19 @@ window.openSearchHit = function (kind, id) {
 
   const tabs = document.createElement('nav');
   tabs.className = 'gc-tabs';
-  tabs.innerHTML = '<button type="button" onclick="go(\'home\')">Home</button><button type="button" onclick="go(\'contacts\')">Contacts</button><button type="button" onclick="go(\'deals\')">Deals</button><button type="button" onclick="go(\'tasks\')">Tasks</button><button type="button" onclick="toggleLauncher()">More</button>';
+  tabs.innerHTML = '<button type="button" data-page="home" onclick="go(\'home\')">Home</button><button type="button" data-page="contacts" onclick="go(\'contacts\')">Contacts</button><button type="button" data-page="deals" onclick="go(\'deals\')">Deals</button><button type="button" data-page="tasks" onclick="go(\'tasks\')">Tasks</button><button type="button" data-page="more" onclick="toggleLauncher()">More</button>';
   document.body.appendChild(tabs);
+  const prevGo = go;
+  go = function (id, form) { const out = prevGo(id, form); tabs.querySelectorAll('button').forEach((btn) => btn.classList.toggle('on', btn.dataset.page === id)); return out; };
+  const finder = document.getElementById('q');
+  if (finder) finder.addEventListener('focus', () => { finder.blur(); openCommandPalette(); });
 
   window.openCommandPalette = function () {
     if (document.getElementById('gcPalette')) return;
     const shade = document.createElement('div');
     shade.id = 'gcPalette';
     shade.className = 'gc-shade';
-    shade.innerHTML = '<div class="gc-cmd" role="dialog"><input id="gcFind" placeholder="Search or type a command..." autocomplete="off"><div class="gc-list" id="gcHits"></div><div class="gc-foot"><span>↑↓ move</span><span>Enter open</span><span>Esc close</span></div></div>';
+    shade.innerHTML = '<div class="gc-cmd" role="dialog"><div class="gc-find"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="gcFind" placeholder="Search or type a command..." autocomplete="off"></div><div class="gc-list" id="gcHits"></div><div class="gc-foot"><span>↑ ↓ move</span><span>Enter opens</span><span>Esc closes</span></div></div>';
     document.body.appendChild(shade);
     const input = document.getElementById('gcFind');
     let rows = [];
@@ -10747,7 +10770,7 @@ window.openSearchHit = function (kind, id) {
         const list = rows.map((row, index) => Object.assign({ index }, row)).filter((row) => row.kind === kind);
         if (!list.length) return '';
         const title = { action: 'Quick actions', recent: 'Recent', contact: 'Contacts', company: 'Companies', deal: 'Deals', page: 'Pages' }[kind];
-        return `<div class="gc-label">${title}</div>` + list.map((row) => `<button type="button" class="gc-row ${row.index === selected ? 'on' : ''}" data-i="${row.index}"><b>${esc(row.label)}</b><span>${esc(row.sub || '')}</span></button>`).join('');
+        return `<div class="gc-label">${title}</div>` + list.map((row) => `<button type="button" class="gc-row ${row.index === selected ? 'on' : ''}" data-i="${row.index}"><i class="gc-mark">${esc((row.label || '?').slice(0, 2).toUpperCase())}</i><span class="gc-copy"><b>${esc(row.label)}</b><em>${esc(row.sub || '')}</em></span><span class="gc-kind">${esc(title.replace(/s$/, ''))}</span></button>`).join('');
       }).join('');
       box.querySelectorAll('.gc-row').forEach((button) => { button.onclick = () => pick(Number(button.dataset.i)); });
     }
