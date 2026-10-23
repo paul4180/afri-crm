@@ -9284,6 +9284,11 @@ window.openSearchHit = function (kind, id) {
   let calKey = '';
   let calBusy = '';
   let calExt = { events: [], sources: [] };
+  let calTime = '';
+  let calMinutes = 30;
+  let calDraft = '';
+  let calPlan = null;
+  let calPlanKey = '';
 
   function pad(n) { return String(n).padStart(2, '0'); }
   function keyOf(date) { return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()); }
@@ -9341,7 +9346,51 @@ window.openSearchHit = function (kind, id) {
     drawCalPage();
   };
   window.todayCal = function () { calCursor = new Date(); calPick = todayKey(); calOpen = ''; drawCalPage(); };
+  function hourOf(value) {
+    const text = String(value || '');
+    const wall = text.match(/T(\d{2}):(\d{2})/);
+    if (wall && !(/Z$|[+-]\d{2}:\d{2}$/.test(text))) return Number(wall[1]);
+    const date = new Date(text);
+    if (Number.isNaN(date.getTime())) return null;
+    return Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', hour: '2-digit', hourCycle: 'h23' }).format(date));
+  }
+  function clashText(time) {
+    if (!calPlan || !time) return '';
+    const bits = time.split(':').map(Number);
+    const start = bits[0] * 60 + bits[1];
+    const end = start + Number(calMinutes || 30);
+    const hit = (calPlan.busy || []).find((row) => start < row.end && end > row.start);
+    if (!hit) return 'That time is free.';
+    const next = (calPlan.slots || []).find((slot) => slot >= time);
+    return 'That overlaps ' + (hit.label || 'another event') + (next ? '. Next free is ' + next + '.' : '.');
+  }
+  function wantPlan() {
+    const key = calPick + ':' + calMinutes;
+    if (!calPick || calPlanKey === key) return;
+    calPlanKey = key;
+    api('/crm/api/calendar/plan?day=' + calPick + '&minutes=' + calMinutes).then((data) => {
+      if (calPlanKey !== key) return;
+      calPlan = data || { slots: [] };
+      if (!calTime && calPlan.slots && calPlan.slots[0]) calTime = calPlan.slots[0];
+      if (page === 'calendar') drawCalPage();
+    }).catch(() => {});
+  }
+  window.useSlot = function (slot) {
+    calTime = slot;
+    const box = document.getElementById('calTime');
+    if (box) box.value = slot;
+    const note = document.getElementById('calClash');
+    if (note) note.textContent = clashText(slot);
+  };
+  window.syncCal = async function () {
+    const result = await api('/crm/api/calendar/sync', { method: 'POST', body: '{}' });
+    if (!result || result.error) return toast((result && result.error) || 'Could not sync');
+    calKey = '';
+    toast(result.message || 'Synced');
+    refresh();
+  };
   window.pickCalDay = function (key) {
+    if (key !== calPick) { calTime = ''; calDraft = ''; calPlanKey = ''; calPlan = null; }
     calPick = key;
     calNew = true;
     calOpen = '';
@@ -9359,6 +9408,7 @@ window.openSearchHit = function (kind, id) {
 
   window.drawCalPage = function () {
     wantRange();
+    if (calNew && calPick) wantPlan();
     const today = todayKey();
     const [from, to] = range();
     const monthStart = new Date(calCursor.getFullYear(), calCursor.getMonth(), 1);
@@ -9372,7 +9422,8 @@ window.openSearchHit = function (kind, id) {
       return `<button type="button" class="${calPick === key ? 'on' : ''}${has}" onclick="pickCalDay('${key}')">${day}</button>`;
     }).join('');
     const sources = (calExt.sources || [{ id: 'afri', name: 'Afri CRM', on: true, live: true }, { id: 'google', name: 'Google Calendar', on: false }, { id: 'outlook', name: 'Outlook', on: false }]);
-    const srcHtml = sources.map((row) => `<div class="cal-src"><span>${esc(row.name)}${row.email ? '<div class="cx-muted">' + esc(row.email) + '</div>' : ''}</span><b>${row.on ? (row.live ? 'Connected' : 'Not answering') : 'Not connected'}</b></div>`).join('');
+    const google = sources.find((row) => row.id === 'google') || { on: false, live: false };
+    const srcHtml = sources.map((row) => `<div class="cal-src"><span>${esc(row.name)}${row.email ? '<div class="cx-muted">' + esc(row.email) + '</div>' : ''}</span><b>${row.on ? (row.live ? 'Connected' : 'Not answering') : 'Not connected'}</b></div>`).join('') + (google.on ? `<button type="button" class="cx-tool" onclick="syncCal()">Sync Google</button>${google.live ? '' : ' <button type="button" class="cx-tool" onclick="connectTool(\'calendar\')">Reconnect</button>'}` : '<button type="button" class="cx-go" onclick="connectTool(\'calendar\')">Connect Google Calendar</button>');
     let grid = '';
     if (calView === 'month') {
       const padN = (monthStart.getDay() + 6) % 7;
@@ -9398,7 +9449,7 @@ window.openSearchHit = function (kind, id) {
       const head = `<div class="cal-head"></div>` + days.map((key) => `<div class="cal-head">${esc(key.slice(8))} ${esc(parseKey(key).toLocaleDateString('en-GB', { weekday: 'short' }))}</div>`).join('');
       const all = `<div class="cal-head">All day</div>` + days.map((key) => `<div>${onDay(key).filter((item) => !String(item.when).includes('T')).map(pill).join('')}</div>`).join('');
       const rows = hours.map((hour) => `<div class="cal-head">${hour}:00</div>` + days.map((key) => {
-        const list = onDay(key).filter((item) => { const m = String(item.when).match(/T(\d{2})/); return m && Number(m[1]) === hour; });
+        const list = onDay(key).filter((item) => hourOf(item.when) === hour);
         return `<div>${list.map(pill).join('')}</div>`;
       }).join('')).join('');
       grid = `<div class="cal-week">${head}${all}${rows}</div>`;
@@ -9412,13 +9463,31 @@ window.openSearchHit = function (kind, id) {
       const who = open.row ? relatedName(open.row) : '';
       panel = `<div class="cal-card" style="margin-bottom:12px"><div class="cx-head"><div><b>${esc(open.title)}</b><div class="cx-muted">${esc(open.kind[1])} · ${esc(String(open.when || '').replace('T', ' ').slice(0, 16))}</div></div><button type="button" class="cx-tool" onclick="calOpen='';drawCalPage()">Close</button></div>${who ? `<button type="button" class="cx-link" onclick="openRecord('${open.row.relatedType}','${open.row.relatedId}')">${esc(who)}</button>` : ''}${open.row ? '' : '<p class="cx-muted">This came from the connected calendar. Afri does not change it here.</p>'}</div>`;
     } else if (calNew && calPick) {
-      panel = `<div class="cal-card" style="margin-bottom:12px"><div class="cx-head"><b>New event · ${esc(calPick)}</b><button type="button" class="cx-tool" onclick="calNew=false;drawCalPage()">Close</button></div><label>What<input id="calWhat"></label><label>Kind<select id="calKind"><option value="MEETING">Meeting</option><option value="CALL">Call</option><option value="TASK">Task</option></select></label><label>Contact<select id="calWho"><option value="">None</option>${(bag.contacts || []).map((row) => `<option value="${row.id}">${esc(person(row))}</option>`).join('')}</select></label><button type="button" class="cx-go" onclick="saveCal()">Put it on this day</button></div>`;
+      const slots = ((calPlan && calPlan.slots) || []).map((slot) => `<button type="button" class="cx-tool ${calTime===slot?'on':''}" onclick="useSlot('${slot}')">${slot}</button>`).join(' ');
+      panel = `<div class="cal-card" style="margin-bottom:12px"><div class="cx-head"><b>New event · ${esc(calPick)}</b><button type="button" class="cx-tool" onclick="calNew=false;drawCalPage()">Close</button></div><label>What<input id="calWhat" value="${esc(calDraft)}" oninput="calDraft=this.value"></label><label>Kind<select id="calKind"><option value="MEETING">Meeting</option><option value="CALL">Call</option><option value="TASK">Task</option></select></label><label>Time<input id="calTime" type="time" value="${esc(calTime)}" oninput="calTime=this.value;var n=document.getElementById('calClash');if(n)n.textContent=clashText(this.value)"></label><label>Length<select id="calMinutes" onchange="calMinutes=Number(this.value);calPlanKey='';drawCalPage()"><option value="30" ${calMinutes===30?'selected':''}>30 min</option><option value="60" ${calMinutes===60?'selected':''}>60 min</option></select></label><div class="cx-muted">Free on this day</div><div>${slots || 'Looking for a free time…'}</div><p id="calClash" class="cx-muted">${esc(clashText(calTime))}</p><label>Contact<select id="calWho"><option value="">None</option>${(bag.contacts || []).map((row) => `<option value="${row.id}">${esc(person(row))}</option>`).join('')}</select></label><button type="button" class="cx-go" onclick="saveCal()">Put it on this day</button></div>`;
     }
     const views = [['month', 'Month'], ['week', 'Week'], ['day', 'Day'], ['agenda', 'Agenda']];
     document.getElementById('view').innerHTML = `<div class="calx">
-      <aside class="cal-side"><div class="cx-head"><b>${esc(calCursor.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }))}</b></div><div class="cal-mini">${miniHtml}</div><h2 style="font-size:13px;margin:16px 0 4px">My calendars</h2>${srcHtml}<p class="cx-muted">Afri CRM is this workspace. Google or Outlook shows here only after it is connected under Integrations. There is no separate team calendar.</p></aside>
+      <aside class="cal-side"><div class="cx-head"><b>${esc(calCursor.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }))}</b></div><div class="cal-mini">${miniHtml}</div><h2 style="font-size:13px;margin:16px 0 4px">My calendars</h2>${srcHtml}<p class="cx-muted">Times are West Africa Time, 08:00 to 18:00. A meeting or call with a time is sent to Google after you connect. If an older connection can only read, reconnect once.</p></aside>
       <div><div class="cx-head"><h1 style="margin:0">${esc(title())}</h1><div><button type="button" class="cx-tool" onclick="moveCal(-1)">‹</button> <button type="button" class="cx-tool" onclick="todayCal()">Today</button> <button type="button" class="cx-tool" onclick="moveCal(1)">›</button> ${views.map(([id, label]) => `<button type="button" class="cx-tool ${calView===id?'on':''}" onclick="setCalView('${id}')">${label}</button>`).join(' ')}</div></div>${panel}${grid}</div>
     </div>`;
   };
   drawCalendar = function () { drawCalPage(); };
+  saveCal = async function () {
+    const subject = ((document.getElementById('calWhat') || {}).value || calDraft || '').trim();
+    const time = (document.getElementById('calTime') || {}).value || calTime;
+    const minutes = Number((document.getElementById('calMinutes') || {}).value || calMinutes || 30);
+    const who = (document.getElementById('calWho') || {}).value;
+    const type = (document.getElementById('calKind') || {}).value || 'MEETING';
+    if (!subject || !calPick) return toast('Say what it is');
+    if ((type === 'MEETING' || type === 'CALL') && !time) return toast('Pick a time');
+    const result = await api('/crm/api/activities', { method: 'POST', body: JSON.stringify({ type, subject, dueAt: time ? calPick + 'T' + time + ':00' : calPick, minutes, status: 'PLANNED', relatedType: who ? 'contact' : null, relatedId: who || null }) });
+    if (!result || result.error) return toast((result && result.error) || 'Could not save');
+    calNew = false; calDraft = ''; calPlanKey = ''; calKey = '';
+    if (result.googleError) toast(result.googleError);
+    else if (result.externalId) toast('On this calendar and on Google Calendar');
+    else if (type === 'TASK') toast('On this calendar');
+    else toast('On this calendar. Connect Google to send the next one there.');
+    refresh();
+  };
 })();

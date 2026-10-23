@@ -303,6 +303,8 @@ for (const [table, col, type] of [
   ['contacts', 'source', 'TEXT'], ['contacts', 'status', "TEXT DEFAULT 'ACTIVE'"],
   ['companies', 'source', 'TEXT'],
   ['activities', 'priority', "TEXT DEFAULT 'NORMAL'"],
+  ['activities', 'externalId', 'TEXT'],
+  ['activities', 'minutes', 'INTEGER DEFAULT 30'],
   ['companies', 'updatedAt', 'TEXT'], ['contacts', 'updatedAt', 'TEXT'],
   ['leads', 'updatedAt', 'TEXT'], ['deals', 'updatedAt', 'TEXT'], ['activities', 'updatedAt', 'TEXT'],
   ['leads', 'deadReason', 'TEXT'],
@@ -383,10 +385,10 @@ const FIELDS = {
   contacts: ['firstName', 'lastName', 'title', 'email', 'phone', 'mobile', 'companyId', 'street', 'city', 'state', 'country', 'description', 'method', 'serviceFrequency', 'serviceType', 'lastService', 'ownerId', 'source', 'status'],
   leads: ['firstName', 'lastName', 'title', 'companyName', 'email', 'phone', 'mobile', 'website', 'source', 'status', 'industry', 'rating', 'street', 'city', 'state', 'country', 'description', 'ownerId', 'deadReason'],
   deals: ['name', 'companyId', 'contactId', 'leadId', 'amount', 'probability', 'stage', 'closeDate', 'type', 'source', 'nextStep', 'description', 'lostReason', 'ownerId'],
-  activities: ['type', 'subject', 'dueAt', 'status', 'relatedType', 'relatedId', 'notes', 'ownerId', 'priority'],
+  activities: ['type', 'subject', 'dueAt', 'status', 'relatedType', 'relatedId', 'notes', 'ownerId', 'priority', 'minutes'],
   products: ['name', 'code', 'price', 'description', 'category', 'stock', 'attrs'],
 };
-const NUM = new Set(['amount', 'probability', 'price', 'quantity', 'unitPrice', 'discount', 'stock']);
+const NUM = new Set(['amount', 'probability', 'price', 'quantity', 'unitPrice', 'discount', 'stock', 'minutes']);
 
 function clean(object, body) {
   const out = {};
@@ -1485,6 +1487,87 @@ export function registerCrm(app, prisma) {
     const count = db.prepare('SELECT COUNT(*) AS n FROM leads WHERE tenantId = ?').get(tenantId).n;
     return users[count % users.length].id;
   }
+
+  const LAGOS = 'Africa/Lagos';
+  function lagosParts(date) {
+    const bag = {};
+    for (const part of new Intl.DateTimeFormat('en-GB', { timeZone: LAGOS, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(date)) bag[part.type] = part.value;
+    return bag;
+  }
+  function lagosKey(date) { const p = lagosParts(date); return p.year + '-' + p.month + '-' + p.day; }
+  function lagosMinutes(date) { const p = lagosParts(date); return Number(p.hour) * 60 + Number(p.minute); }
+  function clockOf(mins) {
+    const capped = Math.max(0, Math.min(mins, 23 * 60 + 59));
+    return String(Math.floor(capped / 60)).padStart(2, '0') + ':' + String(capped % 60).padStart(2, '0');
+  }
+  function mergeBusy(list) {
+    const rows = list.filter(Boolean).sort((a, b) => a.start - b.start);
+    const out = [];
+    for (const row of rows) {
+      const last = out[out.length - 1];
+      if (!last || row.start > last.end) out.push({ start: row.start, end: row.end, label: row.label });
+      else { last.end = Math.max(last.end, row.end); if (row.label) last.label = last.label ? last.label + ', ' + row.label : row.label; }
+    }
+    return out;
+  }
+  function freeSlots(busy, minutes, limit) {
+    const merged = mergeBusy(busy);
+    const found = [];
+    let cursor = 8 * 60;
+    while (cursor + minutes <= 18 * 60 && found.length < limit) {
+      const hit = merged.find((row) => cursor < row.end && cursor + minutes > row.start);
+      if (!hit) { found.push(clockOf(cursor)); cursor += 30; }
+      else cursor = Math.max(cursor + 30, hit.end);
+    }
+    return found;
+  }
+  function spanOnDay(when, endWhen, minutes, day, label) {
+    const text = String(when || '');
+    if (!text || /^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
+    const wall = text.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/);
+    const zoned = /Z$|[+-]\d{2}:\d{2}$/.test(text);
+    if (wall && !zoned) {
+      if (wall[1] !== day) return null;
+      const start = Number(wall[2]) * 60 + Number(wall[3]);
+      return { start, end: start + (Number(minutes) || 30), label: label || 'Busy' };
+    }
+    const start = new Date(text);
+    if (Number.isNaN(start.getTime()) || lagosKey(start) !== day) return null;
+    let endMin = lagosMinutes(start) + (Number(minutes) || 30);
+    if (endWhen) {
+      const end = new Date(endWhen);
+      if (!Number.isNaN(end.getTime())) endMin = lagosKey(end) === day ? lagosMinutes(end) : 18 * 60;
+    }
+    return { start: lagosMinutes(start), end: Math.max(lagosMinutes(start) + 15, endMin), label: label || 'Busy' };
+  }
+  async function googleEventsBetween(user, start, end) {
+    const calendar = db.prepare('SELECT * FROM connections WHERE tenantId = ? AND provider = ?').get(user.tenantId, 'calendar');
+    if (!calendar) return { events: [], connected: false, live: false };
+    const token = await freshToken(calendar);
+    if (!token) return { events: [], connected: true, live: false, email: calendar.email || '' };
+    const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?' + new URLSearchParams({ timeMin: start.toISOString(), timeMax: end.toISOString(), maxResults: '40', singleEvents: 'true', orderBy: 'startTime' }), { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { events: [], connected: true, live: false, email: calendar.email || '' };
+    return { events: (data.items || []).map((item) => ({ title: item.summary || 'Busy', when: (item.start && (item.start.dateTime || item.start.date)) || '', end: (item.end && (item.end.dateTime || item.end.date)) || '' })), connected: true, live: true, email: calendar.email || '' };
+  }
+  async function pushMeetingToGoogle(user, row) {
+    if (!row || (row.type !== 'MEETING' && row.type !== 'CALL') || !String(row.dueAt || '').includes('T') || row.externalId) return {};
+    const calendar = db.prepare('SELECT * FROM connections WHERE tenantId = ? AND provider = ?').get(user.tenantId, 'calendar');
+    if (!calendar) return { skipped: 'not-connected' };
+    const token = await freshToken(calendar);
+    if (!token) return { error: 'Google Calendar is connected, but the sign-in expired. Reconnect it.' };
+    const match = String(row.dueAt).match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+    if (!match) return {};
+    const minutes = Math.min(Math.max(Number(row.minutes) || 30, 15), 240);
+    const [hour, min] = match[2].split(':').map(Number);
+    const body = { summary: row.subject || 'Afri CRM', description: 'Added from Afri CRM', start: { dateTime: match[1] + 'T' + match[2] + ':00', timeZone: LAGOS }, end: { dateTime: match[1] + 'T' + clockOf(hour * 60 + min + minutes) + ':00', timeZone: LAGOS } };
+    const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: res.status === 403 ? 'This Google connection can only read. Reconnect Google Calendar so Afri can add events.' : ((data.error && data.error.message) || 'Google did not take the event') };
+    db.prepare('UPDATE activities SET externalId = ? WHERE tenantId = ? AND id = ?').run(data.id, user.tenantId, row.id);
+    return { externalId: data.id };
+  }
+
   const crud = (name) => {
     app.get('/crm/api/' + name, async (req, reply) => {
       const user = await guard(req, reply); if (!user) return;
@@ -1523,7 +1606,13 @@ export function registerCrm(app, prisma) {
       }
       const id = insert(name, user.tenantId, data);
       writeAudit(user.tenantId, user.sub, 'created', name, id, data.name || data.firstName || data.subject || '');
-      const created = one(name, user.tenantId, id);
+      let created = one(name, user.tenantId, id);
+      if (name === 'activities' && (created.type === 'MEETING' || created.type === 'CALL') && String(created.dueAt || '').includes('T')) {
+        const pushed = await pushMeetingToGoogle(user, created);
+        created = one(name, user.tenantId, id);
+        if (pushed.error) created.googleError = pushed.error;
+        if (pushed.skipped) created.googleSkipped = pushed.skipped;
+      }
       if (name === 'leads') applyWorkflow(user.tenantId, 'lead.created', created);
       if (created.ownerId && created.ownerId !== user.sub && (name === 'leads' || name === 'deals' || name === 'activities')) {
         const type = { leads: 'lead', deals: 'deal', activities: created.relatedType || 'task' }[name];
@@ -2447,7 +2536,7 @@ export function registerCrm(app, prisma) {
       if (!creds) return reply.code(400).send({ error: 'Google is not switched on. Paste the client id and secret on Integrations, and set the redirect to ' + origin + '/crm/api/connect/google/callback' });
       const scope = provider === 'gmail'
         ? 'openid email https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly'
-        : 'openid email https://www.googleapis.com/auth/calendar.readonly';
+        : 'openid email https://www.googleapis.com/auth/calendar.events';
       const url = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({
         client_id: creds.id, redirect_uri: origin + '/crm/api/connect/google/callback', response_type: 'code',
         access_type: 'offline', prompt: 'consent', scope, state: signState({ tenantId: user.tenantId, provider }),
@@ -2497,6 +2586,39 @@ export function registerCrm(app, prisma) {
     saveConnection(data.tenantId, 'outlook', profile.mail || profile.userPrincipalName, tokens);
     return reply.redirect('/crm?tool=outlook&page=integrations');
   });
+
+  app.get('/crm/api/calendar/plan', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    const day = String(req.query?.day || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return reply.code(400).send({ error: 'Pick a day' });
+    const minutes = Math.min(Math.max(Number(req.query?.minutes || 30), 15), 240);
+    const start = new Date(day + 'T00:00:00Z');
+    const end = new Date(start.getTime() + 2 * 86400000);
+    const google = await googleEventsBetween(user, start, end);
+    const own = list('activities', user.tenantId).filter((row) => String(row.dueAt || '').slice(0, 10) === day && row.status !== 'HELD' && row.status !== 'DONE');
+    const busy = mergeBusy([].concat(
+      own.map((row) => spanOnDay(row.dueAt, null, row.minutes, day, row.subject)),
+      (google.events || []).map((row) => spanOnDay(row.when, row.end, 30, day, row.title))
+    ));
+    return { day, minutes, zone: LAGOS, slots: freeSlots(busy, minutes, 6), busy, connected: google.connected, live: google.live };
+  });
+  app.post('/crm/api/calendar/sync', async (req, reply) => {
+    const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+    const today = lagosKey(new Date());
+    const horizon = lagosKey(new Date(Date.now() + 30 * 86400000));
+    const rows = list('activities', user.tenantId).filter((row) => (row.type === 'MEETING' || row.type === 'CALL') && String(row.dueAt || '').includes('T') && !row.externalId && String(row.dueAt).slice(0, 10) >= today && String(row.dueAt).slice(0, 10) <= horizon);
+    let pushed = 0;
+    let error = '';
+    for (const row of rows) {
+      const result = await pushMeetingToGoogle(user, row);
+      if (result.externalId) pushed += 1;
+      else if (result.error) { error = result.error; break; }
+      else if (result.skipped) return { pushed, message: 'Connect Google Calendar first. Nothing was sent.' };
+    }
+    if (error && !pushed) return reply.code(400).send({ error });
+    return { pushed, message: pushed ? pushed + ' event' + (pushed === 1 ? '' : 's') + ' sent to Google Calendar.' : (error || 'Nothing new to send. Google is already up to date.') };
+  });
+
   app.get('/crm/api/day', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     const out = { events: [], inbox: null, sources: [] };
@@ -2518,7 +2640,7 @@ export function registerCrm(app, prisma) {
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
           source.live = true;
-          out.events = (data.items || []).map((item) => ({ title: item.summary || 'Busy', when: (item.start && (item.start.dateTime || item.start.date)) || '', source: 'google' }));
+          out.events = (data.items || []).map((item) => ({ title: item.summary || 'Busy', when: (item.start && (item.start.dateTime || item.start.date)) || '', end: (item.end && (item.end.dateTime || item.end.date)) || '', source: 'google' }));
         }
       }
       out.sources.push(source);
