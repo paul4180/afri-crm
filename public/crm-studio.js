@@ -9805,7 +9805,17 @@ window.openSearchHit = function (kind, id) {
     #view .ws-tabs { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
     #view .ws-split { display: grid; grid-template-columns: 1.7fr 1fr; gap: 14px; align-items: start; }
     #view .ws-card { background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
-    #view .ws-line { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid #eef2f6; }
+    #view .ws, #view .ws .ws-card { color: #0f172a !important; }
+    #view .ws .ws-card { background: #fff !important; }
+    #view .ws-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid #eef2f6; }
+    #view .ws-task { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid #eef2f6; }
+    #view .ws input[type="checkbox"] { width: 16px !important; height: 16px !important; margin: 0 !important; }
+    #view .ws-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    #view .ws-metric { background: #f8fafc; border: 1px solid #e5e8eb; border-radius: 10px; padding: 10px; }
+    #view .ws-metric b { display: block; font-size: 22px; }
+    #view .ws-feed { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 10px 0; border-top: 1px solid #eef2f6; }
+    #view .ws-pill { font-size: 11px; background: #f1f5f9; color: #334155 !important; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+    @media (max-width: 720px) { #view .ws-metrics { grid-template-columns: 1fr 1fr; } }
     #view .ws-slot { display: grid; grid-template-columns: 64px 1fr; min-height: 36px; border-top: 1px solid #eef2f6; position: relative; font-size: 12px; }
     #view .ws-slot span { color: #64748b; padding: 6px; }
     #view .ws-now { position: absolute; left: 64px; right: 8px; height: 2px; background: #2563eb; }
@@ -9885,7 +9895,7 @@ window.openSearchHit = function (kind, id) {
     }
     const target = (type) => {
       const nums = (history[type] || []).slice().sort((a, b) => a - b);
-      if (!nums.length || nums.every((n) => !n)) return null;
+      if (!nums.length || !nums[Math.floor(nums.length / 2)]) return null;
       return nums[Math.floor(nums.length / 2)];
     };
     return { email: count('EMAIL'), call: count('CALL'), whatsapp: count('WHATSAPP'), meeting: count('MEETING'), target };
@@ -9951,16 +9961,17 @@ window.openSearchHit = function (kind, id) {
     } else if (wsTab === 'deals') {
       main = open.map((row) => `<div class="ws-line"><div><b>${esc(row.name)}</b><div class="cx-muted">${money(row.amount)}</div></div><button type="button" class="ws-btn" onclick="openRecord('deal','${row.id}')">Open</button></div>`).join('') || '<p class="cx-muted">No open deal.</p>';
     } else if (wsTab === 'tasks') {
-      main = tasks.map((row) => `<div class="ws-line"><label><input type="checkbox" onclick="hold('${row.id}')"> ${esc(row.subject || 'Task')}</label><span class="cx-muted">${esc(row.type)}</span></div>`).join('') || '<p class="cx-muted">Nothing is due today.</p><button type="button" class="ws-btn go" onclick="go(\'tasks\',\'task\')">Create a task</button>';
+      main = tasks.map((row) => `<div class="ws-task"><input type="checkbox" onclick="hold('${row.id}')"><span>${esc(row.subject || 'Task')}</span><span class="ws-pill">${esc(row.type || '')}</span></div>`).join('') || '<p class="cx-muted">Nothing is due today.</p><button type="button" class="ws-btn go" onclick="go(\'tasks\',\'task\')">Create a task</button>';
     } else if (wsTab === 'schedule') {
       main = `<div class="ws-line" style="border:0"><b>${esc(label)}</b><span><button type="button" class="ws-btn" onclick="wsSet('day',-1)">‹</button> <button type="button" class="ws-btn" onclick="wsSet('day',1)">›</button></span></div>${schedule(today)}`;
     } else if (wsTab === 'dashboard') {
       const worth = open.reduce((sum, row) => sum + Number(row.amount || 0), 0);
       main = `<div class="ws-line"><span>Open pipeline</span><b>${money(worth)}</b></div><div class="ws-line"><span>Open deals</span><b>${open.length}</b></div><div class="ws-line"><span>Quiet 14 days</span><b>${stalled.length}</b></div><div class="ws-line"><span>Won deals</span><b>${icp.won}</b></div>`;
     } else {
-      const taskBody = tasks.length ? tasks.map((row) => `<div class="ws-line"><label><input type="checkbox" onclick="hold('${row.id}')"> ${esc(row.subject || 'Task')}</label></div>`).join('') : '<p class="cx-muted">Nothing is due today.</p><button type="button" class="ws-btn go" onclick="go(\'tasks\',\'task\')">Create a task</button>';
-      const bar = (label, n, goal) => `<div class="ws-line"><span>${label}</span><b>${n}${goal == null ? '' : ' / ' + goal}</b></div>`;
-      const outBody = bar('Emails logged', out.email, out.target('EMAIL')) + bar('Calls logged', out.call, out.target('CALL')) + bar('WhatsApp logged', out.whatsapp, out.target('WHATSAPP')) + bar('Meetings logged', out.meeting, out.target('MEETING')) + '<p class="cx-muted">The target is the median of the last 14 days. No number means there is no history, so no target is invented.</p>';
+      const taskRow = (row) => `<div class="ws-task"><input type="checkbox" onclick="hold('${row.id}')"><span>${esc(row.subject || 'Task')}</span><span class="ws-pill">${esc(row.type || '')}</span></div>`;
+      const taskBody = tasks.length ? tasks.map(taskRow).join('') : '<p class="cx-muted">Nothing is due today.</p><button type="button" class="ws-btn go" onclick="go(\'tasks\',\'task\')">Create a task</button>';
+      const tile = (label, n, goal) => `<article class="ws-metric"><span class="cx-muted">${label}</span><b>${n}</b><span class="cx-muted">${goal ? 'Usual day ' + goal : 'No usual day'}</span></article>`;
+      const outBody = '<div class="ws-metrics">' + tile('Emails', out.email, out.target('EMAIL')) + tile('Calls', out.call, out.target('CALL')) + tile('WhatsApp', out.whatsapp, out.target('WHATSAPP')) + tile('Meetings', out.meeting, out.target('MEETING')) + '</div><p class="cx-muted">Usual day is the median of the last 14 days. A zero is not shown as a target.</p>';
       const sug = people.length ? people.map((item) => {
         const who = item.kind === 'lead' ? person(item.row) : person(item.row);
         const action = item.kind === 'lead' ? `<button type="button" class="ws-btn go" onclick="convert('${item.row.id}')">Add to CRM</button>` : `<button type="button" class="ws-btn" onclick="openRecord('contact','${item.row.id}')">Open</button>`;
@@ -9970,10 +9981,10 @@ window.openSearchHit = function (kind, id) {
         [stalled.length + ' open deal' + (stalled.length === 1 ? '' : 's') + ' with no activity for 14 days', stalled.length ? `<button type="button" class="ws-btn" onclick="go('deals')">Open deals</button>` : ''],
         hour ? `Most completed calls were logged around ${hour.hour % 12 || 12}${hour.hour < 12 ? ' AM' : ' PM'} (${hour.count} of ${hour.total})` : 'Not enough completed calls to pick an hour. Log at least 3.',
       ];
-      const feed = (bag.activities || []).slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).slice(0, 8).map((row) => `<div class="ws-line"><div><b>${esc(row.subject || row.type || 'Activity')}</b><div class="cx-muted">${esc(row.type || '')} · ${esc(rel(row.createdAt))}</div></div></div>`).join('') || '<p class="cx-muted">No activity logged.</p>';
+      const feed = (bag.activities || []).slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).slice(0, 8).map((row) => `<div class="ws-feed"><div><b>${esc(row.subject || 'Activity')}</b><div class="cx-muted">${esc(rel(row.createdAt))}</div></div><span class="ws-pill">${esc(row.type || 'NOTE')}</span></div>`).join('') || '<p class="cx-muted">No activity logged.</p>';
       const sideBody = side === 'insights' ? insights.map((row) => `<div class="ws-line"><div>${esc(row[0])}</div>${row[1] || ''}</div>`).join('') : side === 'feed' ? '<p class="cx-muted">This is activity on the records. Page visits and email opens are not tracked.</p>' + feed : `<div class="ws-line" style="border:0"><b>${esc(label)}</b><span><button type="button" class="ws-btn" onclick="wsSet('day',-1)">‹</button> <button type="button" class="ws-btn" onclick="wsSet('day',1)">›</button></span></div>${schedule(today)}`;
       const sideTabs = [['schedule', 'Schedule'], ['insights', 'Insights'], ['feed', 'Feed']].map(([id, text]) => `<button type="button" class="ws-btn ${side === id ? 'on' : ''}" onclick="wsSet('side','${id}')">${text}</button>`).join(' ');
-      main = `<div class="ws-split"><div>${card('tasks', 'Tasks', taskBody)}${card('out', 'Outreach today', outBody)}${card('pro', 'Prospects', sug)}</div><aside class="ws-card"><div class="ws-tabs">${sideTabs}</div>${sideBody}</aside></div>`;
+      main = `<div class="ws-split"><div>${card('tasks', 'Tasks', taskBody)}${card('out', 'Outreach today', outBody)}${card('pro', 'Prospects', sug)}</div><div class="ws-card"><div class="ws-tabs">${sideTabs}</div>${sideBody}</div></div>`;
     }
     document.getElementById('view').innerHTML = `<div class="ws"><div class="cal-toolbar"><h1>Sales <span class="cx-muted">| ${esc(name)}</span></h1></div><div class="ws-tabs">${tabs}</div>${wsTab === 'summary' ? '' : '<div class="ws-card">'}${main}${wsTab === 'summary' ? '' : '</div>'}</div>`;
   };
