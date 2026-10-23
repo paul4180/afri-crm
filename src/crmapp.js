@@ -4656,8 +4656,21 @@ function agentBrain(tenantId) {
     }).sort((a, b) => b.score - a.score);
     return { on: contacts.length + deals.length > 0, companies: db.prepare("SELECT COUNT(*) AS n FROM companies WHERE tenantId = ? AND (sample = 1 OR source = 'Sample')").get(tenantId).n, contacts: contacts.length, deals: deals.length, next: ranked.slice(0, 3) };
   }
+  function markSample(tenantId) {
+    db.prepare("UPDATE companies SET sample = 1 WHERE tenantId = ? AND source = 'Sample' AND COALESCE(sample, 0) = 0").run(tenantId);
+    db.prepare("UPDATE contacts SET sample = 1 WHERE tenantId = ? AND source = 'Sample' AND COALESCE(sample, 0) = 0").run(tenantId);
+    db.prepare("UPDATE deals SET sample = 1 WHERE tenantId = ? AND source = 'Sample' AND COALESCE(sample, 0) = 0").run(tenantId);
+    const people = db.prepare('SELECT id FROM contacts WHERE tenantId = ? AND sample = 1').all(tenantId).map((row) => row.id);
+    const deals = db.prepare('SELECT id FROM deals WHERE tenantId = ? AND sample = 1').all(tenantId).map((row) => row.id);
+    for (const id of people.concat(deals)) db.prepare('UPDATE activities SET sample = 1 WHERE tenantId = ? AND relatedId = ? AND COALESCE(sample, 0) = 0').run(tenantId, id);
+    db.prepare("UPDATE companies SET name = '[Sample] ' || name WHERE tenantId = ? AND sample = 1 AND name NOT LIKE '[Sample] %'").run(tenantId);
+    db.prepare("UPDATE contacts SET firstName = '[Sample] ' || firstName WHERE tenantId = ? AND sample = 1 AND firstName NOT LIKE '[Sample] %'").run(tenantId);
+    db.prepare("UPDATE deals SET name = '[Sample] ' || name WHERE tenantId = ? AND sample = 1 AND name NOT LIKE '[Sample] %'").run(tenantId);
+    db.prepare("UPDATE activities SET subject = '[Sample] ' || subject WHERE tenantId = ? AND sample = 1 AND subject NOT LIKE '[Sample] %'").run(tenantId);
+  }
   app.get('/crm/api/demo', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
+    markSample(user.tenantId);
     return demoStory(user.tenantId);
   });
   app.post('/crm/api/demo/clear', async (req, reply) => {
@@ -4723,7 +4736,7 @@ function agentBrain(tenantId) {
       ['Zenith Bank','Banking','PROSPECT','Lagos','hello@zenithbank.ng',''],
     ];
     const companyIds = companies.map(function(c) {
-      var found = db.prepare('SELECT id FROM companies WHERE tenantId = ? AND name = ?').get(workspaceId, c[0]);
+      var found = db.prepare("SELECT id FROM companies WHERE tenantId = ? AND (name = ? OR name = ?)").get(workspaceId, c[0], '[Sample] ' + c[0]);
       if (found) return found.id;
       var id = crypto.randomUUID();
       db.prepare('INSERT INTO companies (id, tenantId, name, industry, type, city, email, phone, country, ownerId, source, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, c[0], c[1], c[2], c[3], c[4], c[5], 'Nigeria', ownerId, 'Sample', new Date().toISOString());
@@ -4763,7 +4776,7 @@ function agentBrain(tenantId) {
     ];
     var dealIds = [];
     deals.forEach(function(d) {
-      var found = db.prepare('SELECT id FROM deals WHERE tenantId = ? AND name = ?').get(workspaceId, d[0]);
+      var found = db.prepare("SELECT id FROM deals WHERE tenantId = ? AND (name = ? OR name = ?)").get(workspaceId, d[0], '[Sample] ' + d[0]);
       if (found) { dealIds.push(found.id); return; }
       var id = crypto.randomUUID();
       db.prepare('INSERT INTO deals (id, tenantId, name, companyId, contactId, amount, stage, probability, closeDate, type, source, ownerId, nextStep, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, d[0], d[1], d[2], d[3], findStage(d[4]), d[5], d[6], 'NEW', 'Sample', d[7], d[4] === 'CLOSED_WON' ? 'Hand over the site' : 'Follow up', new Date().toISOString());
@@ -4801,6 +4814,10 @@ function agentBrain(tenantId) {
     db.prepare("UPDATE companies SET sample = 1 WHERE tenantId = ? AND source = 'Sample'").run(workspaceId);
     db.prepare("UPDATE contacts SET sample = 1 WHERE tenantId = ? AND source = 'Sample'").run(workspaceId);
     db.prepare("UPDATE deals SET sample = 1 WHERE tenantId = ? AND source = 'Sample'").run(workspaceId);
+    db.prepare("UPDATE companies SET name = '[Sample] ' || name WHERE tenantId = ? AND sample = 1 AND name NOT LIKE '[Sample] %'").run(workspaceId);
+    db.prepare("UPDATE contacts SET firstName = '[Sample] ' || firstName WHERE tenantId = ? AND sample = 1 AND firstName NOT LIKE '[Sample] %'").run(workspaceId);
+    db.prepare("UPDATE deals SET name = '[Sample] ' || name WHERE tenantId = ? AND sample = 1 AND name NOT LIKE '[Sample] %'").run(workspaceId);
+    db.prepare("UPDATE activities SET subject = '[Sample] ' || subject WHERE tenantId = ? AND sample = 1 AND subject NOT LIKE '[Sample] %'").run(workspaceId);
     const samplePeople = db.prepare('SELECT id FROM contacts WHERE tenantId = ? AND sample = 1').all(workspaceId).map((row) => row.id);
     const sampleDeals = db.prepare('SELECT id FROM deals WHERE tenantId = ? AND sample = 1').all(workspaceId).map((row) => row.id);
     for (const id of samplePeople.concat(sampleDeals)) {

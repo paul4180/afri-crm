@@ -8052,7 +8052,7 @@
       <section class="dash-hero">
         <div class="dash-top">
           <div><h1 class="dash-today">Today</h1><p class="dash-sub">${hello} · ${esc(when)} · ${n(openDeals.length, 'open deal', 'open deals')} · ${n(due.length, 'task due', 'tasks due')}</p><p class="dash-note">Lists are ordered by overdue work, then what is due, then open money. Newest is only the tie-break.</p></div>
-          <div class="dash-links"><button type="button" class="dash-link" onclick="go('guide')">↗ Start guide</button><button type="button" class="dash-link" onclick="homeDemo()">◈ Demo data</button><button type="button" class="dash-link" onclick="homePack=null;drawHome()">↻ Refresh</button></div>
+          <div class="dash-links"><button type="button" class="dash-link" onclick="go('guide')">↗ Start guide</button><button type="button" class="dash-link" onclick="homeDemo()">◈ Sample data</button><button type="button" class="dash-link" onclick="homePack=null;drawHome()">↻ Refresh</button></div>
         </div>
       </section>
       <div class="dash-kpis">
@@ -10886,4 +10886,52 @@ window.openSearchHit = function (kind, id) {
       refresh();
     };
   };
+})();
+
+(function () {
+  window.homeDemo = async function () {
+    const old = document.getElementById('sampleSheet');
+    if (old) old.remove();
+    const story = await api('/crm/api/demo');
+    const sheet = document.createElement('div');
+    sheet.id = 'sampleSheet';
+    sheet.className = 'sample-sheet';
+    const next = (story && story.next || []).map((row) => `<li><b>${esc(row.name)}</b> — ${esc(row.why)}</li>`).join('');
+    sheet.innerHTML = `<div class="sample-card"><h2>Sample data</h2><p>Practice records are marked <b>[Sample]</b> on the company, the person, the deal, and the task. They stay after a refresh so you can click through them. Your own records are not changed.</p>${story && story.on ? `<p>${story.companies} companies · ${story.contacts} people · ${story.deals} deals.</p><ol>${next}</ol>` : '<p>Nothing has been added yet.</p>'}<div class="row">${story && story.on ? '' : '<button type="button" id="sampleAdd">Add sample data</button>'}<button type="button" class="ghost" id="sampleOff">Remove sample data</button><button type="button" class="ghost" id="sampleClose">Close</button></div></div>`;
+    sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.remove(); });
+    document.body.appendChild(sheet);
+    document.getElementById('sampleClose').onclick = () => sheet.remove();
+    const add = document.getElementById('sampleAdd');
+    if (add) add.onclick = async () => {
+      const res = await api('/crm/api/setup/demo', { method: 'POST', body: '{}' });
+      if (!res || res.error) return toast((res && res.error) || 'Could not add it');
+      sheet.remove();
+      await refresh();
+      toast('Sample data is on. Look for [Sample].');
+    };
+    document.getElementById('sampleOff').onclick = async () => {
+      if (typeof askConfirm === 'function') {
+        const ok = await askConfirm({ title: 'Remove sample data?', body: 'Every record marked [Sample] is deleted. Records you created stay.', danger: true, ok: 'Remove sample data' });
+        if (!ok) return;
+      }
+      const res = await api('/crm/api/demo/clear', { method: 'POST', body: '{}' });
+      if (!res || res.error) return toast((res && res.error) || 'Could not remove it');
+      sheet.remove();
+      await refresh();
+      toast('Sample data removed');
+    };
+  };
+
+  async function paintSampleBar() {
+    const bar = document.getElementById('sampleBar');
+    if (!bar) return;
+    const story = await api('/crm/api/demo');
+    if (!story || !story.on) { bar.hidden = true; bar.innerHTML = ''; return; }
+    const next = (story.next || [])[0];
+    bar.hidden = false;
+    bar.innerHTML = `<span>Sample data is on. ${story.contacts} people and ${story.deals} deals are marked [Sample].${next ? ' Start with ' + esc(next.name) + '.' : ''}</span><button type="button" onclick="homeDemo()">Manage sample data</button>`;
+  }
+  const sampleRefresh = refresh;
+  refresh = async function () { await sampleRefresh(); paintSampleBar(); };
+  paintSampleBar();
 })();
