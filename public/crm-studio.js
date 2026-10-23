@@ -7905,7 +7905,7 @@
       if (noteFilter === 'deals') return type === 'deal';
       if (noteFilter === 'mentions') return /mention|@/i.test((row.title || '') + ' ' + (row.body || ''));
       if (noteFilter === 'system') return !['task', 'deal', 'contact', 'lead'].includes(type);
-      try { const off = JSON.parse(localStorage.getItem('crm-note-off') || '[]'); if (off.includes(type)) return false; } catch (e) {}
+      try { const off = JSON.parse(localStorage.getItem('crm-note-off') || '[]'); if (off.includes(type)) return false; const text = ((row.title || '') + ' ' + (row.body || '')).toLowerCase(); if (off.includes('overdue') && text.includes('overdue')) return false; if (off.includes('reply') && (text.includes('reply') || text.includes('replied'))) return false; if (off.includes('sequence') && text.includes('sequence')) return false; } catch (e) {}
       return true;
     });
     const tab = (id, label) => `<button type="button" class="${noteFilter === id ? 'on' : ''}" onclick="noteFilter='${id}';loadBell()">${label}</button>`;
@@ -10363,9 +10363,89 @@ window.openSearchHit = function (kind, id) {
   };
   window.setSaveAccount = async function () {
     const current = await api('/crm/api/setup');
-    const body = Object.assign({}, current || {}, { industry: document.getElementById('setIndustry').value, channel: document.getElementById('setChannel').value, goal: document.getElementById('setGoal').value, done: 1 });
+    const body = Object.assign({}, current || {}, { name: document.getElementById('setBiz').value, industry: document.getElementById('setIndustry').value, channel: document.getElementById('setChannel').value, goal: document.getElementById('setGoal').value, timezone: document.getElementById('setZone').value, currency: document.getElementById('setCur').value, logo: document.getElementById('setLogo').value, done: 1 });
     const result = await api('/crm/api/setup', { method: 'POST', body: JSON.stringify(body) });
-    toast(result && !result.error ? 'Saved' : (result && result.error) || 'Could not save');
+    if (result && !result.error) { localStorage.setItem('crm-currency', result.currency || 'NGN'); toast('Saved'); }
+    else toast((result && result.error) || 'Could not save');
+  };
+  window.setLogo = function (input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    if (file.size > 120000) return toast('Use a logo under 120 KB');
+    const reader = new FileReader();
+    reader.onload = () => { document.getElementById('setLogo').value = String(reader.result || ''); const img = document.getElementById('setLogoPreview'); if (img) { img.src = String(reader.result || ''); img.hidden = false; } };
+    reader.readAsDataURL(file);
+  };
+  window.setStage = async function (id) {
+    const result = await api('/crm/api/stages/' + id, { method: 'PATCH', body: JSON.stringify({ name: document.getElementById('sn-' + id).value, probability: Number(document.getElementById('sp-' + id).value) }) });
+    toast(Array.isArray(result) ? 'Stage saved' : (result && result.error) || 'Could not save');
+    if (Array.isArray(result)) drawSettings();
+  };
+  window.setMove = async function (id, dir) {
+    const data = await api('/crm/api/pipeline');
+    const stages = ((data && data.stages) || []).slice().sort((a, b) => Number(a.position) - Number(b.position));
+    const index = stages.findIndex((row) => row.id === id);
+    const other = stages[index + dir];
+    if (index < 0 || !other) return;
+    await api('/crm/api/stages/' + id, { method: 'PATCH', body: JSON.stringify({ position: other.position }) });
+    await api('/crm/api/stages/' + other.id, { method: 'PATCH', body: JSON.stringify({ position: stages[index].position }) });
+    drawSettings();
+  };
+  window.setAddStage = async function () {
+    const result = await api('/crm/api/stages', { method: 'POST', body: JSON.stringify({ name: document.getElementById('newStage').value, probability: Number(document.getElementById('newChance').value || 50) }) });
+    toast(Array.isArray(result) ? 'Stage added' : (result && result.error) || 'Could not add');
+    if (Array.isArray(result)) drawSettings();
+  };
+  window.setPipe = async function () {
+    const result = await api('/crm/api/pipelines', { method: 'POST', body: JSON.stringify({ name: document.getElementById('newPipe').value }) });
+    toast(result && result.id ? 'Pipeline added' : (result && result.error) || 'Could not add');
+    if (result && result.id) drawSettings();
+  };
+  window.setDefaultPipe = async function (id) {
+    const result = await api('/crm/api/pipelines/' + id + '/default', { method: 'POST', body: '{}' });
+    toast(result && result.stages ? 'This pipeline is now the one deals use' : (result && result.error) || 'Could not switch');
+    if (result && result.stages) { refresh(); }
+  };
+  window.setNudge = async function () {
+    const current = await api('/crm/api/setup');
+    const scoreNudge = { contact: document.getElementById('nContact').value, engagement: document.getElementById('nEngage').value, deal: document.getElementById('nDeal').value };
+    const result = await api('/crm/api/setup', { method: 'POST', body: JSON.stringify(Object.assign({}, current || {}, { scoreNudge, done: 1 })) });
+    toast(result && !result.error ? 'Scores updated' : (result && result.error) || 'Could not save');
+    if (result && !result.error) drawSettings();
+  };
+  window.setImport = async function (input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    if (/\.xlsx?$/i.test(file.name)) return toast('Save the Excel file as CSV, then import that');
+    const text = await file.text();
+    const lines = text.split(/\r?\n/).filter((line) => line.trim());
+    if (lines.length < 2) return toast('The file has no rows');
+    const split = (line) => line.split(',').map((cell) => cell.trim().replace(/^"|"$/g, ''));
+    const head = split(lines[0]).map((cell) => cell.toLowerCase());
+    const pick = (names) => head.findIndex((cell) => names.includes(cell));
+    const cols = { firstName: pick(['first name', 'firstname', 'first']), lastName: pick(['last name', 'lastname', 'last']), email: pick(['email', 'email address']), phone: pick(['phone', 'phone number', 'mobile']) };
+    const source = head.includes('company name') || head.includes('firstname') ? 'HubSpot or Salesforce CSV' : 'CSV import';
+    const rows = lines.slice(1, 201).map((line) => { const cells = split(line); return { firstName: cells[cols.firstName] || '', lastName: cells[cols.lastName] || '', email: cells[cols.email] || '', phone: cells[cols.phone] || '', source }; });
+    const result = await api('/crm/api/import/contacts', { method: 'POST', body: JSON.stringify({ rows }) });
+    toast(result && result.imported != null ? 'Imported ' + result.imported + ', skipped ' + (result.skipped || 0) : (result && result.error) || 'Could not import');
+    if (result && result.imported) refresh();
+  };
+  window.setExportAll = function () {
+    const blob = new Blob([JSON.stringify({ contacts: bag.contacts || [], companies: bag.companies || [], deals: bag.deals || [], leads: bag.leads || [], activities: bag.activities || [] }, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'afri-crm-export.json';
+    link.click();
+  };
+  window.setHook = async function () {
+    const result = await api('/crm/api/webhooks', { method: 'POST', body: JSON.stringify({ name: document.getElementById('hookName').value, url: document.getElementById('hookUrl').value, events: document.getElementById('hookOn').value }) });
+    toast(result && result.id ? 'Webhook saved' : (result && result.error) || 'Could not save');
+    if (result && result.id) drawSettings();
+  };
+  window.setDrop = async function (kind, id) {
+    const result = await api('/crm/api/' + kind + '/' + id, { method: 'DELETE' });
+    toast(result && result.ok ? 'Removed' : (result && result.error) || 'Could not remove');
+    if (result && result.ok) drawSettings();
   };
   window.setExport = function () {
     const rows = bag.contacts || [];
@@ -10405,32 +10485,47 @@ window.openSearchHit = function (kind, id) {
     const mark = await readiness();
     const box = document.getElementById('setScore');
     if (box) box.innerHTML = `<b>Setup ${mark.score} / 100</b><div class="cx-muted">${esc(mark.gaps[0] || 'The checked pieces are filled in.')}</div><div class="set-bar"><i style="width:${mark.score}%"></i></div>`;
-    if (tab === 'users' && window.__settingsTeam) return window.__settingsTeam();
-    if (tab === 'pipeline' && window.__settingsPipeline) return window.__settingsPipeline();
-    if (tab === 'integrations' && window.__settingsIntegrations) return window.__settingsIntegrations();
     const el = document.getElementById('settingsContent');
     if (!el) return;
+    if (tab === 'users' && window.__settingsTeam) return window.__settingsTeam();
+    if (tab === 'pipeline') {
+      const data = await api('/crm/api/pipeline');
+      const stages = ((data && data.stages) || []).slice().sort((a, b) => Number(a.position) - Number(b.position));
+      const rows = stages.map((row) => `<tr><td><input id="sn-${row.id}" value="${esc(row.name || '')}"></td><td><input id="sp-${row.id}" value="${Number(row.probability || 0)}" inputmode="numeric" style="width:70px"></td><td><button type="button" class="ghost" onclick="setMove('${row.id}',-1)">Up</button> <button type="button" class="ghost" onclick="setMove('${row.id}',1)">Down</button> <button type="button" onclick="setStage('${row.id}')">Save</button></td></tr>`).join('');
+      const pipes = ((data && data.pipelines) || []).map((row) => `<div class="ms-person"><b>${esc(row.name)}</b><div class="cx-muted">${row.isDefault ? 'In use' : ''}</div>${row.isDefault ? '' : `<button type="button" class="ghost" onclick="setDefaultPipe('${row.id}')">Use this</button>`}</div>`).join('');
+      el.innerHTML = `<div class="ws-card"><b>${esc((data.pipeline && data.pipeline.name) || 'Pipeline')}</b><p class="cx-muted">Deals use the pipeline marked in use. Switching does not rewrite a deal's stage.</p><table class="ws-table"><thead><tr><th>Stage</th><th>Chance</th><th></th></tr></thead><tbody>${rows}</tbody></table><div class="ms-log"><label>New stage<input id="newStage"></label><label>Chance<input id="newChance" value="50"></label><button type="button" onclick="setAddStage()">Add stage</button></div></div><div class="ws-card"><b>Pipelines</b><div class="ms-people">${pipes}</div><div class="ms-log"><label>New pipeline<input id="newPipe" placeholder="Renewals"></label><button type="button" class="ghost" onclick="setPipe()">Add pipeline</button></div></div>`;
+      return;
+    }
+    if (tab === 'integrations' && window.__settingsIntegrations) return window.__settingsIntegrations();
     if (tab === 'account') {
       const data = await api('/crm/api/setup') || {};
       const industry = ['Services', 'Retail', 'Manufacturing', 'Agriculture', 'Other'].map((name) => `<option ${data.industry === name ? 'selected' : ''}>${name}</option>`).join('');
-      el.innerHTML = `<div class="ws-card"><b>Account</b><p class="cx-muted">Signed in as ${esc(company || '')}. Currency is NGN. Time zone is Africa/Lagos. A logo is not stored.</p><label>Industry<select id="setIndustry">${industry}</select></label><label>How you sell<select id="setChannel">${['Phone & WhatsApp', 'Email', 'In-person', 'Mixed'].map((name) => `<option ${data.channel === name ? 'selected' : ''}>${name}</option>`).join('')}</select></label><label>Goal<select id="setGoal">${['Close deals', 'Customer support', 'Job delivery'].map((name) => `<option ${data.goal === name ? 'selected' : ''}>${name}</option>`).join('')}</select></label><p><button type="button" onclick="setSaveAccount()">Save</button></p></div>`;
+      const zones = ['Africa/Lagos', 'Africa/Accra', 'Africa/Nairobi', 'Africa/Johannesburg', 'UTC'];
+      const curs = ['NGN', 'GHS', 'KES', 'ZAR', 'USD'];
+      if (data.currency) localStorage.setItem('crm-currency', data.currency);
+      el.innerHTML = `<div class="ws-card"><b>Account</b><label>Business name<input id="setBiz" value="${esc(data.name || '')}"></label><label>Logo<input type="file" accept="image/*" onchange="setLogo(this)"></label><input id="setLogo" type="hidden" value="${esc(data.logo || '')}"><img id="setLogoPreview" alt="" ${data.logo ? '' : 'hidden'} src="${esc(data.logo || '')}" style="height:48px;border-radius:8px"><label>Industry<select id="setIndustry">${industry}</select></label><label>Time zone<select id="setZone">${zones.map((name) => `<option ${data.timezone === name ? 'selected' : ''}>${name}</option>`).join('')}</select></label><label>Currency<select id="setCur">${curs.map((name) => `<option ${ (data.currency || 'NGN') === name ? 'selected' : ''}>${name}</option>`).join('')}</select></label><label>How you sell<select id="setChannel">${['Phone & WhatsApp', 'Email', 'In-person', 'Mixed'].map((name) => `<option ${data.channel === name ? 'selected' : ''}>${name}</option>`).join('')}</select></label><label>Goal<select id="setGoal">${['Close deals', 'Customer support', 'Job delivery'].map((name) => `<option ${data.goal === name ? 'selected' : ''}>${name}</option>`).join('')}</select></label><p><button type="button" onclick="setSaveAccount()">Save</button></p></div>`;
     } else if (tab === 'scoring') {
       const data = await api('/crm/api/lead-scores');
       const rows = (data && data.rows) || [];
-      const list = rows.slice().sort((a, b) => b.score - a.score).slice(0, 6).map((row) => `<tr><td>${esc(row.band || '')}</td><td>${row.score}</td><td>${esc((row.reasons || [])[0] || '')}</td></tr>`).join('') || '<tr><td colspan="3">No lead to score.</td></tr>';
-      el.innerHTML = `<div class="ws-card"><b>Lead scoring</b><p class="cx-muted">The model is ${esc((data && data.model) || 'the lead model')}. It uses the lead, the activity on that lead, and how leads from the same source turned out. A hand-typed plus or minus would not match that, so there is no point list to edit.</p><table class="ws-table"><thead><tr><th>Band</th><th>Score</th><th>Why</th></tr></thead><tbody>${list}</tbody></table><p class="cx-muted">${rows.length} leads scored. ${data && data.decided ? data.decided + ' leads have a known outcome.' : ''}</p></div>`;
+      const sample = rows.slice().sort((a, b) => b.score - a.score)[0];
+      const group = (label) => /email|phone|company|base|marked/i.test(label) ? 'Contact' : /deal/i.test(label) ? 'Deal' : 'Engagement';
+      const points = ((sample && sample.points) || []).map((row) => `<tr><td>${group(row.label)}</td><td>${esc(row.label)}</td><td>${row.points > 0 ? '+' : ''}${row.points}</td></tr>`).join('') || '<tr><td colspan="3">No lead to score.</td></tr>';
+      const nudge = (data && data.nudge) || {};
+      el.innerHTML = `<div class="ws-card"><b>Lead scoring</b><p class="cx-muted">The points below are from the highest lead. Contact, engagement, and deal each have a saved adjustment from -8 to +8. That adjustment is added to every lead.</p><table class="ws-table"><thead><tr><th>Group</th><th>Rule</th><th>Points</th></tr></thead><tbody>${points}</tbody></table><div class="ms-log"><label>Contact<input id="nContact" value="${nudge.contact || 0}" inputmode="numeric"></label><label>Engagement<input id="nEngage" value="${nudge.engagement || 0}" inputmode="numeric"></label><label>Deal<input id="nDeal" value="${nudge.deal || 0}" inputmode="numeric"></label><button type="button" onclick="setNudge()">Apply</button></div></div>`;
     } else if (tab === 'notifications') {
       const off = JSON.parse(localStorage.getItem('crm-note-off') || '[]');
       const row = (type, label) => `<label><input type="checkbox" ${off.includes(type) ? '' : 'checked'} onchange="setNote('${type}', this.checked)"> ${label}</label>`;
-      el.innerHTML = `<div class="ws-card"><b>Notifications</b><p class="cx-muted">These switches hide a type in the in-app bell. Email, WhatsApp, and Slack are not sent from here.</p>${row('lead', 'New lead')}${row('deal', 'Deal moved')}${row('task', 'Task')}<p class="cx-muted">A contact reply and a finished sequence are not separate alerts yet.</p></div>`;
+      el.innerHTML = `<div class="ws-card"><b>Notifications</b><p class="cx-muted">Unchecked types are hidden in the bell. Email, WhatsApp, and Slack are not sent.</p>${row('lead', 'New lead')}${row('deal', 'Deal moved')}${row('task', 'Task')}${row('overdue', 'Task overdue')}${row('reply', 'Contact reply')}${row('sequence', 'Sequence completed')}</div>`;
     } else if (tab === 'import') {
-      el.innerHTML = `<div class="ws-card"><b>Import and export</b><p class="cx-muted">CSV import is the contact import you already have. HubSpot and Salesforce import are not built.</p><p><button type="button" onclick="go('import')">Import contacts</button> <button type="button" class="ghost" onclick="setExport()">Download contacts CSV</button></p><p class="cx-muted">${(bag.contacts || []).length} contacts will be in the file.</p></div>`;
+      el.innerHTML = `<div class="ws-card"><b>Import and export</b><p class="cx-muted">A CSV from Afri, HubSpot, or Salesforce works if it has a name column. An Excel file has to be saved as CSV first.</p><label>File<input type="file" accept=".csv,text/csv" onchange="setImport(this)"></label><p><button type="button" class="ghost" onclick="setExport()">Download contacts CSV</button> <button type="button" class="ghost" onclick="setExportAll()">Download all records</button></p><p class="cx-muted">${(bag.contacts || []).length} contacts, ${(bag.companies || []).length} companies, ${(bag.deals || []).length} deals, ${(bag.leads || []).length} leads.</p></div>`;
     } else if (tab === 'api') {
       const keys = await api('/crm/api/api-keys');
       const hooks = await api('/crm/api/webhooks');
       const keyRows = (Array.isArray(keys) ? keys : []).map((row) => `<tr><td>${esc(row.name)}</td><td>${esc(row.prefix || '')}</td></tr>`).join('') || '<tr><td colspan="2">No key yet.</td></tr>';
       const hookRows = (Array.isArray(hooks) ? hooks : []).map((row) => `<tr><td>${esc(row.name)}</td><td>${esc(row.url)}</td></tr>`).join('') || '<tr><td colspan="2">No webhook yet.</td></tr>';
-      el.innerHTML = `<div class="ws-card"><b>API keys</b><table class="ws-table"><thead><tr><th>Name</th><th>Prefix</th></tr></thead><tbody>${keyRows}</tbody></table><label>Name<input id="keyName" placeholder="Server"></label><p><button type="button" onclick="setKey()">Create a key</button></p><p id="keyOut" class="cx-muted"></p></div><div class="ws-card"><b>Webhooks</b><table class="ws-table"><thead><tr><th>Name</th><th>URL</th></tr></thead><tbody>${hookRows}</tbody></table><p class="cx-muted">A new webhook still needs an https address. Owners and admins can create one from the API. The docs are the routes under /crm/api.</p></div>`;
+      const keyRows2 = (Array.isArray(keys) ? keys : []).map((row) => `<tr><td>${esc(row.name)}</td><td>${esc(row.prefix || '')}</td><td><button type="button" class="ghost" onclick="setDrop('api-keys','${row.id}')">Revoke</button></td></tr>`).join('') || '<tr><td colspan="3">No key yet.</td></tr>';
+      const hookRows2 = (Array.isArray(hooks) ? hooks : []).map((row) => `<tr><td>${esc(row.name)}</td><td>${esc(row.url)}</td><td><button type="button" class="ghost" onclick="setDrop('webhooks','${row.id}')">Remove</button></td></tr>`).join('') || '<tr><td colspan="3">No webhook yet.</td></tr>';
+      el.innerHTML = `<div class="ws-card"><b>API keys</b><table class="ws-table"><thead><tr><th>Name</th><th>Prefix</th><th></th></tr></thead><tbody>${keyRows2}</tbody></table><label>Name<input id="keyName" placeholder="Server"></label><p><button type="button" onclick="setKey()">Create a key</button></p><p id="keyOut" class="cx-muted"></p><p class="cx-muted">Send the key as Authorization: Bearer. The routes are under /crm/api, including contacts, deals, leads, and activities.</p></div><div class="ws-card"><b>Webhooks</b><table class="ws-table"><thead><tr><th>Name</th><th>URL</th><th></th></tr></thead><tbody>${hookRows2}</tbody></table><div class="ms-log"><label>Name<input id="hookName"></label><label>https address<input id="hookUrl" placeholder="https://"></label><label>When<select id="hookOn"><option value="*">Any event</option><option value="lead.created">A lead is added</option><option value="deal.won">A deal is won</option></select></label><button type="button" onclick="setHook()">Save webhook</button></div></div>`;
     }
   };
 })();

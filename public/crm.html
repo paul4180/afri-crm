@@ -538,7 +538,7 @@
 <div class="shade" id="shade" onclick="closeLauncher()"></div>
 <div class="launcher" id="launcher"><div class="launch-top"><b>More</b><button type="button" class="ghost" onclick="closeLauncher()">Close</button></div><div class="launch-grid"><nav class="hubs" id="hubs"></nav><div class="hubitems" id="hubitems"></div></div></div>
 <script>
-const money = (n) => 'NGN ' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 0 });
+const money = (n) => (localStorage.getItem('crm-currency') || 'NGN') + ' ' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 0 });
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c]));
 const STAGES = [
   ['PROSPECTING', 'Prospecting', '#2563eb', 10],
@@ -3057,7 +3057,7 @@ document.getElementById('email').value = localStorage.getItem('crmEmail') || '';
   if (token) boot();
 })();
 </script>
-<script src="/crm-studio.js?v=95"></script>
+<script src="/crm-studio.js?v=96"></script>
 </body>
 </html>
 

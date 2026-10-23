@@ -319,6 +319,10 @@ for (const [table, col, type] of [
   ['workflows', 'action', "TEXT DEFAULT 'task'"],
   ['workflows', 'target', 'TEXT'],
   ['campaigns', 'channel', "TEXT DEFAULT 'EMAIL'"],
+  ['workspace', 'logo', 'TEXT'],
+  ['workspace', 'timezone', "TEXT DEFAULT 'Africa/Lagos'"],
+  ['workspace', 'currency', "TEXT DEFAULT 'NGN'"],
+  ['workspace', 'scoreNudge', 'TEXT'],
   ['workflow_runs', 'status', "TEXT DEFAULT 'OK'"],
   ['workflow_runs', 'detail', 'TEXT'],
   ['workflow_runs', 'ranAt', 'TEXT'],
@@ -2219,7 +2223,9 @@ export function registerCrm(app, prisma) {
   });
   app.get('/crm/api/setup', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
-    return db.prepare('SELECT * FROM workspace WHERE tenantId = ?').get(user.tenantId) || { done: 0 };
+    const saved = db.prepare('SELECT * FROM workspace WHERE tenantId = ?').get(user.tenantId) || { done: 0 };
+    const named = db.prepare('SELECT name FROM crm_workspaces WHERE id = ?').get(user.tenantId);
+    return Object.assign({}, saved, { name: named ? named.name : '' });
   });
 
   // ============================================================
@@ -2296,12 +2302,24 @@ export function registerCrm(app, prisma) {
       aiMode: String(body.aiMode || '').slice(0, 40),
       role: String(body.role || '').slice(0, 40),
     };
-    db.prepare(`INSERT INTO workspace (tenantId, size, industry, goal, tools, done, offer, channel, aiMode, role)
-      VALUES (?,?,?,?,?,?,?,?,?,?)
+    const current = db.prepare('SELECT * FROM workspace WHERE tenantId = ?').get(user.tenantId) || {};
+    const clamp = (n) => Math.max(-8, Math.min(8, Math.round(Number(n) || 0)));
+    const logo = body.logo != null ? String(body.logo).slice(0, 180000) : (current.logo || '');
+    const timezone = body.timezone != null ? String(body.timezone).slice(0, 40) : (current.timezone || 'Africa/Lagos');
+    const currency = body.currency != null ? (['NGN', 'GHS', 'KES', 'ZAR', 'USD'].includes(body.currency) ? body.currency : 'NGN') : (current.currency || 'NGN');
+    const scoreNudge = body.scoreNudge != null ? JSON.stringify({ contact: clamp(body.scoreNudge.contact), engagement: clamp(body.scoreNudge.engagement), deal: clamp(body.scoreNudge.deal) }) : (current.scoreNudge || '');
+    db.prepare(`INSERT INTO workspace (tenantId, size, industry, goal, tools, done, offer, channel, aiMode, role, logo, timezone, currency, scoreNudge)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(tenantId) DO UPDATE SET size = excluded.size, industry = excluded.industry, goal = excluded.goal,
       tools = excluded.tools, done = excluded.done, offer = excluded.offer, channel = excluded.channel,
-      aiMode = excluded.aiMode, role = excluded.role`).run(user.tenantId, row.size, row.industry, row.goal, row.tools, row.done, row.offer, row.channel, row.aiMode, row.role);
-    return db.prepare('SELECT * FROM workspace WHERE tenantId = ?').get(user.tenantId);
+      aiMode = excluded.aiMode, role = excluded.role, logo = excluded.logo, timezone = excluded.timezone,
+      currency = excluded.currency, scoreNudge = excluded.scoreNudge`).run(user.tenantId, row.size, row.industry, row.goal, row.tools, row.done, row.offer, row.channel, row.aiMode, row.role, logo, timezone, currency, scoreNudge);
+    if (body.name && (user.role === 'OWNER' || user.role === 'ADMIN')) {
+      db.prepare('UPDATE crm_workspaces SET name = ? WHERE id = ?').run(String(body.name).trim().slice(0, 80), user.tenantId);
+    }
+    const saved = db.prepare('SELECT * FROM workspace WHERE tenantId = ?').get(user.tenantId);
+    const named = db.prepare('SELECT name FROM crm_workspaces WHERE id = ?').get(user.tenantId);
+    return Object.assign({}, saved, { name: named ? named.name : '' });
   });
 
   const originOf = (req) => process.env.PUBLIC_URL ? process.env.PUBLIC_URL.replace(/\/$/, '') : ((req.headers['x-forwarded-proto'] || 'https') + '://' + req.headers.host);
@@ -3178,7 +3196,14 @@ export function registerCrm(app, prisma) {
         const breakdown = scoreLeadV2(lead, activities, deals, cohort);
         return { id: lead.id, score: breakdown.score, confidence: breakdown.confidence, band: breakdown.score >= 90 ? 'HOT' : breakdown.score >= 70 ? 'WARM' : breakdown.score >= 50 ? 'QUALIFIED' : 'COLD', reasons: breakdown.reasons, concerns: breakdown.concerns, nextAction: breakdown.nextAction, points: breakdown.points, family: breakdown.family, sourceRate: breakdown.sourceRate, sourceDecided: breakdown.sourceDecided };
       });
-      return { model: 'empirical-bayes-v1', decided: cohort.decided, sources: cohort.sources, rows };
+      const ws = db.prepare('SELECT scoreNudge FROM workspace WHERE tenantId = ?').get(user.tenantId) || {};
+      let nudge = { contact: 0, engagement: 0, deal: 0 };
+      try { nudge = Object.assign(nudge, JSON.parse(ws.scoreNudge || '{}')); } catch (err) { nudge = { contact: 0, engagement: 0, deal: 0 }; }
+      const clamp = (n) => Math.max(-8, Math.min(8, Math.round(Number(n) || 0)));
+      nudge = { contact: clamp(nudge.contact), engagement: clamp(nudge.engagement), deal: clamp(nudge.deal) };
+      const extra = nudge.contact + nudge.engagement + nudge.deal;
+      rows.forEach((row) => { row.score = Math.max(0, Math.min(100, row.score + extra)); row.nudge = extra; });
+      return { model: 'empirical-bayes-v1', decided: cohort.decided, sources: cohort.sources, rows, nudge };
     } catch (e) {
       reply.code(500).send({ error: 'Score failed: ' + (e.message || 'unknown error') });
     }
@@ -4126,7 +4151,26 @@ function agentBrain(tenantId) {
   app.get('/crm/api/pipeline', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     const pipeline = ensurePipeline(user.tenantId);
-    return { pipeline, stages: stagesFor(user.tenantId) };
+    const pipelines = db.prepare('SELECT * FROM pipelines WHERE tenantId = ? ORDER BY name').all(user.tenantId);
+    return { pipeline, pipelines, stages: stagesFor(user.tenantId) };
+  });
+  app.post('/crm/api/pipelines', async (req, reply) => {
+    const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+    const name = String(req.body?.name || '').trim().slice(0, 60);
+    if (!name) return reply.code(400).send({ error: 'Name the pipeline' });
+    const id = crypto.randomUUID();
+    db.prepare('INSERT INTO pipelines (id, tenantId, name, isDefault) VALUES (?,?,?,0)').run(id, user.tenantId, name);
+    const put = db.prepare('INSERT INTO stages (id, tenantId, pipelineId, code, name, color, probability, position, closed) VALUES (?,?,?,?,?,?,?,?,?)');
+    DEFAULT_STAGES.forEach((row, index) => put.run(crypto.randomUUID(), user.tenantId, id, row[0] + '_' + id.slice(0, 4).toUpperCase(), row[1], row[2], row[3], index, row[4]));
+    return { id, name };
+  });
+  app.post('/crm/api/pipelines/:id/default', async (req, reply) => {
+    const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+    const row = db.prepare('SELECT * FROM pipelines WHERE tenantId = ? AND id = ?').get(user.tenantId, req.params.id);
+    if (!row) return reply.code(404).send({ error: 'Not found' });
+    db.prepare('UPDATE pipelines SET isDefault = 0 WHERE tenantId = ?').run(user.tenantId);
+    db.prepare('UPDATE pipelines SET isDefault = 1 WHERE id = ?').run(row.id);
+    return { pipeline: row, stages: stagesFor(user.tenantId) };
   });
   app.post('/crm/api/stages', async (req, reply) => {
     const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
@@ -4147,7 +4191,8 @@ function agentBrain(tenantId) {
     if (!stage) return reply.code(404).send({ error: 'Not found' });
     const name = req.body?.name != null ? String(req.body.name).trim().slice(0, 60) : stage.name;
     const probability = req.body?.probability != null ? Number(req.body.probability) : stage.probability;
-    db.prepare('UPDATE stages SET name = ?, probability = ? WHERE id = ?').run(name || stage.name, probability, stage.id);
+    const position = req.body?.position != null ? Number(req.body.position) : stage.position;
+    db.prepare('UPDATE stages SET name = ?, probability = ?, position = ? WHERE id = ?').run(name || stage.name, probability, position, stage.id);
     writeAudit(user.tenantId, user.sub, 'updated', 'stages', stage.id, name);
     return stagesFor(user.tenantId);
   });
