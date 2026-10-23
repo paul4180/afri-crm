@@ -64,3 +64,14 @@ test('landing footer no longer uses dead anchors', () => {
   expect(html).not.toContain('href="#status"');
   expect(html).not.toContain('>88<');
 });
+
+import { stageNames } from '../src/templates.js';
+
+test('each starter pipeline has seven stage names', () => {
+  for (const key of ['services', 'retail', 'field']) {
+    const names = stageNames(key);
+    expect(names).toHaveLength(7);
+    expect(names[5]).toBe('Won');
+    expect(names[6]).toBe('Lost');
+  }
+});

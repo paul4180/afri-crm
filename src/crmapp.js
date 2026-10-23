@@ -7,6 +7,7 @@ import { sendMail } from './collect.js';
 import { askAI } from './ai.js';
 import { summarizeConversation } from './summarize.js';
 import bcrypt from 'bcryptjs';
+import { stageNames } from './templates.js';
 
 // ============================================================
 // STRUCTURED LOGGING — defined first so any module-load code
@@ -328,6 +329,7 @@ for (const [table, col, type] of [
   ['workflow_runs', 'detail', 'TEXT'],
   ['workflow_runs', 'ranAt', 'TEXT'],
   ['workspace', 'guideOff', 'INTEGER DEFAULT 0'],
+  ['workspace', 'template', 'TEXT'],
   ['products', 'category', "TEXT DEFAULT 'General'"],
   ['products', 'stock', 'REAL DEFAULT 0'],
   ['products', 'attrs', 'TEXT'],
@@ -2317,7 +2319,7 @@ export function registerCrm(app, prisma) {
       size: String(body.size || '').slice(0, 40),
       industry: String(body.industry || '').slice(0, 80),
       goal: String(body.goal || '').slice(0, 80),
-      tools: JSON.stringify(Array.isArray(body.tools) ? body.tools.slice(0, 12) : []),
+      tools: Array.isArray(body.tools) ? JSON.stringify(body.tools.slice(0, 12)) : (db.prepare('SELECT tools FROM workspace WHERE tenantId = ?').get(user.tenantId) || {}).tools || '[]',
       done: body.done ? 1 : 0,
       offer: String(body.offer || '').slice(0, 200),
       channel: String(body.channel || '').slice(0, 40),
@@ -2330,12 +2332,13 @@ export function registerCrm(app, prisma) {
     const timezone = body.timezone != null ? String(body.timezone).slice(0, 40) : (current.timezone || 'Africa/Lagos');
     const currency = body.currency != null ? (['NGN', 'GHS', 'KES', 'ZAR', 'USD'].includes(body.currency) ? body.currency : 'NGN') : (current.currency || 'NGN');
     const scoreNudge = body.scoreNudge != null ? JSON.stringify({ contact: clamp(body.scoreNudge.contact), engagement: clamp(body.scoreNudge.engagement), deal: clamp(body.scoreNudge.deal) }) : (current.scoreNudge || '');
-    db.prepare(`INSERT INTO workspace (tenantId, size, industry, goal, tools, done, offer, channel, aiMode, role, logo, timezone, currency, scoreNudge)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    const template = body.template != null && String(body.template) !== '' ? String(body.template).slice(0, 40) : (current.template || '');
+    db.prepare(`INSERT INTO workspace (tenantId, size, industry, goal, tools, done, offer, channel, aiMode, role, logo, timezone, currency, scoreNudge, template)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(tenantId) DO UPDATE SET size = excluded.size, industry = excluded.industry, goal = excluded.goal,
       tools = excluded.tools, done = excluded.done, offer = excluded.offer, channel = excluded.channel,
       aiMode = excluded.aiMode, role = excluded.role, logo = excluded.logo, timezone = excluded.timezone,
-      currency = excluded.currency, scoreNudge = excluded.scoreNudge`).run(user.tenantId, row.size, row.industry, row.goal, row.tools, row.done, row.offer, row.channel, row.aiMode, row.role, logo, timezone, currency, scoreNudge);
+      currency = excluded.currency, scoreNudge = excluded.scoreNudge, template = excluded.template`).run(user.tenantId, row.size, row.industry, row.goal, row.tools, row.done, row.offer, row.channel, row.aiMode, row.role, logo, timezone, currency, scoreNudge, template);
     if (body.name && (user.role === 'OWNER' || user.role === 'ADMIN')) {
       db.prepare('UPDATE crm_workspaces SET name = ? WHERE id = ?').run(String(body.name).trim().slice(0, 80), user.tenantId);
     }
@@ -4589,7 +4592,7 @@ function agentBrain(tenantId) {
     const tempPassword = crypto.randomBytes(4).toString('hex');
     const hash = await bcrypt.hash(tempPassword, 10);
     const id = crypto.randomUUID();
-    db.prepare('INSERT INTO crm_accounts (id, workspaceId, email, passwordHash, fullName, role, active) VALUES (?,?,?,?,?,?,?,1)').run(id, user.tenantId, email, hash, fullName, role);
+    db.prepare('INSERT INTO crm_accounts (id, workspaceId, email, passwordHash, fullName, role, active) VALUES (?,?,?,?,?,?,1)').run(id, user.tenantId, email, hash, fullName, role);
     seedAccess(user.tenantId);
     writeAudit(user.tenantId, user.sub, 'invite', 'account', id, email + ' as ' + role);
     publishEvent(user.tenantId, 'account.created', { id, email, role });
@@ -4721,6 +4724,22 @@ function agentBrain(tenantId) {
     return { ok: true, removed: { companies: companies.length, contacts: contacts.length, deals: deals.length, leads: leads.length } };
   });
 
+
+  app.post('/crm/api/setup/template', async (req, reply) => {
+    const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+    const name = ['services', 'retail', 'field'].includes(req.body?.name) ? req.body.name : '';
+    if (!name) return reply.code(400).send({ error: 'Choose services, retail, or field.' });
+    const deals = db.prepare('SELECT COUNT(*) AS n FROM deals WHERE tenantId = ?').get(user.tenantId).n;
+    if (deals) return { ok: true, skipped: true, reason: 'Stages were left as they are because this workspace already has deals.' };
+    const pipeline = ensurePipeline(user.tenantId);
+    const stages = db.prepare('SELECT * FROM stages WHERE tenantId = ? AND pipelineId = ? ORDER BY position').all(user.tenantId, pipeline.id);
+    const names = stageNames(name);
+    stages.forEach((stage, index) => {
+      if (names[index]) db.prepare('UPDATE stages SET name = ? WHERE id = ? AND tenantId = ?').run(names[index], stage.id, user.tenantId);
+    });
+    db.prepare('UPDATE workspace SET template = ? WHERE tenantId = ?').run(name, user.tenantId);
+    return { ok: true, skipped: false, names };
+  });
   app.post('/crm/api/setup/demo', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only an owner or admin can load demo data.' });

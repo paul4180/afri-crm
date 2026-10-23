@@ -2704,221 +2704,145 @@
   // ============================================================
   window.openOnboardingWizard = function (restoredState) {
     if (document.getElementById('wizardOverlay')) return;
-
-    const state = restoredState || {
+    const state = Object.assign({
       step: 0,
-      industry: workspace.industry || '',
-      channel: workspace.channel || '',
-      goal: workspace.goal || '',
-    };
+      industry: (typeof workspace !== 'undefined' && workspace.industry) || '',
+      size: (typeof workspace !== 'undefined' && workspace.size) || '',
+      currency: localStorage.getItem('crm-currency') || 'NGN',
+      timezone: localStorage.getItem('crm-timezone') || 'Africa/Lagos',
+      channel: (typeof workspace !== 'undefined' && workspace.channel) || '',
+      goal: (typeof workspace !== 'undefined' && workspace.goal) || '',
+      template: '',
+    }, restoredState || {});
 
     const STEPS = [
-      {
-        key: 'industry',
-        question: 'What does your business do?',
-        sub: 'Afri uses this to set sensible defaults for stages and tags. You can change it later.',
-        choices: [
-          { value: 'Services',      ico: '💼', label: 'Services',      hint: 'Consulting, agency, professional', color: 'teal' },
-          { value: 'Retail',        ico: '🛍', label: 'Retail',        hint: 'Shops, e-commerce, trade', color: 'rose' },
-          { value: 'Manufacturing', ico: '🏭', label: 'Manufacturing', hint: 'Production, assembly, factories', color: 'amber' },
-          { value: 'Agriculture',   ico: '🌾', label: 'Agriculture',   hint: 'Farming, processing, agribusiness', color: 'emerald' },
-          { value: 'Other',         ico: '✨', label: 'Other',         hint: 'Healthcare, education, hospitality, mining...', color: 'violet' },
-        ],
-      },
-      {
-        key: 'channel',
-        question: 'How do you sell?',
-        sub: 'The lead scoring uses your answer. A phone weighs more when buyers use WhatsApp.',
-        choices: [
-          { value: 'Phone & WhatsApp', ico: '📞', label: 'Phone & WhatsApp', hint: 'Most leads come in by call or chat', color: 'teal' },
-          { value: 'Email',             ico: '✉', label: 'Email',             hint: 'Inbound forms, online enquiries, outreach', color: 'blue' },
-          { value: 'In-person',         ico: '🤝', label: 'In-person',         hint: 'Walk-ins, meetings, field sales', color: 'amber' },
-          { value: 'Mixed',              ico: '🔀', label: 'Mixed',              hint: 'Some of each — Afri uses balanced weights', color: 'violet' },
-        ],
-      },
-      {
-        key: 'goal',
-        question: "What's the goal?",
-        sub: 'When the goal is to close, the deal amount weighs more. When the goal is support, the touch weighs more.',
-        choices: [
-          { value: 'Close deals',       ico: '🎯', label: 'Close deals',       hint: 'Pipeline, revenue, conversion', color: 'rose' },
-          { value: 'Customer support',   ico: '🛠', label: 'Customer support',  hint: 'Tickets, retention, service quality', color: 'blue' },
-          { value: 'Job delivery',       ico: '📦', label: 'Job delivery',       hint: 'Projects, fulfillment, milestones', color: 'amber' },
-        ],
-      },
-      {
-        key: 'connect_inbox',
-        question: 'Connect your inbox',
-        sub: 'Send and log emails from Afri CRM. Connect Gmail, Google Calendar, or Outlook in one click. You can skip and do this later from the Integrations page.',
-        actions: [
-          { provider: 'gmail',    ico: '✉',  label: 'Connect Gmail',          hint: 'Sync emails, send from CRM, log conversations', color: 'rose' },
-          { provider: 'calendar',  ico: '📅', label: 'Connect Google Calendar', hint: 'See meetings, sync tasks to calendar', color: 'blue' },
-          { provider: 'outlook',   ico: '📧', label: 'Connect Outlook',        hint: 'Sync Outlook emails and calendar', color: 'blue' },
-        ],
-        skipText: 'Skip — I\'ll do this later',
-      },
+      { key: 'profile', title: 'Your business' },
+      { key: 'template', title: 'A starting pipeline' },
+      { key: 'connect', title: 'Connect a channel' },
+      { key: 'import', title: 'Bring contacts in' },
+      { key: 'invite', title: 'Invite one person' },
     ];
 
-    const TOTAL_STEPS = STEPS.length + 1; // 4 steps + confirm
+    function remember() {
+      try { localStorage.setItem('crm-wizard', JSON.stringify(state)); } catch (e) {}
+    }
 
     function render() {
+      remember();
       const step = state.step;
-      const isLast = step === STEPS.length;
-      const current = !isLast ? STEPS[step] : null;
-
-      const dots = Array.from({ length: TOTAL_STEPS }, (_, i) => {
-        const cls = i === step ? 'on' : (i < step ? 'done' : '');
-        return `<i class="${cls}"></i>`;
-      }).join('');
-
-      const choices = current && current.choices ? current.choices.map((c) => {
-        const on = state[current.key] === c.value ? ' on' : '';
-        const safeVal = String(c.value).replace(/'/g, "\\'");
-        const colorAttr = c.color ? ` data-color="${c.color}"` : '';
-        return `<button type="button" class="wizard-choice${on}"${colorAttr} onclick="window.__wizardPick('${current.key}','${safeVal}')">
-          <div class="ico">${c.ico}</div>
-          <div class="label"><b>${esc(c.label)}</b><span>${esc(c.hint)}</span></div>
-        </button>`;
-      }).join('') : '';
-
-      let body;
-      if (current) {
-        if (current.key === 'connect_inbox') {
-          // Special render: connection action buttons + skip
-          // Pattern A: If user came from Google SSO with calendar auto-connected, hide the Calendar button
-          // and show a "Calendar connected ✓" badge instead
-          const calendarAlreadyConnected = window.__ssoCalendarConnected === true;
-          let actions = (current.actions || []).filter(function(a) {
-            // Skip calendar button if already connected via SSO
-            if (a.provider === 'calendar' && calendarAlreadyConnected) return false;
-            return true;
-          }).map((a) => {
-            const colorAttr = a.color ? ` data-color="${a.color}"` : '';
-            return `<button type="button" class="wizard-choice"${colorAttr} onclick="window.__wizardConnectInbox('${a.provider}')">
-              <div class="ico">${a.ico}</div>
-              <div class="label"><b>${esc(a.label)}</b><span>${esc(a.hint)}</span></div>
-            </button>`;
-          }).join('');
-          // Add a "Calendar connected" celebration card if calendar was auto-connected
-          const calendarCard = calendarAlreadyConnected ? `
-            <div class="wizard-choice on" data-color="emerald" style="cursor:default;pointer-events:none">
-              <div class="ico">📅</div>
-              <div class="label"><b>Google Calendar connected</b><span>Your meetings will appear on the home dashboard</span></div>
-            </div>` : '';
-          body = `<div class="wizard-body-anim"><h2>${esc(current.question)}</h2><p class="wizard-sub">${esc(current.sub)}</p><div class="wizard-choices">${calendarCard}${actions}</div></div>`;
-        } else {
-          body = `<div class="wizard-body-anim"><h2>${esc(current.question)}</h2><p class="wizard-sub">${esc(current.sub)}</p><div class="wizard-choices">${choices}</div></div>`;
-        }
+      const current = STEPS[step];
+      const dots = STEPS.map((_, i) => `<i class="${i === step ? 'on' : (i < step ? 'done' : '')}"></i>`).join('');
+      let body = '';
+      if (current.key === 'profile') {
+        const industry = ['Services', 'Retail', 'Agriculture', 'Other'].map((label) => `<button type="button" class="wizard-choice${state.industry === label ? ' on' : ''}" onclick="window.__wizardSet('industry','${label}')"><div class="label"><b>${label}</b></div></button>`).join('');
+        const size = ['Just me', '2–5', '6–20', '20+'].map((label) => `<button type="button" class="wizard-choice${state.size === label ? ' on' : ''}" onclick="window.__wizardSet('size','${label}')"><div class="label"><b>${label}</b></div></button>`).join('');
+        const money = ['NGN', 'GHS', 'KES', 'ZAR', 'USD'].map((label) => `<button type="button" class="wizard-choice${state.currency === label ? ' on' : ''}" onclick="window.__wizardSet('currency','${label}')"><div class="label"><b>${label}</b></div></button>`).join('');
+        body = `<div class="wizard-body-anim"><h2>What does the business do?</h2><p class="wizard-sub">Step 1 of 5. You can leave this and it will be here when you come back.</p><div class="wizard-choices">${industry}</div><h2 style="margin-top:18px">How many of you sell?</h2><div class="wizard-choices">${size}</div><h2 style="margin-top:18px">Currency</h2><div class="wizard-choices">${money}</div></div>`;
+      } else if (current.key === 'template') {
+        const cards = [
+          ['services', 'Services', 'Discovery, proposal, then close'],
+          ['retail', 'Retail', 'Enquiry, quote, order, payment'],
+          ['field', 'Visits', 'Book a visit, meet, then follow up'],
+        ].map(([id, label, hint]) => `<button type="button" class="wizard-choice${state.template === id ? ' on' : ''}" onclick="window.__wizardSet('template','${id}')"><div class="label"><b>${label}</b><span>${hint}</span></div></button>`).join('');
+        body = `<div class="wizard-body-anim"><h2>Pick a starting pipeline</h2><p class="wizard-sub">Step 2 of 5. Stage names change only when this workspace has no deals yet.</p><div class="wizard-choices">${cards}</div></div>`;
+      } else if (current.key === 'connect') {
+        const actions = [
+          ['gmail', 'Connect Gmail'],
+          ['calendar', 'Connect Google Calendar'],
+          ['outlook', 'Connect Outlook'],
+        ].map(([id, label]) => `<button type="button" class="wizard-choice" onclick="window.__wizardConnect('${id}')"><div class="label"><b>${label}</b><span>You can skip this</span></div></button>`).join('');
+        body = `<div class="wizard-body-anim"><h2>Connect a channel</h2><p class="wizard-sub">Step 3 of 5. Outlook still needs its own app secret. Skip it if that sign-in fails.</p><div class="wizard-choices">${actions}</div></div>`;
+      } else if (current.key === 'import') {
+        body = `<div class="wizard-body-anim"><h2>Bring contacts in</h2><p class="wizard-sub">Step 4 of 5. Paste a sheet with a header row: name, email, phone. Or skip.</p><textarea id="wizardCsv" style="width:100%;min-height:120px" placeholder="name,email,phone&#10;Ada Okafor,ada@example.com,08031234567"></textarea><p id="wizardImportNote" class="wizard-sub"></p></div>`;
       } else {
-        // Confirm step
-        body = `<div class="wizard-body-anim"><h2>Looks good.</h2><p class="wizard-sub">Industry: <b>${esc(state.industry || '—')}</b><br>Channel: <b>${esc(state.channel || '—')}</b><br>Goal: <b>${esc(state.goal || '—')}</b><br><br>Afri will use these to set your pipeline stages, lead scoring weights, and default tags. You can change them anytime from the sidebar.</p></div>`;
+        body = `<div class="wizard-body-anim"><h2>Invite one person</h2><p class="wizard-sub">Step 5 of 5. ${esc(state.industry || 'Business')} · ${esc(state.currency || 'NGN')} · ${esc(state.template || 'no template yet')}</p><label>Name<input id="wizardInviteName"></label><label>Email<input id="wizardInviteEmail"></label><p id="wizardInviteNote" class="wizard-sub">A password is shown here once. Afri does not email it.</p></div>`;
       }
-
-      // For connect_inbox step, Continue button means "skip" — always allowed
-      const canNext = isLast || !!state[current.key] || current.key === 'connect_inbox';
-      const nextLabel = isLast ? 'Open the CRM' : (current && current.key === 'connect_inbox' && !state.connect_inbox ? 'Skip for now' : 'Continue');
-
       document.getElementById('wizardBody').innerHTML = body;
       document.getElementById('wizardDots').innerHTML = dots;
-      const nextBtn = document.getElementById('wizardNext');
-      nextBtn.textContent = nextLabel;
-      nextBtn.disabled = !canNext;
+      const next = document.getElementById('wizardNext');
+      const ready = current.key === 'profile' ? !!(state.industry && state.size && state.currency) : current.key === 'template' ? !!state.template : true;
+      next.disabled = !ready;
+      next.textContent = step === STEPS.length - 1 ? 'Open the CRM' : 'Continue';
       document.getElementById('wizardBack').style.visibility = step === 0 ? 'hidden' : 'visible';
     }
 
     const overlay = document.createElement('div');
     overlay.id = 'wizardOverlay';
     overlay.className = 'wizard-overlay';
-    overlay.innerHTML = `
-      <div class="wizard-card" role="dialog" aria-labelledby="wizardTitle">
-        <div class="wizard-head">
-          <div class="wizard-eyebrow">AFRI CRM · SETUP</div>
-          <button type="button" class="wizard-skip" onclick="window.closeOnboardingWizard()">Skip for now</button>
-        </div>
-        <div class="wizard-body" id="wizardBody"></div>
-        <div class="wizard-foot"><div class="step-dots" id="wizardDots"></div></div>
-        <div class="wizard-foot">
-          <button type="button" class="ghost" id="wizardBack" onclick="window.__wizardBack()">Back</button>
-          <button type="button" class="primary" id="wizardNext" onclick="window.__wizardNext()">Continue</button>
-          <a href="#" class="advanced" onclick="window.closeOnboardingWizard();openSetup();return false;">Use guided setup</a>
-        </div>
-      </div>
-    `;
+    overlay.innerHTML = `<div class="wizard-card" role="dialog"><div class="wizard-head"><div class="wizard-eyebrow">AFRI CRM · SETUP</div><button type="button" class="wizard-skip" onclick="window.closeOnboardingWizard(true)">Skip for now</button></div><div class="wizard-body" id="wizardBody"></div><div class="wizard-foot"><div class="step-dots" id="wizardDots"></div></div><div class="wizard-foot"><button type="button" class="ghost" id="wizardBack" onclick="window.__wizardBack()">Back</button><button type="button" class="primary" id="wizardNext" onclick="window.__wizardNext()">Continue</button></div></div>`;
     document.body.appendChild(overlay);
 
-    window.__wizardPick = (key, value) => {
-      state[key] = value;
-      render();
-      // Auto-advance after a short delay (HubSpot pattern — click a choice,
-      // see it selected briefly, then move to next step automatically).
-      // Skip auto-advance for connect_inbox step (uses __wizardConnectInbox instead).
-      if (state.step < STEPS.length && STEPS[state.step] && STEPS[state.step].key !== 'connect_inbox') {
-        clearTimeout(window.__wizardAutoTimer);
-        window.__wizardAutoTimer = setTimeout(() => {
-          // Only advance if the user is still on the same step (didn't click Back)
-          if (state.step < STEPS.length && state[STEPS[state.step].key] === value) {
-            state.step++;
-            render();
-          }
-        }, 350);
-      }
-    };
-    window.__wizardConnectInbox = async (provider) => {
-      // Save wizard state so it can be resumed after OAuth redirect
-      try {
-        sessionStorage.setItem('crm-setup-draft', JSON.stringify({ ...state, step: state.step }));
-      } catch {}
-      // Call the OAuth start endpoint WITH the Bearer token (direct browser
-      // navigation doesn't send Authorization header, so we use api() which
-      // does). The server returns { url: "https://accounts.google.com/..." }
-      // which we then navigate to.
-      var btn = document.querySelector('.wizard-overlay .wizard-choice[onclick*="' + provider + '"]');
-      if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
-      var res = await api('/crm/api/connect/' + provider);
-      if (res && res.url) {
-        window.location.href = res.url;
-        return;
-      }
-      if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
-      toast(res && res.error ? res.error : 'Could not start OAuth. Try again or use the Integrations page.');
-    };
-    window.__wizardBack = () => {
-      clearTimeout(window.__wizardAutoTimer);
-      if (state.step > 0) { state.step--; render(); }
+    window.__wizardSet = (key, value) => { state[key] = value; render(); };
+    window.__wizardBack = () => { if (state.step > 0) { state.step--; render(); } };
+    window.__wizardConnect = async (provider) => {
+      remember();
+      try { sessionStorage.setItem('crm-setup-draft', JSON.stringify(state)); } catch (e) {}
+      const res = await api('/crm/api/connect/' + provider);
+      if (res && res.url) { window.location.href = res.url; return; }
+      toast(res && res.error ? res.error : 'Could not start the sign-in. You can connect this later.');
     };
     window.__wizardNext = async () => {
-      if (state.step < STEPS.length) {
-        state.step++;
-        render();
-        return;
+      const current = STEPS[state.step];
+      if (current.key === 'template') {
+        const applied = await api('/crm/api/setup/template', { method: 'POST', body: JSON.stringify({ name: state.template }) });
+        if (applied && applied.skipped) toast(applied.reason);
+        else if (!applied || applied.error) return toast((applied && applied.error) || 'Could not set the pipeline');
       }
-      const btn = document.getElementById('wizardNext');
-      btn.disabled = true; btn.textContent = 'Saving…';
-      const saved = await api('/crm/api/setup', { method: 'POST', body: JSON.stringify({ ...state, done: 1 }) });
-      if (!saved || saved.error) {
-        toast((saved && saved.error) || 'Could not save setup');
-        btn.disabled = false; btn.textContent = 'Open the CRM';
-        return;
-      }
-      Object.assign(workspace, saved);
-      paintSetupCard();
-      window.closeOnboardingWizard();
-      enter();
-      toast('Workspace ready. Scoring adapts to your answers.');
-      // Mark that the wizard just completed — PR 7 (quick tour) reads this flag.
-      window.__wizardJustFinished = true;
-      // Auto-open the quick tour if the user hasn't seen it before
-      try {
-        if (!localStorage.getItem('afri.tour.done') && typeof window.openQuickTour === 'function') {
-          setTimeout(() => window.openQuickTour(), 800);
+      if (current.key === 'import') {
+        const raw = (document.getElementById('wizardCsv') || {}).value || '';
+        const lines = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+        if (lines.length) {
+          const head = lines[0].split(',').map((cell) => cell.trim().toLowerCase());
+          const named = head.includes('email') || head.includes('name') || head.includes('phone');
+          const rows = (named ? lines.slice(1) : lines).map((line) => {
+            const cell = line.split(',').map((part) => part.trim());
+            if (!named) return { firstName: cell[0] || '', email: cell[1] || '', phone: cell[2] || '' };
+            const at = (label) => { const i = head.indexOf(label); return i >= 0 ? (cell[i] || '') : ''; };
+            const name = at('name') || at('firstname') || at('first name');
+            return { firstName: name, lastName: at('lastname') || at('last name'), email: at('email'), phone: at('phone') };
+          });
+          const result = await api('/crm/api/import/contacts', { method: 'POST', body: JSON.stringify({ rows }) });
+          const note = document.getElementById('wizardImportNote');
+          if (!result || result.error) return toast((result && result.error) || 'Import failed');
+          if (note) note.textContent = result.imported + ' added, ' + result.skipped + ' skipped.';
+          state.imported = result.imported;
         }
-      } catch {}
+      }
+      if (current.key === 'invite') {
+        const email = ((document.getElementById('wizardInviteEmail') || {}).value || '').trim();
+        const fullName = ((document.getElementById('wizardInviteName') || {}).value || '').trim();
+        if (email && state.invited !== email) {
+          const result = await api('/crm/api/accounts/invite', { method: 'POST', body: JSON.stringify({ email, fullName, role: 'SALES' }) });
+          const note = document.getElementById('wizardInviteNote');
+          if (!result || result.error) {
+            if (note) note.textContent = result && result.error ? result.error : 'Could not invite them';
+            return;
+          }
+          if (note) note.textContent = email + ' signs in with password ' + result.tempPassword + '. Copy it now.';
+          state.invited = email;
+          remember();
+          return;
+        }
+        const btn = document.getElementById('wizardNext');
+        btn.disabled = true;
+        const saved = await api('/crm/api/setup', { method: 'POST', body: JSON.stringify({ industry: state.industry, size: state.size, currency: state.currency, timezone: state.timezone, channel: state.channel || 'Mixed', goal: state.goal || 'Close deals', template: state.template, done: 1 }) });
+        if (!saved || saved.error) { btn.disabled = false; return toast((saved && saved.error) || 'Could not save the setup'); }
+        Object.assign(workspace, saved);
+        if (saved.currency) localStorage.setItem('crm-currency', saved.currency);
+        try { localStorage.removeItem('crm-wizard'); localStorage.removeItem('crm-wizard-skipped'); } catch (e) {}
+        if (typeof paintSetupCard === 'function') paintSetupCard();
+        window.closeOnboardingWizard(false);
+        toast('Workspace ready.');
+        return;
+      }
+      state.step += 1;
+      render();
     };
-    window.closeOnboardingWizard = () => {
+    window.closeOnboardingWizard = (skipped) => {
+      if (skipped) { try { localStorage.setItem('crm-wizard-skipped', '1'); } catch (e) {} }
       const el = document.getElementById('wizardOverlay');
       if (el) el.remove();
     };
-
     render();
   };
 
