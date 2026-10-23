@@ -251,6 +251,12 @@
   aside button { display: flex; width: 100%; text-align: left; background: transparent; color: #e2e8f0; border-radius: 8px; margin-bottom: 2px; font-weight: 600; }
   aside button.on { background: #334155; }
   .work { min-width: 0; }
+
+  .demo-bar { display: flex; justify-content: space-between; gap: 12px; align-items: center; background: #ecfdf5; border: 1px solid #99f6e4; border-radius: 14px; padding: 12px 14px; margin: 0 0 14px; }
+  .demo-bar b { display: block; }
+  .demo-bar span, .demo-bar p { color: #115e59; font-size: 13px; margin: 2px 0 0; }
+  .demo-bar .ghost { background: #fff !important; color: #115e59 !important; }
+
   header { height: 60px; background: #0f172a; color: #fff; display: flex; align-items: center; gap: 12px; padding: 0 16px; }
   header input { background: #1e293b; border-color: #334155; color: #fff; border-radius: 999px; }
   header .menu + .menu .who { margin-left: 0; }
@@ -3064,7 +3070,7 @@ document.getElementById('email').value = localStorage.getItem('crmEmail') || '';
   if (token) boot();
 })();
 </script>
-<script src="/crm-studio.js?v=100"></script>
+<script src="/crm-studio.js?v=101"></script>
 </body>
 </html>
 

@@ -334,6 +334,11 @@ for (const [table, col, type] of [
   ['notifications', 'snoozeUntil', 'TEXT'],
   ['workflows', 'graph', 'TEXT'],
   ['crm_accounts', 'active', 'INTEGER DEFAULT 1'],
+  ['companies', 'sample', 'INTEGER DEFAULT 0'],
+  ['contacts', 'sample', 'INTEGER DEFAULT 0'],
+  ['deals', 'sample', 'INTEGER DEFAULT 0'],
+  ['activities', 'sample', 'INTEGER DEFAULT 0'],
+  ['notes', 'sample', 'INTEGER DEFAULT 0'],
 ]) {
   const have = db.prepare('PRAGMA table_info(' + table + ')').all().some((row) => row.name === col);
   if (!have) db.exec('ALTER TABLE ' + table + ' ADD COLUMN ' + col + ' ' + type);
@@ -4627,6 +4632,56 @@ function agentBrain(tenantId) {
     return reply.type('text/html').send(publicShell(portal.name, `<p style="font-family:sans-serif;font-size:12px">${htmlEscape(tenant?.name || 'Afri')}</p><h1>${htmlEscape(portal.name)}</h1><h2>Quotes</h2><ul>${quoteHtml}</ul><h2>Pay</h2><ul>${linkHtml}</ul><h2>Subscriptions</h2><ul>${subHtml}</ul>`));
   });
   // POST /crm/api/setup/demo — load demo data for existing workspaces
+
+  function demoStory(tenantId) {
+    const contacts = db.prepare("SELECT * FROM contacts WHERE tenantId = ? AND (sample = 1 OR source = 'Sample')").all(tenantId);
+    const deals = db.prepare("SELECT * FROM deals WHERE tenantId = ? AND (sample = 1 OR source = 'Sample')").all(tenantId);
+    const ids = new Set(contacts.map((row) => row.id).concat(deals.map((row) => row.id)));
+    const activities = db.prepare('SELECT * FROM activities WHERE tenantId = ?').all(tenantId).filter((row) => row.sample === 1 || ids.has(row.relatedId));
+    const today = new Date().toISOString().slice(0, 10);
+    const open = deals.filter((row) => !String(row.stage || '').includes('CLOSED'));
+    const ranked = open.map((deal) => {
+      const contact = contacts.find((row) => row.id === deal.contactId);
+      const mine = activities.filter((row) => row.relatedId === deal.id || row.relatedId === deal.contactId);
+      let score = 0;
+      const why = [];
+      const due = mine.find((row) => row.status === 'PLANNED' && String(row.dueAt || '') <= today);
+      if (due) { score += 40; why.push(due.subject); }
+      const chats = mine.filter((row) => row.type === 'WHATSAPP').sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+      if (chats[0] && String(chats[0].notes || '').startsWith('IN')) { score += 30; why.push('They replied on WhatsApp and nobody has answered'); }
+      const days = deal.closeDate ? Math.round((new Date(deal.closeDate) - Date.now()) / 86400000) : 99;
+      if (days >= 0 && days <= 21) { score += 20; why.push('Closes in ' + days + ' days'); }
+      if (/NEGOTIATION|PROPOSAL/.test(String(deal.stage || ''))) { score += 15; why.push('Late in the pipeline'); }
+      return { dealId: deal.id, contactId: deal.contactId || '', name: deal.name, who: contact ? ((contact.firstName || '') + ' ' + (contact.lastName || '')).trim() : '', amount: deal.amount, score, why: why[0] || 'Open sample deal' };
+    }).sort((a, b) => b.score - a.score);
+    return { on: contacts.length + deals.length > 0, companies: db.prepare("SELECT COUNT(*) AS n FROM companies WHERE tenantId = ? AND (sample = 1 OR source = 'Sample')").get(tenantId).n, contacts: contacts.length, deals: deals.length, next: ranked.slice(0, 3) };
+  }
+  app.get('/crm/api/demo', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    return demoStory(user.tenantId);
+  });
+  app.post('/crm/api/demo/clear', async (req, reply) => {
+    const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+    if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only an owner or admin can remove sample data.' });
+    const tenantId = user.tenantId;
+    const contacts = db.prepare("SELECT id FROM contacts WHERE tenantId = ? AND (sample = 1 OR source = 'Sample')").all(tenantId);
+    const deals = db.prepare("SELECT id FROM deals WHERE tenantId = ? AND (sample = 1 OR source = 'Sample')").all(tenantId);
+    const companies = db.prepare("SELECT id FROM companies WHERE tenantId = ? AND (sample = 1 OR source = 'Sample')").all(tenantId);
+    const ids = contacts.concat(deals).map((row) => row.id);
+    for (const id of ids) {
+      db.prepare('DELETE FROM activities WHERE tenantId = ? AND relatedId = ?').run(tenantId, id);
+      db.prepare('DELETE FROM notes WHERE tenantId = ? AND relatedId = ?').run(tenantId, id);
+    }
+    db.prepare('DELETE FROM activities WHERE tenantId = ? AND sample = 1').run(tenantId);
+    db.prepare('DELETE FROM notes WHERE tenantId = ? AND sample = 1').run(tenantId);
+    db.prepare("DELETE FROM deals WHERE tenantId = ? AND (sample = 1 OR source = 'Sample')").run(tenantId);
+    db.prepare("DELETE FROM contacts WHERE tenantId = ? AND (sample = 1 OR source = 'Sample')").run(tenantId);
+    db.prepare("DELETE FROM companies WHERE tenantId = ? AND (sample = 1 OR source = 'Sample')").run(tenantId);
+    db.prepare("DELETE FROM crm_accounts WHERE workspaceId = ? AND email LIKE '%@sample.invalid'").run(tenantId);
+    writeAudit(tenantId, user.sub, 'demo-clear', 'workspace', tenantId, 'Sample data removed');
+    return { ok: true, removed: { companies: companies.length, contacts: contacts.length, deals: deals.length } };
+  });
+
   app.post('/crm/api/setup/demo', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only an owner or admin can load demo data.' });
@@ -4693,17 +4748,18 @@ function agentBrain(tenantId) {
       db.prepare('INSERT INTO contacts (id, tenantId, firstName, lastName, title, companyId, email, phone, city, country, ownerId, source, status, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, c[0], c[1], c[2], c[3], c[4], c[5], c[6], 'Nigeria', ownerId, 'Sample', 'ACTIVE', new Date().toISOString());
       return id;
     });
+    var day = function(offset) { return new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10); };
     var stages = db.prepare('SELECT id, code, name FROM stages WHERE tenantId = ? ORDER BY position').all(workspaceId);
     var findStage = function(code) { return (stages.find(function(s) { return s.code === code || String(s.code || '').startsWith(code); }) || stages[0] || { id: code }).id; };
     var deals = [
-      ['Software implementation — Zenith Foods', companyIds[0], contactIds[0], 2500000, 'PROPOSAL_SENT', 60, '2026-11-15', amara],
-      ['Cloud migration — Dangote', companyIds[4], contactIds[6], 8200000, 'NEGOTIATION', 80, '2026-11-30', yemi],
-      ['ERP integration — MTN Nigeria', companyIds[5], contactIds[4], 9200000, 'PROSPECTING', 10, '2026-12-20', amara],
-      ['Annual license — Atlantic Log', companyIds[2], contactIds[2], 1800000, 'NEEDS_ASSESSMENT', 40, '2026-11-28', yemi],
-      ['Payroll system — Access Bank', companyIds[6], contactIds[5], 900000, 'INITIAL_CONTACT', 20, '2026-12-05', amara],
-      ['Fleet tracking — Savannah Trading', companyIds[3], contactIds[3], 1300000, 'PROPOSAL_SENT', 60, '2026-11-22', yemi],
-      ['HR platform — Lekki Tech Hub', companyIds[1], contactIds[1], 850000, 'NEGOTIATION', 80, '2026-11-18', amara],
-      ['Website redesign — BUA Foods', companyIds[7], contactIds[8], 450000, 'CLOSED_WON', 100, '2026-10-02', ownerId],
+      ['Software implementation — Zenith Foods', companyIds[0], contactIds[0], 2500000, 'PROPOSAL_SENT', 60, day(18), amara],
+      ['Cloud migration — Dangote', companyIds[4], contactIds[6], 8200000, 'NEGOTIATION', 80, day(28), yemi],
+      ['ERP integration — MTN Nigeria', companyIds[5], contactIds[4], 9200000, 'PROSPECTING', 10, day(45), amara],
+      ['Annual license — Atlantic Log', companyIds[2], contactIds[2], 1800000, 'NEEDS_ASSESSMENT', 40, day(12), yemi],
+      ['Payroll system — Access Bank', companyIds[6], contactIds[5], 900000, 'INITIAL_CONTACT', 20, day(21), amara],
+      ['Fleet tracking — Savannah Trading', companyIds[3], contactIds[3], 1300000, 'PROPOSAL_SENT', 60, day(9), yemi],
+      ['HR platform — Lekki Tech Hub', companyIds[1], contactIds[1], 850000, 'NEGOTIATION', 80, day(6), amara],
+      ['Website redesign — BUA Foods', companyIds[7], contactIds[8], 450000, 'CLOSED_WON', 100, day(-12), ownerId],
     ];
     var dealIds = [];
     deals.forEach(function(d) {
@@ -4742,6 +4798,15 @@ function agentBrain(tenantId) {
       if (db.prepare('SELECT id FROM notes WHERE tenantId = ? AND relatedId = ? AND body = ?').get(workspaceId, n[0], n[2])) return;
       db.prepare('INSERT INTO notes (id, tenantId, relatedType, relatedId, body, createdAt) VALUES (?,?,?,?,?,?)').run(crypto.randomUUID(), workspaceId, n[1], n[0], n[2], new Date().toISOString());
     });
+    db.prepare("UPDATE companies SET sample = 1 WHERE tenantId = ? AND source = 'Sample'").run(workspaceId);
+    db.prepare("UPDATE contacts SET sample = 1 WHERE tenantId = ? AND source = 'Sample'").run(workspaceId);
+    db.prepare("UPDATE deals SET sample = 1 WHERE tenantId = ? AND source = 'Sample'").run(workspaceId);
+    const samplePeople = db.prepare('SELECT id FROM contacts WHERE tenantId = ? AND sample = 1').all(workspaceId).map((row) => row.id);
+    const sampleDeals = db.prepare('SELECT id FROM deals WHERE tenantId = ? AND sample = 1').all(workspaceId).map((row) => row.id);
+    for (const id of samplePeople.concat(sampleDeals)) {
+      db.prepare('UPDATE activities SET sample = 1 WHERE tenantId = ? AND relatedId = ?').run(workspaceId, id);
+      db.prepare('UPDATE notes SET sample = 1 WHERE tenantId = ? AND relatedId = ?').run(workspaceId, id);
+    }
     db.prepare('INSERT INTO workspace (tenantId, size, industry, goal, channel, done) VALUES (?,?,?,?,?,?) ON CONFLICT(tenantId) DO UPDATE SET size = COALESCE(workspace.size, excluded.size)').run(workspaceId, '11-50', 'Services', 'Close deals', 'Phone & WhatsApp', 0);
     // Populate FTS5 index so search works immediately after seeding
     if (fts5Ready) {
