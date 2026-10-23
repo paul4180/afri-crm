@@ -75,3 +75,9 @@ test('each starter pipeline has seven stage names', () => {
     expect(names[6]).toBe('Lost');
   }
 });
+
+test('removing sample data is remembered on the workspace', () => {
+  const src = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'crmapp.js'), 'utf8');
+  expect(src).toContain('sampleOff = 1');
+  expect(src).toContain('Sample data stays off until you add it again.');
+});

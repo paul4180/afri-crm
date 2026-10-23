@@ -2665,7 +2665,7 @@
   let auditAction = '';
   let auditObject = '';
   window.revokeSession = async (id) => {
-    const result = await api('/crm/api/sessions/' + id + '/revoke', { method: 'POST', body: '{}' });
+    const result = await api('/crm/api/sessions/' + id + '/revoke', { method: 'POST', body: JSON.stringify({ force: true }) });
     if (!result || result.error) return toast('Could not close it');
     toast('Session closed');
     drawAudit();
@@ -2832,6 +2832,7 @@
         try { localStorage.removeItem('crm-wizard'); localStorage.removeItem('crm-wizard-skipped'); } catch (e) {}
         if (typeof paintSetupCard === 'function') paintSetupCard();
         window.closeOnboardingWizard(false);
+        if (typeof enter === 'function') await enter();
         toast('Workspace ready.');
         return;
       }
@@ -4305,7 +4306,7 @@
 `;
 
   window.__loadDemo = async function () {
-    var res = await api('/crm/api/setup/demo', { method: 'POST', body: JSON.stringify({}) });
+    var res = await api('/crm/api/setup/demo', { method: 'POST', body: JSON.stringify({ force: true }) });
     if (res && !res.error) { toast('Demo data loaded — refresh to see it'); setTimeout(function() { refresh(); }, 500); }
     else toast((res && res.error) || 'Could not load demo data');
   };
@@ -4317,7 +4318,7 @@
   // Click "Demo" button on Home page to load.
   // ============================================================
   window.__loadDemoClient = async function () {
-    const res = await api('/crm/api/setup/demo', { method: 'POST', body: '{}' });
+    const res = await api('/crm/api/setup/demo', { method: 'POST', body: JSON.stringify({ force: true }) });
     if (!res || res.error) return toast((res && res.error) || 'Could not load the sample workspace');
     await refresh();
     toast('Sample workspace is on. Your own records are still there.');
@@ -4327,7 +4328,7 @@
       const ok = await askConfirm({ title: 'Remove the sample workspace?', body: 'Zenith, Lekki, Dangote and the other sample records go away. Records you added yourself stay.', danger: true, ok: 'Remove sample data' });
       if (!ok) return;
     }
-    const res = await api('/crm/api/demo/clear', { method: 'POST', body: '{}' });
+    const res = await api('/crm/api/demo/clear', { method: 'POST', body: JSON.stringify({ force: true }) });
     if (!res || res.error) return toast((res && res.error) || 'Could not remove it');
     await refresh();
     localStorage.setItem('crm-sample-off', '1');
@@ -7802,6 +7803,15 @@
     .dash-links { display: flex; gap: 18px; padding-top: 8px; }
     #view .dash button.dash-link { background: transparent !important; color: #fff !important; border: 0 !important; border-radius: 0 !important; padding: 0 !important; font-size: 14px !important; font-weight: 500 !important; box-shadow: none !important; }
     #view .dash button.dash-link:hover { color: #5eead4 !important; }
+
+    .dash-start { margin: 16px 28px 0; background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 16px 18px; position: relative; z-index: 2; }
+    .dash-start > div { display: flex; justify-content: space-between; align-items: baseline; }
+    .dash-start b { font-size: 16px; color: #0f172a; }
+    .dash-start ol { margin: 10px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .dash-start li { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; background: #f8fafc; }
+    .dash-start li.done { background: #f0fdfa; }
+    #view .dash-start button { background: transparent !important; color: #0f766e !important; border: 0 !important; padding: 0 !important; text-align: left; font-weight: 700; }
+    .dash-start span { color: #64748b; font-size: 13px; }
     .dash-kpis { display: grid; grid-template-columns: 1fr 1.45fr 1fr 1fr; gap: 12px; margin: -72px 28px 0; position: relative; z-index: 2; }
     .dash-kpi { background: rgba(15,25,42,0.85); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px 24px; min-width: 0; }
     .dash-num { font-family: "Space Grotesk", Inter, sans-serif; font-size: 48px; font-weight: 700; color: #fff !important; line-height: 1; letter-spacing: -0.03em; }
@@ -7900,6 +7910,9 @@
     const hello = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
     const when = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
     const n = (count, one, many) => count + ' ' + (count === 1 ? one : many);
+    const salesGuide = ((homePack.guide && homePack.guide.guides) || []).find((row) => row.id === 'sales');
+    const doneN = salesGuide ? salesGuide.steps.filter((row) => row.done).length : 0;
+    const start = salesGuide ? `<section class="dash-start"><div><b>Where to start</b><span>${doneN} of ${salesGuide.steps.length}</span></div><ol>${salesGuide.steps.map((row) => `<li class="${row.done ? 'done' : ''}"><button type="button" onclick="go('${row.page}')">${row.done ? 'Done' : 'Open'} · ${esc(row.name)}</button><span>${esc(row.detail)}</span></li>`).join('')}</ol></section>` : '';
     const show = panels();
     const sw = (key) => `<button type="button" class="dash-switch ${show[key] ? 'on' : ''}" onclick="toggleHomePanel('${key}')" aria-label="Show or hide"><i></i></button>`;
     const empty = '<div class="dash-empty">None yet.</div>';
@@ -7961,6 +7974,7 @@
           <div class="dash-links"><button type="button" class="dash-link" onclick="go('guide')">↗ Start guide</button><button type="button" class="dash-link" onclick="homeDemo()">◈ Sample data</button><button type="button" class="dash-link" onclick="homePack=null;drawHome()">↻ Refresh</button></div>
         </div>
       </section>
+      ${start}
       <div class="dash-kpis">
         <article class="dash-kpi"><div class="dash-num">${openDeals.length}</div><div class="dash-label">OPEN DEALS</div></article>
         <article class="dash-kpi"><div class="dash-num wide">${money(pipeline)}</div><div class="dash-label">PIPELINE</div></article>
@@ -9353,7 +9367,7 @@ window.openSearchHit = function (kind, id) {
     if (note) note.textContent = clashText(slot);
   };
   window.syncCal = async function () {
-    const result = await api('/crm/api/calendar/sync', { method: 'POST', body: '{}' });
+    const result = await api('/crm/api/calendar/sync', { method: 'POST', body: JSON.stringify({ force: true }) });
     if (!result || result.error) return toast((result && result.error) || 'Could not sync');
     calKey = '';
     toast(result.message || 'Synced');
@@ -9634,13 +9648,13 @@ window.openSearchHit = function (kind, id) {
     drawSequences();
   };
   window.enrollSeq = async function (id) {
-    const result = await api('/crm/api/sequences/' + id + '/enroll', { method: 'POST', body: '{}' });
+    const result = await api('/crm/api/sequences/' + id + '/enroll', { method: 'POST', body: JSON.stringify({ force: true }) });
     if (!result || result.error) return toast((result && result.error) || 'Could not enroll');
     toast(result.enrolled ? result.enrolled + ' enrolled' : 'Nobody matched. A match is quiet for 14 days, or reachable with an amount.');
     drawSequences();
   };
   window.quietCheck = async function () {
-    const result = await api('/crm/api/quiet-check', { method: 'POST', body: '{}' });
+    const result = await api('/crm/api/quiet-check', { method: 'POST', body: JSON.stringify({ force: true }) });
     if (!result || result.error) return toast((result && result.error) || 'Could not open the tasks');
     toast(result.opened ? result.opened + ' check-in tasks opened' : 'Nobody has been quiet for 30 days without a task already');
   };
@@ -10058,7 +10072,7 @@ window.openSearchHit = function (kind, id) {
   window.ahDismiss = function () { localStorage.setItem('crm-agent-welcome', '1'); const el = document.getElementById('ahWelcome'); if (el) el.remove(); };
   window.ahRun = async function (id) {
     if (id === 'cr') {
-      const result = await api('/crm/api/quiet-check', { method: 'POST', body: '{}' });
+      const result = await api('/crm/api/quiet-check', { method: 'POST', body: JSON.stringify({ force: true }) });
       toast((result && result.opened) ? result.opened + ' check-in tasks opened' : 'Nobody new to check in');
       setFlag(id, 1); refresh(); return;
     }
@@ -10265,7 +10279,7 @@ window.openSearchHit = function (kind, id) {
     if (result && result.id) drawSettings();
   };
   window.setDefaultPipe = async function (id) {
-    const result = await api('/crm/api/pipelines/' + id + '/default', { method: 'POST', body: '{}' });
+    const result = await api('/crm/api/pipelines/' + id + '/default', { method: 'POST', body: JSON.stringify({ force: true }) });
     toast(result && result.stages ? 'This pipeline is now the one deals use' : (result && result.error) || 'Could not switch');
     if (result && result.stages) { refresh(); }
   };
@@ -10809,7 +10823,7 @@ window.openSearchHit = function (kind, id) {
     document.getElementById('sampleClose').onclick = () => sheet.remove();
     const add = document.getElementById('sampleAdd');
     if (add) add.onclick = async () => {
-      const res = await api('/crm/api/setup/demo', { method: 'POST', body: '{}' });
+      const res = await api('/crm/api/setup/demo', { method: 'POST', body: JSON.stringify({ force: true }) });
       if (!res || res.error) return toast((res && res.error) || 'Could not add it');
       sheet.remove();
       await refresh();
@@ -10821,7 +10835,7 @@ window.openSearchHit = function (kind, id) {
         const ok = await askConfirm({ title: 'Remove sample data?', body: 'Every record marked [Sample] is deleted. Records you created stay.', danger: true, ok: 'Remove sample data' });
         if (!ok) return;
       }
-      const res = await api('/crm/api/demo/clear', { method: 'POST', body: '{}' });
+      const res = await api('/crm/api/demo/clear', { method: 'POST', body: JSON.stringify({ force: true }) });
       if (!res || res.error) return toast((res && res.error) || 'Could not remove it');
       sheet.remove();
       await refresh();
@@ -10843,3 +10857,25 @@ window.openSearchHit = function (kind, id) {
   refresh = async function () { await sampleRefresh(); paintSampleBar(); };
   paintSampleBar();
 })();
+
+window.showSessions = async function () {
+  const rows = await api('/crm/api/sessions');
+  if (!rows || rows.error) return toast((rows && rows.error) || 'Could not load sessions');
+  const old = document.getElementById('sessionSheet');
+  if (old) old.remove();
+  const sheet = document.createElement('div');
+  sheet.id = 'sessionSheet';
+  sheet.className = 'sample-sheet';
+  const list = (Array.isArray(rows) ? rows : []).map((row) => `<li><b>${esc(String(row.agent || 'Browser').slice(0, 80))}</b><span>${esc(row.ip || '')} · ${esc(String(row.createdAt || '').slice(0, 16).replace('T', ' '))}${row.revokedAt ? ' · closed' : ''}</span>${row.revokedAt ? '' : `<button type="button" data-id="${row.id}">Close this session</button>`}</li>`).join('') || '<li>No session is stored.</li>';
+  sheet.innerHTML = `<div class="sample-card"><h2>Sessions</h2><p>These are sign-ins for this account. Closing one signs that browser out the next time it calls the app.</p><ul class="session-list">${list}</ul><button type="button" class="ghost" id="sessionClose">Close</button></div>`;
+  sheet.addEventListener('click', async (e) => {
+    if (e.target === sheet || e.target.id === 'sessionClose') sheet.remove();
+    const id = e.target && e.target.dataset && e.target.dataset.id;
+    if (!id) return;
+    const res = await api('/crm/api/sessions/' + id + '/revoke', { method: 'POST', body: '{}' });
+    if (!res || res.error) return toast((res && res.error) || 'Could not close it');
+    sheet.remove();
+    showSessions();
+  });
+  document.body.appendChild(sheet);
+};

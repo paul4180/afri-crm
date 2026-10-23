@@ -330,6 +330,7 @@ for (const [table, col, type] of [
   ['workflow_runs', 'ranAt', 'TEXT'],
   ['workspace', 'guideOff', 'INTEGER DEFAULT 0'],
   ['workspace', 'template', 'TEXT'],
+  ['workspace', 'sampleOff', 'INTEGER DEFAULT 0'],
   ['products', 'category', "TEXT DEFAULT 'General'"],
   ['products', 'stock', 'REAL DEFAULT 0'],
   ['products', 'attrs', 'TEXT'],
@@ -3046,7 +3047,7 @@ export function registerCrm(app, prisma) {
         step('Add a company', 'The business that person works for.', count('companies'), 'companies'),
         step('Add a lead', 'Someone who is not a customer yet.', count('leads'), 'leads'),
         step('Add a deal with an amount', 'What you are trying to close, and what it is worth.', db.prepare('SELECT COUNT(*) AS n FROM deals WHERE tenantId = ? AND amount > 0').get(tenantId).n, 'deals'),
-        step('Invite a teammate', 'Another person who can sign in to this business.', people > 1, 'users'),
+        step('Invite a teammate', 'Another person who can sign in to this business.', db.prepare("SELECT COUNT(*) AS n FROM crm_accounts WHERE workspaceId = ? AND COALESCE(active, 1) = 1 AND email NOT LIKE '%@sample.invalid'").get(tenantId).n > 1, 'users'),
         step('Connect a mailbox', 'Gmail or Outlook, so one email can actually leave.', mailbox, 'tools'),
       ] },
       { id: 'marketing', name: 'Marketing', steps: [
@@ -4720,6 +4721,7 @@ function agentBrain(tenantId) {
     drop('DELETE FROM companies WHERE tenantId = ? AND sample = 1', tenantId);
     drop('DELETE FROM leads WHERE tenantId = ? AND COALESCE(sample, 0) = 1', tenantId);
     drop("DELETE FROM crm_accounts WHERE workspaceId = ? AND email LIKE '%@sample.invalid'", tenantId);
+    db.prepare('INSERT INTO workspace (tenantId, sampleOff) VALUES (?,1) ON CONFLICT(tenantId) DO UPDATE SET sampleOff = 1').run(tenantId);
     writeAudit(tenantId, user.sub, 'demo-clear', 'workspace', tenantId, 'Sample data removed');
     return { ok: true, removed: { companies: companies.length, contacts: contacts.length, deals: deals.length, leads: leads.length } };
   });
@@ -4743,7 +4745,11 @@ function agentBrain(tenantId) {
   app.post('/crm/api/setup/demo', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only an owner or admin can load demo data.' });
+    const flag = db.prepare('SELECT sampleOff FROM workspace WHERE tenantId = ?').get(user.tenantId);
+    const force = Boolean(req.body && req.body.force);
+    if (flag && flag.sampleOff && !force) return { ok: false, skipped: true, reason: 'Sample data stays off until you add it again.' };
     seedDemo(user.tenantId, user.sub);
+    db.prepare('INSERT INTO workspace (tenantId, sampleOff) VALUES (?,0) ON CONFLICT(tenantId) DO UPDATE SET sampleOff = 0').run(user.tenantId);
     writeAudit(user.tenantId, user.sub, 'demo', 'workspace', user.tenantId, 'Demo data loaded');
     return { ok: true, message: 'Demo data loaded' };
   });

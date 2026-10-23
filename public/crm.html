@@ -773,7 +773,7 @@ async function boot() {
   document.getElementById('whoMark').textContent = initials(name);
   document.getElementById('whoName').textContent = company;
   document.getElementById('who').title = name;
-  document.getElementById('menu').innerHTML = `<div style="padding:8px"><b>${esc(me.fullName || '')}</b><div class="meta">${esc(me.email || '')}</div></div><div style="padding:8px">${esc(company)}</div><button type="button" onclick="setPresence('available')">Available</button><button type="button" onclick="setPresence('busy')">Busy</button><button type="button" onclick="setPresence('away')">Away</button><button type="button" onclick="go('dashboard')">Reports</button><button type="button" onclick="go('analytics')">Analytics</button><button type="button" onclick="go('integrations')">Connections</button><button type="button" onclick="go('guide')">Start guide</button><button type="button" onclick="if (typeof openQuickTour==='function') openQuickTour()">Tour</button><button type="button" onclick="toggleTheme()">Dark or light</button><button type="button" onclick="document.getElementById('phoneBox')&&document.getElementById('phoneBox').classList.add('on')">Mobile app</button><button type="button" onclick="openOnboardingWizard(JSON.parse(localStorage.getItem('crm-wizard')||'null')||undefined)">Finish setup</button><button type="button" onclick="openSetup()">Workspace</button><a href="/app">Open the books</a><button type="button" onclick="logout()">Sign out</button>`;
+  document.getElementById('menu').innerHTML = `<div style="padding:8px"><b>${esc(me.fullName || '')}</b><div class="meta">${esc(me.email || '')}</div></div><div style="padding:8px">${esc(company)}</div><button type="button" onclick="setPresence('available')">Available</button><button type="button" onclick="setPresence('busy')">Busy</button><button type="button" onclick="setPresence('away')">Away</button><button type="button" onclick="go('dashboard')">Reports</button><button type="button" onclick="go('analytics')">Analytics</button><button type="button" onclick="go('integrations')">Connections</button><button type="button" onclick="go('guide')">Start guide</button><button type="button" onclick="if (typeof openQuickTour==='function') openQuickTour()">Tour</button><button type="button" onclick="toggleTheme()">Dark or light</button><button type="button" onclick="document.getElementById('phoneBox')&&document.getElementById('phoneBox').classList.add('on')">Mobile app</button><button type="button" onclick="openOnboardingWizard(JSON.parse(localStorage.getItem('crm-wizard')||'null')||undefined)">Finish setup</button><button type="button" onclick="showSessions()">Sessions</button><button type="button" onclick="openSetup()">Workspace</button><a href="/app">Open the books</a><button type="button" onclick="logout()">Sign out</button>`;
   const tool = new URLSearchParams(location.search).get('tool');
   const pageQuery = new URLSearchParams(location.search).get('page');
   let resumeSetup = false;
@@ -1031,9 +1031,9 @@ async function enter() {
   document.getElementById('app').style.display = 'grid';
   paintSetupCard();
   await refresh();
-  if (!localStorage.getItem('crm-sample-off') && !(bag.contacts || []).length && !(bag.companies || []).length && !(bag.deals || []).length) {
+  if (!(bag.contacts || []).length && !(bag.companies || []).length && !(bag.deals || []).length) {
     const seeded = await api('/crm/api/setup/demo', { method: 'POST', body: '{}' });
-    if (seeded && !seeded.error) await refresh();
+    if (seeded && seeded.ok) await refresh();
   }
 }
 function noteStages(stages) { if (Array.isArray(stages)) { bag.stages = stages; homePack = null; } }
@@ -3100,7 +3100,7 @@ document.getElementById('email').value = localStorage.getItem('crmEmail') || '';
   if (token) boot();
 })();
 </script>
-<script src="/crm-studio.js?v=105"></script>
+<script src="/crm-studio.js?v=106"></script>
 </body>
 </html>
 
