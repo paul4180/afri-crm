@@ -8965,7 +8965,14 @@ window.openSearchHit = function (kind, id) {
     if (key === 'saved') ldSaved = value;
     if (key === 'menu') ldMenu = ldMenu === value ? '' : value;
     if (key === 'pick') { ldPick = value; ldPanel = true; ldScore = null; }
-    if (key === 'panel') ldPanel = !ldPanel;
+    if (key === 'panel') {
+      ldPanel = !ldPanel;
+      if (ldPanel && !ldPick) {
+        const first = (bag.leads || []).find((row) => row.status !== 'CONVERTED' && row.status !== 'DEAD') || (bag.leads || [])[0];
+        ldPick = first ? first.id : '';
+        ldScore = null;
+      }
+    }
     if (key === 'query') {
       ldQuery = value;
       const box = document.querySelector('#view .cx-search');
@@ -9015,6 +9022,7 @@ window.openSearchHit = function (kind, id) {
     }).join('');
     const picked = (bag.leads || []).find((row) => row.id === ldPick);
     let panel = '';
+    if (ldPanel && !picked) panel = '<aside class="ld-panel"><h2 style="margin:0;font-size:16px">Score</h2><p class="cx-muted">Add a lead, then open its score.</p></aside>';
     if (ldPanel && picked) {
       if (!ldScore) {
         ldScore = { loading: true };
