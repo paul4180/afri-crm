@@ -294,3 +294,125 @@ export function registerWhatsApp(app, ctx) {
     return { quoteId, payUrl };
   });
 }
+
+// ============================================================
+// FLOW WHATSAPP SEND — called by src/flows.js when a flow step
+// is type='whatsapp'. This function does ALL the gating checks
+// the spec requires:
+//   1. Line is connected (wa_lines or env vars)
+//   2. Contact has a phone
+//   3. 24-hour window is open (last inbound < 24h ago)
+//   4. If window is closed, an approved template name is on the step
+//   5. Fewer than 3 outbound messages today (the capped() check
+//      already runs in flows.js before this function is called)
+//
+// Returns: { ok: boolean, skipped: boolean, reason: string, threadId?: string }
+//   - ok=true → message was sent (or template was sent)
+//   - ok=false, skipped=true → message was NOT sent, reason explains why
+//   - ok=false, skipped=false → an error occurred (network, Graph API)
+//
+// The flow runner logs the reason on the workflow_runs table so the
+// user can see WHY a step was skipped in the Monitor.
+// ============================================================
+export async function sendFlowWhatsApp(db, tenantId, contactId, body, templateName) {
+  if (!contactId) return { ok: false, skipped: true, reason: 'This record has no contact to message' };
+
+  // 1. Find the line (tenant-specific or env vars)
+  const line = (() => {
+    const row = db.prepare('SELECT * FROM wa_lines WHERE tenantId = ?').get(tenantId);
+    if (row && row.token && row.phoneNumberId) return row;
+    if (process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_ID) {
+      return { tenantId, phoneNumberId: process.env.WHATSAPP_PHONE_ID, displayNumber: process.env.WHATSAPP_DISPLAY || '', token: process.env.WHATSAPP_TOKEN };
+    }
+    return row || null;
+  })();
+  if (!line || !line.token || !line.phoneNumberId) {
+    return { ok: false, skipped: true, reason: 'WhatsApp is not connected. Connect a line on the Integrations page.' };
+  }
+
+  // 2. Find the contact + phone
+  const contact = db.prepare('SELECT id, phone, mobile, firstName, lastName FROM contacts WHERE id = ? AND tenantId = ?').get(contactId, tenantId);
+  if (!contact) return { ok: false, skipped: true, reason: 'The contact was not found' };
+  const phone = contact.phone || contact.mobile || '';
+  if (!phone) return { ok: false, skipped: true, reason: 'This contact has no phone number' };
+
+  // 3. Find an open thread for this contact
+  let thread = db.prepare("SELECT * FROM threads WHERE tenantId = ? AND contactId = ? AND status = 'OPEN'").get(tenantId, contactId);
+  if (!thread) {
+    // No open thread — means no inbound message ever, so the window is closed
+    // (we can't send a free-form message without a prior inbound)
+  }
+
+  // 4. Check the 24-hour window
+  const windowIsOpen = thread && thread.lastInboundAt && Date.now() - new Date(thread.lastInboundAt).getTime() < 24 * 60 * 60 * 1000;
+
+  // 5a. Window is OPEN → send free-form text
+  if (windowIsOpen) {
+    const to = String(phone).replace(/\D/g, '');
+    const res = await fetch('https://graph.facebook.com/v21.0/' + line.phoneNumberId + '/messages', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + line.token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', to, type: 'text', text: { body: String(body || '').slice(0, 4000) } }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const error = (data.error && data.error.message) || 'WhatsApp refused the message';
+      // Store the failed attempt on the thread (if one exists)
+      if (thread) {
+        db.prepare('INSERT INTO thread_messages (id, tenantId, threadId, direction, body, status, error, authorId) VALUES (?,?,?,?,?,?,?,?)')
+          .run(crypto.randomUUID(), tenantId, thread.id, 'out', String(body || '').slice(0, 4000), 'failed', String(error).slice(0, 300), null);
+      }
+      return { ok: false, skipped: false, reason: 'WhatsApp send failed: ' + error };
+    }
+    // Success — store the message on the thread + log an activity
+    if (thread) {
+      db.prepare('INSERT INTO thread_messages (id, tenantId, threadId, direction, body, status, error, authorId) VALUES (?,?,?,?,?,?,?,?)')
+        .run(crypto.randomUUID(), tenantId, thread.id, 'out', String(body || '').slice(0, 4000), 'sent', null, null);
+      db.prepare('UPDATE threads SET lastMessageAt = ? WHERE id = ?').run(new Date().toISOString(), thread.id);
+    }
+    db.prepare('INSERT INTO activities (id, tenantId, type, subject, status, relatedType, relatedId, notes, ownerId) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      .run(crypto.randomUUID(), tenantId, 'WHATSAPP', 'WhatsApp out (flow): ' + String(body || '').slice(0, 80), 'DONE', 'contact', contactId, String(body || '').slice(0, 2000), null);
+    return { ok: true, skipped: false, reason: 'WhatsApp sent inside the 24-hour window', threadId: thread ? thread.id : null };
+  }
+
+  // 5b. Window is CLOSED → require an approved template
+  if (!templateName) {
+    return { ok: false, skipped: true, reason: 'The 24-hour window is closed and this step has no approved template name. Save a template name on the step, or wait for the contact to message first.' };
+  }
+
+  // Try to send the template via the Graph API
+  // (We don't verify the template is "approved" on the line — Meta will
+  // reject it if it isn't, and we'll store the error. This is honest:
+  // we attempt the send, and if Meta refuses, the flow step is SKIPPED
+  // with the real error message, not marked as sent.)
+  const to = String(phone).replace(/\D/g, '');
+  const templateBody = String(body || '').slice(0, 4000); // used as fallback text in the template
+  const res = await fetch('https://graph.facebook.com/v21.0/' + line.phoneNumberId + '/messages', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + line.token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to,
+      type: 'template',
+      template: { name: String(templateName).slice(0, 100), language: { code: 'en' }, components: [{ type: 'body', parameters: [{ type: 'text', text: templateBody }] }] },
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const error = (data.error && data.error.message) || 'WhatsApp refused the template';
+    if (thread) {
+      db.prepare('INSERT INTO thread_messages (id, tenantId, threadId, direction, body, status, error, authorId) VALUES (?,?,?,?,?,?,?,?)')
+        .run(crypto.randomUUID(), tenantId, thread.id, 'out', '[template: ' + templateName + '] ' + templateBody.slice(0, 200), 'failed', String(error).slice(0, 300), null);
+    }
+    return { ok: false, skipped: true, reason: 'Template "' + templateName + '" was not accepted by WhatsApp: ' + error };
+  }
+  // Template sent successfully
+  if (thread) {
+    db.prepare('INSERT INTO thread_messages (id, tenantId, threadId, direction, body, status, error, authorId) VALUES (?,?,?,?,?,?,?,?)')
+      .run(crypto.randomUUID(), tenantId, thread.id, 'out', '[template: ' + templateName + '] ' + templateBody.slice(0, 200), 'sent', null, null);
+    db.prepare('UPDATE threads SET lastMessageAt = ? WHERE id = ?').run(new Date().toISOString(), thread.id);
+  }
+  db.prepare('INSERT INTO activities (id, tenantId, type, subject, status, relatedType, relatedId, notes, ownerId) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    .run(crypto.randomUUID(), tenantId, 'WHATSAPP', 'WhatsApp template out (flow): ' + templateName, 'DONE', 'contact', contactId, 'Template: ' + templateName + ' | ' + templateBody.slice(0, 500), null);
+  return { ok: true, skipped: false, reason: 'WhatsApp template "' + templateName + '" sent (window was closed)', threadId: thread ? thread.id : null };
+}

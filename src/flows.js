@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { sendFlowWhatsApp } from './whatsapp.js';
 let ctx = null;
 
 export function bindFlows(helpers) {
@@ -159,7 +160,15 @@ async function execute(db, helpers, tenantId, rule, record, from) {
         record[field] = step.value;
         logRun(db, tenantId, rule.id, record.id, 'OK', field + ' updated');
       } else if (step.type === 'whatsapp') {
-        logRun(db, tenantId, rule.id, record.id, 'SKIPPED', 'A flow does not send WhatsApp by itself. The thread window and the line have to be used by a person, or the step is skipped.');
+        const result = await sendFlowWhatsApp(db, tenantId, who, step.body || step.subject || '', step.template || '');
+        if (result.ok) {
+          logRun(db, tenantId, rule.id, record.id, 'OK', result.reason);
+        } else if (result.skipped) {
+          logRun(db, tenantId, rule.id, record.id, 'SKIPPED', result.reason);
+        } else {
+          // ok=false, skipped=false → a real error (network, Graph API refusal)
+          throw new Error(result.reason);
+        }
       } else if (step.type === 'email') {
         const sent = record.email ? await helpers.sendMail({ to: record.email, subject: step.subject || rule.name, text: step.body || step.subject || '' }) : false;
         logRun(db, tenantId, rule.id, record.id, sent ? 'OK' : 'SKIPPED', sent ? 'Email sent' : 'Mail is not configured or the record has no email');
