@@ -5573,7 +5573,49 @@ function agentBrain(tenantId) {
       yes: Number((req.body && req.body.yes) || 0),
       no: Number((req.body && req.body.no) || 0),
       value: String((req.body && req.body.value) || '').slice(0, 80),
+      template: String((req.body && req.body.template) || '').slice(0, 100),
     });
+    db.prepare('UPDATE workflows SET graph = ? WHERE id = ?').run(JSON.stringify({ steps }), row.id);
+    return { steps };
+  });
+
+  // Section 6: Replace the entire graph (for drag-and-drop reordering)
+  app.patch('/crm/api/workflows/:id/graph', async (req, reply) => {
+    const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+    const row = db.prepare('SELECT * FROM workflows WHERE tenantId = ? AND id = ?').get(user.tenantId, req.params.id);
+    if (!row) return reply.code(404).send({ error: 'Not found' });
+    const steps = Array.isArray(req.body?.steps) ? req.body.steps : [];
+    if (steps.length > 10) return reply.code(400).send({ error: 'A flow stops at 10 steps' });
+    const allowed = new Set(['task', 'wait', 'wait_reply', 'branch', 'whatsapp', 'email', 'notify', 'update', 'assign']);
+    const clean = steps.filter((s) => s && allowed.has(s.type)).map((s) => ({
+      type: s.type,
+      subject: String(s.subject || '').slice(0, 160),
+      body: String(s.body || '').slice(0, 500),
+      days: Math.min(30, Math.max(0, Number(s.days) || 0)),
+      field: String(s.field || '').slice(0, 40),
+      equals: String(s.equals || '').slice(0, 40),
+      yes: Math.min(10, Math.max(0, Number(s.yes) || 0)),
+      no: Math.min(10, Math.max(0, Number(s.no) || 0)),
+      value: String(s.value || '').slice(0, 80),
+      template: String(s.template || '').slice(0, 100),
+    }));
+    db.prepare('UPDATE workflows SET graph = ? WHERE id = ?').run(JSON.stringify({ steps: clean }), row.id);
+    writeAudit(user.tenantId, user.sub, 'reordered', 'workflows', row.id, clean.length + ' steps');
+    return { steps: clean };
+  });
+
+  // Section 6: Delete a step by index
+  app.delete('/crm/api/workflows/:id/steps/:index', async (req, reply) => {
+    const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+    const row = db.prepare('SELECT * FROM workflows WHERE tenantId = ? AND id = ?').get(user.tenantId, req.params.id);
+    if (!row) return reply.code(404).send({ error: 'Not found' });
+    const idx = Number(req.params.index);
+    if (!Number.isInteger(idx) || idx < 0) return reply.code(400).send({ error: 'Bad index' });
+    let graph = {};
+    try { graph = JSON.parse(row.graph || '{}'); } catch { graph = {}; }
+    const steps = Array.isArray(graph.steps) ? graph.steps : [];
+    if (idx >= steps.length) return reply.code(400).send({ error: 'Step does not exist' });
+    steps.splice(idx, 1);
     db.prepare('UPDATE workflows SET graph = ? WHERE id = ?').run(JSON.stringify({ steps }), row.id);
     return { steps };
   });
