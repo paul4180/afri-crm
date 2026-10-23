@@ -28,3 +28,9 @@
 - The day heading is white, so it can be read on the dark photo.
 - Home lists are ordered by what needs you, and a contact no longer says Today just because it was added today.
 - Do this next opens the first overdue or due task, or the deal that needs you if there is no task.
+
+## Phase 3, contacts
+
+- A contact now stores a stage (subscriber through advocate), language, WhatsApp permission, consent, and the campaign that brought them in.
+- Opening a contact shows another record that looks like the same person, and Keep this record moves the other record's deals, notes, and tasks onto this one.
+- The contacts list shows that stage in the status column.

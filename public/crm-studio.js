@@ -4638,6 +4638,9 @@
       '<label>Company<select id="cCompany"><option value="">None</option>' + companyOpts + '</select></label>' +
       '<label>City<input id="cCity" placeholder="Lagos"></label>' +
       '<label>Source<input id="cSource" placeholder="Referral, walk-in"></label>' +
+      '<label>Stage<select id="cLife"><option value="lead">Lead</option><option value="subscriber">Subscriber</option><option value="mql">Marketing qualified</option><option value="sql">Sales qualified</option><option value="opportunity">Opportunity</option><option value="customer">Customer</option></select></label>' +
+      '<label>Language<select id="cLang"><option>English</option><option>Pidgin</option><option>Yoruba</option><option>Hausa</option><option>Igbo</option><option>French</option></select></label>' +
+      '<label>WhatsApp<select id="cWa"><option value="">Not asked</option><option value="yes">Yes, they can be messaged</option><option value="no">No</option></select></label>' +
       '<label>Status<select id="cStatus"><option>ACTIVE</option><option>CUSTOMER</option><option>INACTIVE</option></select></label>' +
       '<label>Owner<select id="cOwner"><option value="">Me</option>' + ownerOpts + '</select></label>',
       '<button type="button" class="ghost" onclick="window.closeSidePanel()">Cancel</button> ' +
@@ -4653,7 +4656,8 @@
       title: document.getElementById('cTitle').value, email: document.getElementById('cEmail').value,
       phone: document.getElementById('cPhone').value, city: document.getElementById('cCity').value,
       companyId: document.getElementById('cCompany').value, source: document.getElementById('cSource').value,
-      status: document.getElementById('cStatus').value, ownerId: document.getElementById('cOwner').value
+      status: document.getElementById('cStatus').value, ownerId: document.getElementById('cOwner').value,
+      lifecycle: document.getElementById('cLife').value, language: document.getElementById('cLang').value, whatsappOptIn: document.getElementById('cWa').value
     }) });
     if (!result || result.error) { toast((result && result.error) || 'Could not save'); return; }
     toast(another ? 'Contact added. Add another.' : 'Contact saved');
@@ -8199,7 +8203,7 @@
         const scored = contactScore(row);
         const [label, tone] = statusOf(row);
         const owner = ownerName(row.ownerId);
-        return `<tr class="cx-row"><td><input type="checkbox" onclick="event.stopPropagation()"></td><td><div class="cx-who" style="cursor:pointer" onclick="openRecord('contact','${row.id}')"><span class="cx-av" style="background:${avatarGradient(person(row))}">${esc(initials(person(row)))}</span><span><b class="cx-name">${esc(person(row))}</b><div class="cx-mail">${esc(row.email || 'No email')}</div></span></div></td>${td('company', row.companyId ? `<button type="button" class="cx-link" onclick="openRecord('company','${row.companyId}')">${esc(companyName(row.companyId))}</button>` : '<span class="cx-muted">—</span>')}${td('value', money(dealWorth(row.id)))}${td('score', scorePill(scored.score))}${td('activity', esc(relativeTime(lastTouch(row.id)) || 'No activity'))}${td('owner', `<span class="cx-av" style="width:22px;height:22px;font-size:10px;background:${avatarGradient(owner || '?')}">${esc(initials(owner || '?'))}</span> ${esc(owner || 'Unassigned')}`)}${td('status', `<span class="cx-status ${tone}">${label}</span>`)}<td class="cx-menu"><button type="button" class="cx-tool cx-more" onclick="event.stopPropagation();setCx('menu','${row.id}')">⋮</button>${cxMenu === row.id ? `<div class="cx-pop"><button type="button" onclick="openRecord('contact','${row.id}')">Open</button><button type="button" onclick="go('tasks','task')">Create task</button></div>` : ''}</td></tr>`;
+        return `<tr class="cx-row"><td><input type="checkbox" onclick="event.stopPropagation()"></td><td><div class="cx-who" style="cursor:pointer" onclick="openRecord('contact','${row.id}')"><span class="cx-av" style="background:${avatarGradient(person(row))}">${esc(initials(person(row)))}</span><span><b class="cx-name">${esc(person(row))}</b><div class="cx-mail">${esc(row.email || 'No email')}</div></span></div></td>${td('company', row.companyId ? `<button type="button" class="cx-link" onclick="openRecord('company','${row.companyId}')">${esc(companyName(row.companyId))}</button>` : '<span class="cx-muted">—</span>')}${td('value', money(dealWorth(row.id)))}${td('score', scorePill(scored.score))}${td('activity', esc(relativeTime(lastTouch(row.id)) || 'No activity'))}${td('owner', `<span class="cx-av" style="width:22px;height:22px;font-size:10px;background:${avatarGradient(owner || '?')}">${esc(initials(owner || '?'))}</span> ${esc(owner || 'Unassigned')}`)}${td('status', `<span class="cx-status ${tone}">${esc(({ subscriber: 'Subscriber', lead: 'Lead', mql: 'Marketing qualified', sql: 'Sales qualified', opportunity: 'Opportunity', customer: 'Customer', advocate: 'Advocate' }[row.lifecycle]) || label)}</span>`)}<td class="cx-menu"><button type="button" class="cx-tool cx-more" onclick="event.stopPropagation();setCx('menu','${row.id}')">⋮</button>${cxMenu === row.id ? `<div class="cx-pop"><button type="button" onclick="openRecord('contact','${row.id}')">Open</button><button type="button" onclick="go('tasks','task')">Create task</button></div>` : ''}</td></tr>`;
       }).join('');
       body = `<table class="cx-table"><tr><th></th><th>Contact</th>${th('company','Company')}${th('value','Deal value')}${th('score','Lead score')}${th('activity','Last activity')}${th('owner','Owner')}${th('status','Status')}<th></th></tr>${lines || '<tr><td colspan="9"><div class="cx-muted" style="padding:16px">No contact in this view.</div></td></tr>'}</table>`;
     }
@@ -8245,6 +8249,10 @@
     if (!data || data.error) { toast((data && data.error) || 'Could not open it'); return go('contacts'); }
     const rec = data.record;
     const scored = contactScore(rec);
+    const dupPack = await api('/crm/api/contacts/' + focus.id + '/duplicates');
+    const dups = (dupPack && dupPack.duplicates) || [];
+    const lifeWord = { subscriber: 'Subscriber', lead: 'Lead', mql: 'Marketing qualified', sql: 'Sales qualified', opportunity: 'Opportunity', customer: 'Customer', advocate: 'Advocate' }[rec.lifecycle] || '';
+    const dupBox = dups.length ? `<h2 style="font-size:13px;margin:16px 0 6px">Same person</h2>${dups.slice(0, 3).map((row) => { const other = row.contact || {}; const why = (row.signals || []).map((item) => item.reason || item.type || item).filter(Boolean).slice(0, 2).join(', '); return `<div class="cr-prop"><span>${esc(((other.firstName || '') + ' ' + (other.lastName || '')).trim() || other.email || 'Match')}</span><button type="button" class="cx-tool" onclick="mergeIntoThis('${other.id}')">Keep this record</button></div><div class="cx-muted">${esc(why || ('Score ' + row.score))}</div>`; }).join('')}` : '';
     const name = person(rec);
     const company = (bag.companies || []).find((row) => row.id === rec.companyId);
     const deals = data.deals || [];
@@ -8265,7 +8273,7 @@
     document.getElementById('view').innerHTML = `<div class="cr-head"><div class="cx-muted">Contacts › ${esc(name)}</div><button type="button" class="cx-go" onclick="saveProfile()">Save</button></div>
       <div class="cr">
         <aside class="cr-side">
-          <div class="cx-who"><span class="cx-av lg">${esc(initials(name))}</span><div><h1 style="font-size:22px;margin:0">${esc(name)}</h1><div class="cx-muted">${esc(rec.title || '')}${rec.title && company ? ' · ' : ''}${esc(company ? company.name : '')}</div><div style="margin-top:6px">${scorePill(data.score != null ? data.score : scored.score)} <span class="cx-muted">Lead score</span></div></div></div>
+          <div class="cx-who"><span class="cx-av lg">${esc(initials(name))}</span><div><h1 style="font-size:22px;margin:0">${esc(name)}</h1><div class="cx-muted">${esc(rec.title || '')}${rec.title && company ? ' · ' : ''}${esc(company ? company.name : '')}</div><div style="margin-top:6px">${scorePill(data.score != null ? data.score : scored.score)} <span class="cx-muted">Lead score</span>${lifeWord ? ` · ${esc(lifeWord)}` : ''}</div></div></div>
           <h2 style="font-size:13px;margin:16px 0 6px">Properties</h2>
           <div class="cr-prop"><span>Email</span><span>${esc(rec.email || '—')} ${rec.email ? `<button type="button" class="cx-tool" onclick="copyProp('${esc(rec.email)}')">Copy</button>` : ''}</span></div>
           <div class="cr-prop"><span>Phone</span><span>${esc(phone || '—')} ${phone ? `<button type="button" class="cx-tool" onclick="copyProp('${esc(phone)}')">Copy</button> <a href="tel:${esc(phone)}">Call</a>` : ''} ${wa ? `<a href="https://wa.me/${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ''}</span></div>
@@ -8273,10 +8281,15 @@
           <div class="cr-prop"><span>Source</span><b>${esc(rec.source || '—')}</b></div>
           <div class="cr-prop"><span>Created</span><b>${esc(String(rec.createdAt || '').slice(0,10) || '—')}</b></div>
           <div class="cr-prop"><span>Last activity</span><b>${esc(relativeTime(lastTouch(rec.id)) || 'None')}</b></div>
-          <label>Lifecycle<select data-key="status"><option ${rec.status==='ACTIVE'?'selected':''}>ACTIVE</option><option ${rec.status==='CUSTOMER'?'selected':''}>CUSTOMER</option><option ${rec.status==='INACTIVE'?'selected':''}>INACTIVE</option></select></label>
+          <label>Stage<select data-key="lifecycle"><option value="">Not set</option>${[['subscriber','Subscriber'],['lead','Lead'],['mql','Marketing qualified'],['sql','Sales qualified'],['opportunity','Opportunity'],['customer','Customer'],['advocate','Advocate']].map(([id,name])=>`<option value="${id}" ${rec.lifecycle===id?'selected':''}>${name}</option>`).join('')}</select></label>
+          <label>Language<select data-key="language"><option value="">Not set</option>${['English','Pidgin','Yoruba','Hausa','Igbo','French'].map((name)=>`<option ${rec.language===name?'selected':''}>${name}</option>`).join('')}</select></label>
+          <label>WhatsApp<select data-key="whatsappOptIn"><option value="">Not asked</option><option value="yes" ${rec.whatsappOptIn==='yes'?'selected':''}>Yes, they can be messaged</option><option value="no" ${rec.whatsappOptIn==='no'?'selected':''}>No</option></select></label>
+          <label>Consent<select data-key="consent"><option value="">Not recorded</option><option value="yes" ${rec.consent==='yes'?'selected':''}>They agreed to be contacted</option><option value="no" ${rec.consent==='no'?'selected':''}>They refused</option></select></label>
+          <label>Record status<select data-key="status"><option ${rec.status==='ACTIVE'?'selected':''}>ACTIVE</option><option ${rec.status==='CUSTOMER'?'selected':''}>CUSTOMER</option><option ${rec.status==='INACTIVE'?'selected':''}>INACTIVE</option></select></label>
           <label>Owner<select data-key="ownerId"><option value="">Unassigned</option>${(bag.people||[]).map((row)=>`<option value="${row.id}" ${row.id===rec.ownerId?'selected':''}>${esc(row.fullName||row.email)}</option>`).join('')}</select></label>
           <label>Company<select data-key="companyId"><option value="">None</option>${(bag.companies||[]).map((row)=>`<option value="${row.id}" ${row.id===rec.companyId?'selected':''}>${esc(row.name)}</option>`).join('')}</select></label>
-          ${fieldBox('firstName','First name', rec.firstName)}${fieldBox('lastName','Last name', rec.lastName)}${fieldBox('title','Title', rec.title)}${fieldBox('email','Email', rec.email)}${fieldBox('phone','Phone', rec.phone)}${fieldBox('mobile','Mobile', rec.mobile)}${fieldBox('source','Source', rec.source)}${fieldBox('method','How they like to be reached', rec.method)}${fieldBox('city','City', rec.city)}${fieldBox('description','About', rec.description)}
+          ${fieldBox('firstName','First name', rec.firstName)}${fieldBox('lastName','Last name', rec.lastName)}${fieldBox('title','Title', rec.title)}${fieldBox('email','Email', rec.email)}${fieldBox('phone','Phone', rec.phone)}${fieldBox('mobile','Mobile', rec.mobile)}${fieldBox('source','Source', rec.source)}${fieldBox('utmSource','Campaign source', rec.utmSource)}${fieldBox('utmMedium','Campaign medium', rec.utmMedium)}${fieldBox('utmCampaign','Campaign name', rec.utmCampaign)}${fieldBox('method','How they like to be reached', rec.method)}${fieldBox('city','City', rec.city)}${fieldBox('description','About', rec.description)}
+          ${dupBox}
           <h2 style="font-size:13px;margin:16px 0 6px">Why this score</h2>
           ${scored.parts.map(([label, pts]) => `<div class="cr-prop"><span>${esc(label)}</span><b>${pts > 0 ? '+' : ''}${pts}</b></div>`).join('')}
           <div class="cx-muted">The number on the pill is the same rule the record uses. It is not a guessed marketing score.</div>
@@ -10886,4 +10899,15 @@ window.showSessions = async function () {
     showSessions();
   });
   document.body.appendChild(sheet);
+};
+
+window.mergeIntoThis = async function (otherId) {
+  if (!focus || focus.type !== 'contact' || !otherId) return;
+  const ok = typeof askConfirm === 'function' ? await askConfirm({ title: 'Keep this record?', body: 'The other person is removed. Their deals, notes, and tasks move onto this one. Empty fields here are filled from the other record.', danger: true, ok: 'Keep this record' }) : true;
+  if (!ok) return;
+  const res = await api('/crm/api/contacts/' + focus.id + '/merge', { method: 'POST', body: JSON.stringify({ otherId }) });
+  if (!res || res.error) return toast((res && res.error) || 'Could not merge');
+  toast(res.merged ? res.merged + ' was merged into this person' : 'Merged');
+  if (typeof refresh === 'function') await refresh();
+  drawRecord();
 };

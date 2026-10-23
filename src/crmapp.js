@@ -343,6 +343,13 @@ for (const [table, col, type] of [
   ['leads', 'sample', 'INTEGER DEFAULT 0'],
   ['activities', 'sample', 'INTEGER DEFAULT 0'],
   ['notes', 'sample', 'INTEGER DEFAULT 0'],
+  ['contacts', 'lifecycle', 'TEXT'],
+  ['contacts', 'language', 'TEXT'],
+  ['contacts', 'whatsappOptIn', 'TEXT'],
+  ['contacts', 'consent', 'TEXT'],
+  ['contacts', 'utmSource', 'TEXT'],
+  ['contacts', 'utmMedium', 'TEXT'],
+  ['contacts', 'utmCampaign', 'TEXT'],
 ]) {
   const have = db.prepare('PRAGMA table_info(' + table + ')').all().some((row) => row.name === col);
   if (!have) db.exec('ALTER TABLE ' + table + ' ADD COLUMN ' + col + ' ' + type);
@@ -404,7 +411,7 @@ function ftsDelete(table, id) {
 
 const FIELDS = {
   companies: ['name', 'industry', 'type', 'website', 'phone', 'email', 'street', 'city', 'state', 'country', 'description', 'years', 'offering', 'area', 'satisfaction', 'ownerId', 'source'],
-  contacts: ['firstName', 'lastName', 'title', 'email', 'phone', 'mobile', 'companyId', 'street', 'city', 'state', 'country', 'description', 'method', 'serviceFrequency', 'serviceType', 'lastService', 'ownerId', 'source', 'status'],
+  contacts: ['firstName', 'lastName', 'title', 'email', 'phone', 'mobile', 'companyId', 'street', 'city', 'state', 'country', 'description', 'method', 'serviceFrequency', 'serviceType', 'lastService', 'ownerId', 'source', 'status', 'lifecycle', 'language', 'whatsappOptIn', 'consent', 'utmSource', 'utmMedium', 'utmCampaign'],
   leads: ['firstName', 'lastName', 'title', 'companyName', 'email', 'phone', 'mobile', 'website', 'source', 'status', 'industry', 'rating', 'street', 'city', 'state', 'country', 'description', 'ownerId', 'deadReason'],
   deals: ['name', 'companyId', 'contactId', 'leadId', 'amount', 'probability', 'stage', 'closeDate', 'type', 'source', 'nextStep', 'description', 'lostReason', 'ownerId'],
   activities: ['type', 'subject', 'dueAt', 'status', 'relatedType', 'relatedId', 'notes', 'ownerId', 'priority', 'minutes'],
@@ -2876,7 +2883,7 @@ export function registerCrm(app, prisma) {
     if (keep.id === drop.id) return reply.code(400).send({ error: 'Pick a different person' });
     if (!canSee(user, keep) || !canSee(user, drop)) return reply.code(403).send({ error: 'That record is not yours' });
     const fill = {};
-    for (const key of ['email', 'phone', 'mobile', 'title', 'companyId', 'street', 'city', 'state', 'country']) {
+    for (const key of ['email', 'phone', 'mobile', 'title', 'companyId', 'street', 'city', 'state', 'country', 'lifecycle', 'language', 'whatsappOptIn', 'consent', 'utmSource', 'utmMedium', 'utmCampaign', 'source']) {
       if (!keep[key] && drop[key]) fill[key] = drop[key];
     }
     if (Object.keys(fill).length) patch('contacts', user.tenantId, keep.id, fill);

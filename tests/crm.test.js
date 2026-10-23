@@ -81,3 +81,8 @@ test('removing sample data is remembered on the workspace', () => {
   expect(src).toContain('sampleOff = 1');
   expect(src).toContain('Sample data stays off until you add it again.');
 });
+
+test('a contact can store stage, consent, language, and campaign fields', () => {
+  const src = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'crmapp.js'), 'utf8');
+  expect(src).toContain("'lifecycle', 'language', 'whatsappOptIn', 'consent'");
+});
