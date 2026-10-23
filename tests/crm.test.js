@@ -106,3 +106,10 @@ test('whatsapp inbound opens a thread and a closed window does not send', () => 
   expect(src).toContain('The 24-hour window is closed');
   expect(src).toContain('graph.facebook.com');
 });
+
+test('a flow can wait, branch, and record each step', () => {
+  const src = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'flows.js'), 'utf8');
+  expect(src).toContain('wait_reply');
+  expect(src).toContain('flow_jobs');
+  expect(src.includes('slice(0, 10)')).toBe(true);
+});

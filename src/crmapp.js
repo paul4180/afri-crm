@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { registerWhatsApp } from './whatsapp.js';
+import { bindFlows, runGraph, sweepFlows, describeSteps } from './flows.js';
 import { fileURLToPath } from 'url';
 import { DatabaseSync } from 'node:sqlite';
 import { sendMail } from './collect.js';
@@ -971,6 +972,18 @@ function ensureWorkflows(tenantId) {
   for (const [name, trigger, task, days] of DEFAULT_WORKFLOWS) {
     if (!names.has(name)) put.run(crypto.randomUUID(), tenantId, name, trigger, task, days);
   }
+  if (!names.has('Speed to lead')) {
+    const id = crypto.randomUUID();
+    const graph = { steps: [
+      { type: 'task', subject: 'Call the new lead', days: 0 },
+      { type: 'wait', days: 1 },
+      { type: 'wait_reply', days: 2 },
+      { type: 'branch', field: 'status', equals: 'QUALIFIED', yes: 4, no: 5 },
+      { type: 'task', subject: 'Book the meeting' },
+      { type: 'task', subject: 'They have not replied' },
+    ] };
+    db.prepare('INSERT INTO workflows (id, tenantId, name, trigger, taskSubject, days, active, graph) VALUES (?,?,?,?,?,?,1,?)').run(id, tenantId, 'Speed to lead', 'lead.created', 'Call the new lead', 0, JSON.stringify(graph));
+  }
 }
 
 async function applyWorkflow(tenantId, trigger, record) {
@@ -979,6 +992,7 @@ async function applyWorkflow(tenantId, trigger, record) {
   const rows = db.prepare('SELECT * FROM workflows WHERE tenantId = ? AND trigger = ? AND active = 1').all(tenantId, trigger);
   for (const rule of rows) {
     if (rule.trigger === 'deal.moved' && rule.target && !stageSame(tenantId, rule.target, record.stage)) continue;
+    if (await runGraph({ db, insert, patch, notifyUser, one, sendMail }, tenantId, rule, record)) continue;
     const ran = db.prepare('SELECT status FROM workflow_runs WHERE tenantId = ? AND workflowId = ? AND recordId = ? ORDER BY ranAt DESC').get(tenantId, rule.id, record.id);
     if (ran && ran.status !== 'FAILED') continue;
     const due = new Date(Date.now() + Number(rule.days || 1) * 86400000).toISOString().slice(0, 10);
@@ -1561,7 +1575,7 @@ export function registerCrm(app, prisma) {
   });
 
   if (process.env.NODE_ENV !== 'test' && !globalThis.__crmSweep) {
-    globalThis.__crmSweep = setInterval(() => { sweepDue(); try { drainEvents(); } catch { /* a bad job must not stop the clock */ } }, 60000);
+    globalThis.__crmSweep = setInterval(() => { sweepDue(); try { sweepFlows(); } catch { /* a waiting flow must not stop the clock */ } try { drainEvents(); } catch { /* a bad job must not stop the clock */ } }, 60000);
     globalThis.__crmSweep.unref?.();
   }
   async function pickOwner(tenantId) {
@@ -5459,5 +5473,46 @@ function agentBrain(tenantId) {
     return { ok: true };
   });
 
+  app.post('/crm/api/workflows/:id/steps', async (req, reply) => {
+    const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+    const row = db.prepare('SELECT * FROM workflows WHERE tenantId = ? AND id = ?').get(user.tenantId, req.params.id);
+    if (!row) return reply.code(404).send({ error: 'Not found' });
+    const type = String((req.body && req.body.type) || '');
+    const allowed = ['task', 'wait', 'wait_reply', 'branch', 'whatsapp', 'email', 'notify', 'update', 'assign'];
+    if (!allowed.includes(type)) return reply.code(400).send({ error: 'Pick a step type' });
+    let graph = {};
+    try { graph = JSON.parse(row.graph || '{}'); } catch { graph = {}; }
+    const steps = Array.isArray(graph.steps) ? graph.steps : [];
+    if (steps.length >= 10) return reply.code(400).send({ error: 'A flow stops at 10 steps' });
+    steps.push({
+      type,
+      subject: String((req.body && req.body.subject) || '').slice(0, 160),
+      body: String((req.body && req.body.body) || '').slice(0, 500),
+      days: Math.min(30, Math.max(0, Number((req.body && req.body.days) || 0))),
+      field: String((req.body && req.body.field) || '').slice(0, 40),
+      equals: String((req.body && req.body.equals) || '').slice(0, 40),
+      yes: Number((req.body && req.body.yes) || 0),
+      no: Number((req.body && req.body.no) || 0),
+      value: String((req.body && req.body.value) || '').slice(0, 80),
+    });
+    db.prepare('UPDATE workflows SET graph = ? WHERE id = ?').run(JSON.stringify({ steps }), row.id);
+    return { steps };
+  });
+  app.post('/crm/api/workflows/:id/dry', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    const row = db.prepare('SELECT * FROM workflows WHERE tenantId = ? AND id = ?').get(user.tenantId, req.params.id);
+    if (!row) return reply.code(404).send({ error: 'Not found' });
+    const recordId = String((req.body && req.body.recordId) || '');
+    const table = row.trigger.startsWith('deal') ? 'deals' : 'leads';
+    const record = recordId ? one(table, user.tenantId, recordId) : null;
+    return { lines: describeSteps(row, record) };
+  });
+  bindFlows({ db, insert, patch, notifyUser, one, sendMail });
+  db.exec(`CREATE TABLE IF NOT EXISTS flow_jobs (
+    id TEXT PRIMARY KEY, tenantId TEXT NOT NULL, workflowId TEXT NOT NULL, recordId TEXT NOT NULL,
+    object TEXT, step INTEGER DEFAULT 0, status TEXT DEFAULT 'RUNNING', waitUntil TEXT, contactId TEXT, updatedAt TEXT
+  )`);
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ix_flow_job ON flow_jobs(tenantId, workflowId, recordId)');
+  try { db.exec('ALTER TABLE sequence_runs ADD COLUMN paused INTEGER DEFAULT 0'); } catch { /* already there */ }
   registerWhatsApp(app, { db, guard, canWrite, one, insert, patch, writeAudit, notifyUser });
 }

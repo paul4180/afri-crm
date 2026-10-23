@@ -61,3 +61,13 @@
 - A reply is sent only inside 24 hours of their last message, and only if the line is connected. Otherwise it stays on the thread as not sent.
 - The thread can be assigned, noted, and given a saved reply. Two people opening it within two minutes are told.
 - Create quote makes a quote. A Paystack link is added only when Paystack is connected and the contact has an email, and it is sent only while the window is open.
+
+## Phase 5, flows with steps
+
+- A flow can hold up to 10 steps: task, wait, wait for a WhatsApp reply, branch, notify, assign, update a field, or email.
+- Wait moves off Saturday and Sunday in Lagos.
+- The same record does not run the same flow twice. A failed run can be tried again. Five failures turn the flow off.
+- Each step is written to Monitor.
+- Preview shows the path and does not create a task.
+- A WhatsApp reply continues a flow that was waiting, and marks that deal's sequence paused. The task the sequence already made stays.
+- A new business gets a flow named Speed to lead: call, wait a day, wait for a reply, then book a meeting or chase them.

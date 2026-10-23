@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { resumeReply } from './flows.js';
 
 function tail(value) {
   let digits = String(value || '').replace(/\D/g, '');
@@ -130,6 +131,7 @@ export function registerWhatsApp(app, ctx) {
             if (thread.ownerId) notifyUser(tenantId, thread.ownerId, { kind: 'whatsapp', title: 'WhatsApp from ' + (contact.firstName || phone), body: text.slice(0, 140), recordType: 'contact', recordId: contact.id });
           }
           addMessage(tenantId, thread.id, 'in', text, 'received', null, null);
+          try { resumeReply(tenantId, contact.id); } catch { /* a reply must still be stored if a flow fails */ }
           insert('activities', tenantId, { type: 'WHATSAPP', subject: 'WhatsApp in: ' + text.slice(0, 80), status: 'DONE', relatedType: 'contact', relatedId: contact.id, notes: text, ownerId: thread.ownerId });
         }
       }
