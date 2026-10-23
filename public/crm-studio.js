@@ -8033,3 +8033,291 @@
     </div>`;
   };
 })();
+
+(function () {
+  const css = document.createElement('style');
+  css.textContent = `
+    #view .cx h1, #view .cr h1 { font-family: "Space Grotesk", Inter, sans-serif !important; color: #0f172a !important; }
+    .cx-head, .cr-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+    #view .cx h1 { font-size: 24px !important; margin: 0 !important; }
+    .cx-bar, .cx-views { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .cx-left, .cx-right, .cx-views { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .cx-search { width: 280px; max-width: 100%; height: 36px; border: 1px solid #e5e8eb; border-radius: 8px; padding: 0 12px; }
+    #view .cx button.cx-tool, #view .cr button.cx-tool { background: #fff !important; color: #33475b !important; border: 1px solid #e5e8eb !important; border-radius: 8px !important; }
+    #view .cx button.cx-go { background: #0d9488 !important; color: #fff !important; border-radius: 8px !important; }
+    .cx-badge { background: #0d9488; color: #fff; border-radius: 999px; font-size: 11px; padding: 0 6px; margin-left: 4px; }
+    .cx-views button { background: transparent !important; color: #516f90 !important; border-radius: 0 !important; padding: 8px 2px !important; box-shadow: none !important; }
+    .cx-views button.on { color: #0f172a !important; box-shadow: inset 0 -2px 0 #0d9488 !important; }
+    .cx-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; overflow: hidden; }
+    .cx-table th { text-align: left; font-size: 11px; letter-spacing: .08em; color: #64748b; padding: 10px 12px; border-bottom: 1px solid #e5e8eb; }
+    .cx-table td { padding: 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .cx-table tr.cx-row:hover { background: #f8fafc; }
+    .cx-who { display: flex; gap: 10px; align-items: center; }
+    .cx-av { width: 32px; height: 32px; border-radius: 999px; display: grid; place-items: center; color: #fff; font-size: 12px; font-weight: 700; flex: none; }
+    .cx-av.lg { width: 60px; height: 60px; font-size: 20px; background: #0d9488 !important; }
+    .cx-name { font-weight: 700; font-size: 14px; color: #0f172a; }
+    .cx-mail, .cx-muted { font-size: 13px; color: #64748b; }
+    .cx-link { color: #0d9488; background: none; border: 0; padding: 0; cursor: pointer; font-weight: 600; }
+    .cx-score { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; }
+    .cx-score.hot { background: #fee2e2; color: #b91c1c; }
+    .cx-score.mid { background: #fef3c7; color: #b45309; }
+    .cx-score.low { background: #f1f5f9; color: #475569; }
+    .cx-status { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 650; }
+    .cx-status.active { background: #ccfbf1; color: #0f766e; }
+    .cx-status.won { background: #dcfce7; color: #15803d; }
+    .cx-status.cold, .cx-status.lost { background: #f1f5f9; color: #64748b; }
+    .cx-status.lost { text-decoration: line-through; }
+    .cx-more { opacity: 0; }
+    .cx-row:hover .cx-more { opacity: 1; }
+    .cx-menu { position: relative; }
+    .cx-pop { position: absolute; right: 0; top: 28px; background: #fff; border: 1px solid #e5e8eb; border-radius: 8px; box-shadow: 0 8px 24px rgba(15,23,42,.12); z-index: 5; min-width: 140px; }
+    .cx-pop button { display: block; width: 100%; text-align: left; background: #fff !important; color: #0f172a !important; }
+    .cx-board { display: flex; gap: 10px; overflow: auto; padding-bottom: 8px; }
+    .cx-col { min-width: 220px; background: #f8fafc; border: 1px solid #e5e8eb; border-radius: 12px; padding: 8px; }
+    .cx-col b { display: block; font-size: 12px; letter-spacing: .06em; color: #64748b; margin-bottom: 8px; }
+    .cx-card { background: #fff; border: 1px solid #e5e8eb; border-radius: 10px; padding: 10px; margin-bottom: 8px; cursor: pointer; text-align: left; width: 100%; }
+    #view .cx button.cx-card { background: #fff !important; color: #0f172a !important; }
+    .cx-panel { background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 12px; margin-top: 8px; }
+    .cr { display: grid; grid-template-columns: 280px minmax(0,1fr) 320px; gap: 14px; align-items: start; }
+    .cr-side, .cr-main { background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 16px; }
+    .cr-prop { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+    .cr-prop b { color: #0f172a; }
+    #view .cr button.cx-tool { background: #fff !important; color: #33475b !important; border: 1px solid #e5e8eb !important; }
+    .cr-feed { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .cr-feed button.on { box-shadow: inset 0 -2px 0 #0d9488 !important; }
+    .cr-entry { border-left: 3px solid #cbd5e1; background: #f8fafc; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+    .cr-entry.note { border-color: #f59e0b; background: #fffbeb; }
+    .cr-entry.email { border-color: #3b82f6; }
+    .cr-entry.call, .cr-entry.whatsapp { border-color: #22c55e; }
+    .cr-entry.meeting { border-color: #a855f7; }
+    .cr-entry.deal { border-color: #0d9488; }
+    .cr-entry.task { border-color: #94a3b8; }
+    .cr-entry.task.done { border-color: #22c55e; }
+    .cr-entry.file { border-color: #f97316; }
+    .cr-assoc { border: 1px solid #e5e8eb; border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+    @media (max-width: 1100px) { .cr { grid-template-columns: 1fr; } }
+  `;
+  document.head.appendChild(css);
+
+  let cxMode = 'list';
+  let cxSaved = 'all';
+  let cxSort = 'name';
+  let cxQuery = '';
+  let cxShowFilters = false;
+  let cxShowSort = false;
+  let cxShowCols = false;
+  let cxMenu = '';
+  const cxCols = { company: 1, value: 1, score: 1, activity: 1, owner: 1, status: 1 };
+  let cxExtra = [];
+  try { cxExtra = JSON.parse(localStorage.getItem('crm-contact-views') || '[]'); } catch (e) { cxExtra = []; }
+
+  function contactScore(row) {
+    const weights = { email: 15, phone: 10, touch: 18, referral: 10, stale: 20 };
+    const touch = !!(bag.activities || []).some((item) => item.relatedId === row.id);
+    const parts = [['On the record', 8]];
+    let score = 8;
+    if (row.email) { score += weights.email; parts.push(['Email on the record', weights.email]); }
+    if (row.phone || row.mobile) { score += weights.phone; parts.push(['Phone on the record', weights.phone]); }
+    if (touch) { score += weights.touch; parts.push(['An activity is logged', weights.touch]); }
+    if (/refer|partner/i.test(row.source || '')) { score += weights.referral; parts.push(['Source looks like a referral', weights.referral]); }
+    const age = Date.now() - new Date(row.createdAt || Date.now()).getTime();
+    if (!touch && age > 14 * 86400000) { score -= weights.stale; parts.push(['No activity for 14 days', -weights.stale]); }
+    return { score: Math.max(0, Math.min(100, score)), parts };
+  }
+  function dealWorth(id) {
+    return (bag.deals || []).filter((row) => row.contactId === id && !String(stageOf(row)).startsWith('CLOSED_LOST'))
+      .reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  }
+  function statusOf(row) {
+    const deals = (bag.deals || []).filter((item) => item.contactId === row.id);
+    if (row.status === 'CUSTOMER' || deals.some((item) => stageOf(item) === 'CLOSED_WON')) return ['Won', 'won'];
+    if (deals.length && deals.every((item) => stageOf(item) === 'CLOSED_LOST')) return ['Lost', 'lost'];
+    if (row.status === 'INACTIVE') return ['Cold', 'cold'];
+    return ['Active', 'active'];
+  }
+  function scorePill(score) {
+    const tone = score > 80 ? 'hot' : score >= 50 ? 'mid' : 'low';
+    return `<span class="cx-score ${tone}">${score}</span>`;
+  }
+  window.contactScoreParts = contactScore;
+
+  window.setCx = function (key, value) {
+    if (key === 'mode') cxMode = value;
+    if (key === 'saved') cxSaved = value;
+    if (key === 'sort') { cxSort = value; cxShowSort = false; }
+    if (key === 'filters') cxShowFilters = !cxShowFilters;
+    if (key === 'sortbox') cxShowSort = !cxShowSort;
+    if (key === 'cols') cxShowCols = !cxShowCols;
+    if (key === 'col') cxCols[value] = cxCols[value] ? 0 : 1;
+    if (key === 'menu') cxMenu = cxMenu === value ? '' : value;
+    if (key === 'query') cxQuery = value;
+    drawContacts();
+  };
+  window.addContactView = function () {
+    const name = window.prompt('Name this view. It keeps contacts whose name or email contains the word.');
+    if (!name) return;
+    cxExtra.push(name.trim());
+    localStorage.setItem('crm-contact-views', JSON.stringify(cxExtra));
+    cxSaved = 'word:' + name.trim();
+    drawContacts();
+  };
+
+  const priorContacts = drawContacts;
+  drawContacts = function () {
+    const showForm = openForm === 'contact';
+    if (showForm) openForm = '';
+    const mine = me.sub || me.id;
+    let rows = (bag.contacts || []).slice();
+    if (cxSaved === 'mine') rows = rows.filter((row) => row.ownerId === mine);
+    if (cxSaved === 'hot') rows = rows.filter((row) => contactScore(row).score > 80);
+    if (cxSaved === 'quiet') rows = rows.filter((row) => { const t = lastTouch(row.id); return !t || (Date.now() - new Date(t).getTime()) > 30 * 86400000; });
+    if (cxSaved.indexOf('word:') === 0) {
+      const word = cxSaved.slice(5).toLowerCase();
+      rows = rows.filter((row) => (person(row) + ' ' + (row.email || '')).toLowerCase().includes(word));
+    }
+    const q = (cxQuery || '').trim().toLowerCase();
+    rows = rows.filter((row) => hit(person(row) + (row.email || '') + (row.phone || '')) && (!q || (person(row) + ' ' + (row.email || '') + ' ' + companyName(row.companyId)).toLowerCase().includes(q)));
+    if (contactOwner) rows = rows.filter((row) => row.ownerId === contactOwner);
+    if (contactStatus) rows = rows.filter((row) => (row.status || 'ACTIVE') === contactStatus);
+    if (contactFrom) rows = rows.filter((row) => String(row.createdAt || '').slice(0, 10) >= contactFrom);
+    rows.sort((a, b) => {
+      if (cxSort === 'new') return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+      if (cxSort === 'touch') return String(lastTouch(b.id)).localeCompare(String(lastTouch(a.id)));
+      if (cxSort === 'value') return dealWorth(b.id) - dealWorth(a.id);
+      if (cxSort === 'score') return contactScore(b).score - contactScore(a).score;
+      return person(a).localeCompare(person(b));
+    });
+    const filtersOn = [contactOwner, contactStatus, contactFrom].filter(Boolean).length;
+    const views = [['all', 'All contacts'], ['mine', 'My contacts'], ['hot', 'Hot leads'], ['quiet', 'No activity 30d+']].concat(cxExtra.map((name) => ['word:' + name, name]));
+    const owners = (bag.people || []).map((row) => `<option value="${row.id}" ${contactOwner === row.id ? 'selected' : ''}>${esc(row.fullName || row.email)}</option>`).join('');
+    let body = '';
+    if (cxMode === 'board') {
+      const stages = (bag.stages && bag.stages.length ? bag.stages.map((row) => [row.code, row.name]) : STAGES.map((row) => [row[0], row[1]])).concat([['NONE', 'No deal']]);
+      const col = (code) => rows.filter((row) => {
+        const open = (bag.deals || []).filter((deal) => deal.contactId === row.id && !String(stageOf(deal)).startsWith('CLOSED'));
+        const won = (bag.deals || []).some((deal) => deal.contactId === row.id && stageOf(deal) === 'CLOSED_WON');
+        const lost = (bag.deals || []).some((deal) => deal.contactId === row.id && stageOf(deal) === 'CLOSED_LOST');
+        if (code === 'CLOSED_WON') return won && !open.length;
+        if (code === 'CLOSED_LOST') return lost && !open.length && !won;
+        if (code === 'NONE') return !open.length && !won && !lost;
+        return open.some((deal) => stageOf(deal) === code);
+      });
+      body = `<div class="cx-board">${stages.map(([code, name]) => `<div class="cx-col"><b>${esc(name)} · ${col(code).length}</b>${col(code).map((row) => `<button type="button" class="cx-card" onclick="openRecord('contact','${row.id}')"><b>${esc(person(row))}</b><div class="cx-muted">${esc(companyName(row.companyId) || 'No company')}</div><div>${scorePill(contactScore(row).score)} <span class="cx-muted">${esc(relativeTime(lastTouch(row.id)) || 'No activity')}</span></div><div class="cx-muted">${esc(ownerName(row.ownerId) || 'Unassigned')}</div></button>`).join('') || '<div class="cx-muted">None</div>'}</div>`).join('')}</div>`;
+    } else if (cxMode === 'map') {
+      const groups = {};
+      rows.forEach((row) => { const key = row.city || row.country || 'No city'; (groups[key] = groups[key] || []).push(row); });
+      body = `<p class="cx-muted">Grouped by city. There is no map pin until an address has coordinates.</p>` + Object.keys(groups).sort().map((city) => `<section class="cx-panel"><b>${esc(city)}</b>${groups[city].map((row) => `<div class="cr-prop"><button type="button" class="cx-link" onclick="openRecord('contact','${row.id}')">${esc(person(row))}</button><span class="cx-muted">${esc(row.email || '')}</span></div>`).join('')}</section>`).join('');
+    } else if (cxMode === 'calendar') {
+      const now = new Date();
+      const y = now.getFullYear(); const m = now.getMonth();
+      const days = new Date(y, m + 1, 0).getDate();
+      const cells = [];
+      for (let day = 1; day <= days; day++) {
+        const key = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        const born = rows.filter((row) => String(row.createdAt || '').slice(0, 10) === key);
+        cells.push(`<div class="cx-card"><b>${day}</b>${born.map((row) => `<div><button type="button" class="cx-link" onclick="openRecord('contact','${row.id}')">${esc(person(row))}</button></div>`).join('') || '<div class="cx-muted">—</div>'}</div>`);
+      }
+      body = `<p class="cx-muted">Contacts created in ${now.toLocaleString('en-US', { month: 'long', year: 'numeric' })}.</p><div class="cx-board" style="flex-wrap:wrap">${cells.join('')}</div>`;
+    } else {
+      const th = (key, label) => cxCols[key] ? `<th>${label}</th>` : '';
+      const td = (key, html) => cxCols[key] ? `<td>${html}</td>` : '';
+      const lines = rows.map((row) => {
+        const scored = contactScore(row);
+        const [label, tone] = statusOf(row);
+        const owner = ownerName(row.ownerId);
+        return `<tr class="cx-row"><td><input type="checkbox" onclick="event.stopPropagation()"></td><td><div class="cx-who" style="cursor:pointer" onclick="openRecord('contact','${row.id}')"><span class="cx-av" style="background:${avatarGradient(person(row))}">${esc(initials(person(row)))}</span><span><b class="cx-name">${esc(person(row))}</b><div class="cx-mail">${esc(row.email || 'No email')}</div></span></div></td>${td('company', row.companyId ? `<button type="button" class="cx-link" onclick="openRecord('company','${row.companyId}')">${esc(companyName(row.companyId))}</button>` : '<span class="cx-muted">—</span>')}${td('value', money(dealWorth(row.id)))}${td('score', scorePill(scored.score))}${td('activity', esc(relativeTime(lastTouch(row.id)) || 'No activity'))}${td('owner', `<span class="cx-av" style="width:22px;height:22px;font-size:10px;background:${avatarGradient(owner || '?')}">${esc(initials(owner || '?'))}</span> ${esc(owner || 'Unassigned')}`)}${td('status', `<span class="cx-status ${tone}">${label}</span>`)}<td class="cx-menu"><button type="button" class="cx-tool cx-more" onclick="event.stopPropagation();setCx('menu','${row.id}')">⋮</button>${cxMenu === row.id ? `<div class="cx-pop"><button type="button" onclick="openRecord('contact','${row.id}')">Open</button><button type="button" onclick="go('tasks','task')">Create task</button></div>` : ''}</td></tr>`;
+      }).join('');
+      body = `<table class="cx-table"><tr><th></th><th>Contact</th>${th('company','Company')}${th('value','Deal value')}${th('score','Lead score')}${th('activity','Last activity')}${th('owner','Owner')}${th('status','Status')}<th></th></tr>${lines || '<tr><td colspan="9"><div class="cx-muted" style="padding:16px">No contact in this view.</div></td></tr>'}</table>`;
+    }
+    const form = `<div class="drawer dealbox" id="form" ${showForm ? '' : 'hidden'} onclick="if(event.target.id==='form')this.hidden=true"><aside><div class="sheethead"><h2>Create contact</h2><button type="button" class="ghost" onclick="document.getElementById('form').hidden=true">Close</button></div><div class="dealform"><label>First name<input id="cFirst"></label><label>Last name<input id="cLast"></label><label>Title<input id="cTitle"></label><label>Email<input id="cEmail"></label><label>Phone<input id="cPhone"></label><label>City<input id="cCity"></label><label>Company<select id="cCompany"><option value="">None</option>${(bag.companies||[]).map((row)=>`<option value="${row.id}">${esc(row.name)}</option>`).join('')}</select></label><label>Source<input id="cSource"></label><label>Status<select id="cStatus"><option>ACTIVE</option><option>CUSTOMER</option><option>INACTIVE</option></select></label><label>How they like to be reached<select id="cMethod"><option>Call</option><option>WhatsApp</option><option>Email</option></select></label><label>Owner<select id="cOwner"><option value="">Me</option>${ownerOptions()}</select></label></div><div class="dealactions"><button type="button" onclick="saveContact()">Create</button></div></aside></div>`;
+    document.getElementById('view').innerHTML = `<div class="cx">
+      <div class="cx-head"><h1>Contacts</h1><div><button type="button" class="cx-tool" onclick="go('import')">Import</button> <button type="button" class="cx-go" onclick="document.getElementById('form').hidden=false">+ Create contact</button></div></div>
+      <div class="cx-bar"><div class="cx-left"><input class="cx-search" placeholder="Search contacts..." value="${esc(cxQuery)}" oninput="setCx('query', this.value)"><button type="button" class="cx-tool" onclick="setCx('filters')">Filters${filtersOn ? `<span class="cx-badge">${filtersOn}</span>` : ''}</button><button type="button" class="cx-tool" onclick="setCx('sortbox')">Sort</button></div><div class="cx-right"><button type="button" class="cx-tool ${cxMode==='list'?'on':''}" onclick="setCx('mode','list')">List</button><button type="button" class="cx-tool" onclick="setCx('mode','board')">Board</button><button type="button" class="cx-tool" onclick="setCx('mode','map')">Map</button><button type="button" class="cx-tool" onclick="setCx('mode','calendar')">Calendar</button><button type="button" class="cx-tool" onclick="setCx('cols')">Columns</button></div></div>
+      ${cxShowFilters ? `<div class="cx-panel"><label>Owner<select onchange="contactOwner=this.value;drawContacts()"><option value="">Anyone</option>${owners}</select></label> <label>Status<select onchange="contactStatus=this.value;drawContacts()"><option value="">Any</option><option ${contactStatus==='ACTIVE'?'selected':''}>ACTIVE</option><option ${contactStatus==='CUSTOMER'?'selected':''}>CUSTOMER</option><option ${contactStatus==='INACTIVE'?'selected':''}>INACTIVE</option></select></label> <label>Created from<input type="date" value="${esc(contactFrom)}" onchange="contactFrom=this.value;drawContacts()"></label> <button type="button" class="cx-tool" onclick="contactOwner='';contactStatus='';contactFrom='';drawContacts()">Clear</button></div>` : ''}
+      ${cxShowSort ? `<div class="cx-panel"><button type="button" class="cx-tool" onclick="setCx('sort','name')">Name</button><button type="button" class="cx-tool" onclick="setCx('sort','new')">Newest</button><button type="button" class="cx-tool" onclick="setCx('sort','touch')">Last activity</button><button type="button" class="cx-tool" onclick="setCx('sort','value')">Deal value</button><button type="button" class="cx-tool" onclick="setCx('sort','score')">Lead score</button></div>` : ''}
+      ${cxShowCols ? `<div class="cx-panel">${['company','value','score','activity','owner','status'].map((key) => `<label style="margin-right:10px"><input type="checkbox" ${cxCols[key]?'checked':''} onchange="setCx('col','${key}')"> ${key}</label>`).join('')}</div>` : ''}
+      <div class="cx-views">${views.map(([id, label]) => `<button type="button" class="${cxSaved===id?'on':''}" onclick="setCx('saved','${id.replace(/'/g, '')}')">${esc(label)}</button>`).join('')}<button type="button" onclick="addContactView()">+ Add view</button></div>
+      ${body}<div class="cx-muted" style="margin-top:8px">${rows.length} contact${rows.length===1?'':'s'}</div>${form}</div>`;
+  };
+
+  let crFilter = 'all';
+  window.setCrFilter = function (value) { crFilter = value; drawRecord(); };
+  window.copyProp = function (text) { navigator.clipboard.writeText(text || '').then(() => toast('Copied')).catch(() => toast('Could not copy')); };
+  window.logOnContact = async function (type) {
+    if (!focus) return;
+    if (type === 'whatsapp') {
+      const rec = (bag.contacts || []).find((row) => row.id === focus.id) || {};
+      const phone = String(rec.phone || rec.mobile || '').replace(/[^\d]/g, '');
+      if (!phone) return toast('No phone on this contact');
+      window.open('https://wa.me/' + phone, '_blank', 'noopener');
+      return;
+    }
+    const subject = window.prompt(type === 'note' ? 'Note' : 'Subject');
+    if (!subject) return;
+    if (type === 'note') {
+      const result = await api('/crm/api/notes', { method: 'POST', body: JSON.stringify({ body: subject, relatedType: 'contact', relatedId: focus.id }) });
+      if (!result || result.error) return toast((result && result.error) || 'Could not save');
+      toast('Note saved'); return drawRecord();
+    }
+    const result = await api('/crm/api/activities', { method: 'POST', body: JSON.stringify({ type: type.toUpperCase(), subject, status: type === 'task' || type === 'meeting' ? 'PLANNED' : 'DONE', relatedType: 'contact', relatedId: focus.id }) });
+    if (!result || result.error) return toast((result && result.error) || 'Could not save');
+    toast('Saved'); refresh();
+  };
+
+  const priorRecord = drawRecord;
+  drawRecord = async function () {
+    if (!focus || focus.type !== 'contact') return priorRecord();
+    const data = await api('/crm/api/record/contact/' + focus.id);
+    if (!data || data.error) { toast((data && data.error) || 'Could not open it'); return go('contacts'); }
+    const rec = data.record;
+    const scored = contactScore(rec);
+    const name = person(rec);
+    const company = (bag.companies || []).find((row) => row.id === rec.companyId);
+    const deals = data.deals || [];
+    const tasks = (data.activities || []).filter((row) => row.status === 'PLANNED');
+    const bits = []
+      .concat((data.notes || []).map((row) => ({ kind: 'note', at: row.createdAt, title: 'Note', detail: row.body })))
+      .concat((data.activities || []).map((row) => ({ kind: String(row.type || 'task').toLowerCase(), at: row.createdAt || row.dueAt, title: row.subject || row.type, detail: row.notes || (row.status === 'PLANNED' ? 'Open' : 'Done'), done: row.status !== 'PLANNED' })))
+      .concat(deals.map((row) => ({ kind: 'deal', at: row.createdAt, title: row.name, detail: money(row.amount) + ' · ' + (row.stage || '') })))
+      .concat((data.history || []).map((row) => ({ kind: 'task', at: row.createdAt, title: row.action, detail: row.detail || '' })));
+    bits.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    const shown = bits.filter((row) => crFilter === 'all' || row.kind === crFilter || (crFilter === 'file' && row.kind === 'file'));
+    const phone = rec.phone || rec.mobile || '';
+    const wa = String(phone).replace(/[^\d]/g, '');
+    const filters = ['all','note','email','call','meeting','whatsapp','task'].map((id) => `<button type="button" class="cx-tool ${crFilter===id?'on':''}" onclick="setCrFilter('${id}')">${id === 'all' ? 'All activity' : id[0].toUpperCase()+id.slice(1)}</button>`).join('');
+    const entries = shown.map((row) => `<article class="cr-entry ${row.kind} ${row.done ? 'done' : ''}"><b>${esc(row.title || row.kind)}</b><div class="cx-muted">${esc(row.detail || '')}</div><div class="cx-muted">${esc(relativeTime(row.at) || '')}</div></article>`).join('') || '<div class="cx-muted">Nothing in this filter.</div>';
+    const dealCards = deals.map((row) => `<button type="button" class="cr-assoc" style="width:100%;text-align:left" onclick="openRecord('deal','${row.id}')"><b>${esc(row.name)}</b><div class="cx-muted">${esc(row.stage || '')} · ${money(row.amount)}${row.closeDate ? ' · ' + esc(String(row.closeDate).slice(0,10)) : ''}</div></button>`).join('') || '<div class="cx-muted">No deal yet.</div>';
+    const taskRows = tasks.map((row) => `<div class="cr-prop"><span>${esc(row.subject)}</span><span class="cx-muted">${esc(String(row.dueAt || '').slice(0,10) || 'No date')}</span></div>`).join('') || '<div class="cx-muted">No open task.</div>';
+    document.getElementById('view').innerHTML = `<div class="cr-head"><div class="cx-muted">Contacts › ${esc(name)}</div><button type="button" class="cx-go" onclick="saveProfile()">Save</button></div>
+      <div class="cr">
+        <aside class="cr-side">
+          <div class="cx-who"><span class="cx-av lg">${esc(initials(name))}</span><div><h1 style="font-size:22px;margin:0">${esc(name)}</h1><div class="cx-muted">${esc(rec.title || '')}${rec.title && company ? ' · ' : ''}${esc(company ? company.name : '')}</div><div style="margin-top:6px">${scorePill(data.score != null ? data.score : scored.score)} <span class="cx-muted">Lead score</span></div></div></div>
+          <h2 style="font-size:13px;margin:16px 0 6px">Properties</h2>
+          <div class="cr-prop"><span>Email</span><span>${esc(rec.email || '—')} ${rec.email ? `<button type="button" class="cx-tool" onclick="copyProp('${esc(rec.email)}')">Copy</button>` : ''}</span></div>
+          <div class="cr-prop"><span>Phone</span><span>${esc(phone || '—')} ${phone ? `<button type="button" class="cx-tool" onclick="copyProp('${esc(phone)}')">Copy</button> <a href="tel:${esc(phone)}">Call</a>` : ''} ${wa ? `<a href="https://wa.me/${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ''}</span></div>
+          <div class="cr-prop"><span>Company</span><span>${company ? `<button type="button" class="cx-link" onclick="openRecord('company','${company.id}')">${esc(company.name)}</button>` : '—'}</span></div>
+          <div class="cr-prop"><span>Source</span><b>${esc(rec.source || '—')}</b></div>
+          <div class="cr-prop"><span>Created</span><b>${esc(String(rec.createdAt || '').slice(0,10) || '—')}</b></div>
+          <div class="cr-prop"><span>Last activity</span><b>${esc(relativeTime(lastTouch(rec.id)) || 'None')}</b></div>
+          <label>Lifecycle<select data-key="status"><option ${rec.status==='ACTIVE'?'selected':''}>ACTIVE</option><option ${rec.status==='CUSTOMER'?'selected':''}>CUSTOMER</option><option ${rec.status==='INACTIVE'?'selected':''}>INACTIVE</option></select></label>
+          <label>Owner<select data-key="ownerId"><option value="">Unassigned</option>${(bag.people||[]).map((row)=>`<option value="${row.id}" ${row.id===rec.ownerId?'selected':''}>${esc(row.fullName||row.email)}</option>`).join('')}</select></label>
+          <label>Company<select data-key="companyId"><option value="">None</option>${(bag.companies||[]).map((row)=>`<option value="${row.id}" ${row.id===rec.companyId?'selected':''}>${esc(row.name)}</option>`).join('')}</select></label>
+          ${fieldBox('firstName','First name', rec.firstName)}${fieldBox('lastName','Last name', rec.lastName)}${fieldBox('title','Title', rec.title)}${fieldBox('email','Email', rec.email)}${fieldBox('phone','Phone', rec.phone)}${fieldBox('mobile','Mobile', rec.mobile)}${fieldBox('source','Source', rec.source)}${fieldBox('method','How they like to be reached', rec.method)}${fieldBox('city','City', rec.city)}${fieldBox('description','About', rec.description)}
+          <h2 style="font-size:13px;margin:16px 0 6px">Why this score</h2>
+          ${scored.parts.map(([label, pts]) => `<div class="cr-prop"><span>${esc(label)}</span><b>${pts > 0 ? '+' : ''}${pts}</b></div>`).join('')}
+          <div class="cx-muted">The number on the pill is the same rule the record uses. It is not a guessed marketing score.</div>
+        </aside>
+        <section class="cr-main">
+          <div class="cr-feed">${filters}<button type="button" class="cx-go" onclick="document.getElementById('crAdd').hidden=!document.getElementById('crAdd').hidden">+ Add activity</button></div>
+          <div id="crAdd" hidden class="cx-panel"><button type="button" class="cx-tool" onclick="logOnContact('note')">Add note</button> <button type="button" class="cx-tool" onclick="logOnContact('call')">Log call</button> <button type="button" class="cx-tool" onclick="logOnContact('email')">Log email</button> <button type="button" class="cx-tool" onclick="logOnContact('meeting')">Schedule meeting</button> <button type="button" class="cx-tool" onclick="logOnContact('task')">Create task</button> <button type="button" class="cx-tool" onclick="logOnContact('whatsapp')">Open WhatsApp</button></div>
+          ${entries}
+          <label>Note<textarea id="noteBody" style="height:70px"></textarea></label><button type="button" class="cx-go" onclick="saveRecordNote()">Save note</button>
+        </section>
+        <aside class="cr-side">
+          <h2 style="font-size:14px">Associated deals</h2>${dealCards}<button type="button" class="cx-tool" onclick="go('deals','deal')">+ Create deal</button>
+          <h2 style="font-size:14px;margin-top:16px">Associated company</h2>${company ? `<div class="cr-assoc"><b>${esc(company.name)}</b><div class="cx-muted">${esc(company.industry || '')}</div><div class="cx-muted">${esc(company.website || '')}</div><div class="cx-muted">${esc(company.phone || '')}</div></div>` : '<div class="cx-muted">No company. Choose one under Properties and save.</div>'}
+          <h2 style="font-size:14px;margin-top:16px">Open tasks (${tasks.length})</h2>${taskRows}<button type="button" class="cx-tool" onclick="go('tasks','task')">+ Create task</button>
+        </aside>
+      </div>`;
+  };
+})();
