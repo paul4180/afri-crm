@@ -7905,6 +7905,7 @@
       if (noteFilter === 'deals') return type === 'deal';
       if (noteFilter === 'mentions') return /mention|@/i.test((row.title || '') + ' ' + (row.body || ''));
       if (noteFilter === 'system') return !['task', 'deal', 'contact', 'lead'].includes(type);
+      try { const off = JSON.parse(localStorage.getItem('crm-note-off') || '[]'); if (off.includes(type)) return false; } catch (e) {}
       return true;
     });
     const tab = (id, label) => `<button type="button" class="${noteFilter === id ? 'on' : ''}" onclick="noteFilter='${id}';loadBell()">${label}</button>`;
@@ -10335,3 +10336,101 @@ window.openSearchHit = function (kind, id) {
   dress();
 })();
 
+
+(function () {
+  const css = document.createElement('style');
+  css.textContent = `
+    #view .set { background: #f4f6f8 !important; border-radius: 16px; padding: 16px; color: #0f172a !important; }
+    #view .set-grid { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 16px; align-items: start; }
+    #view .setnav { display: flex; flex-direction: column; gap: 4px; }
+    #view .setnav button.set-tab:not(.go):not(.x) { background: #fff !important; color: #334155 !important; border: 1px solid #e5e8eb !important; box-shadow: none !important; text-align: left; border-radius: 8px !important; }
+    #view .setnav button.set-tab.on:not(.go) { background: #0f766e !important; color: #fff !important; }
+    #view .set input, #view .set select, #view .set textarea { background: #fff !important; color: #0f172a !important; border: 1px solid #cbd5e1 !important; }
+    #view .set-score { background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+    #view .set-bar { height: 8px; background: #e2e8f0; border-radius: 99px; overflow: hidden; margin-top: 8px; }
+    #view .set-bar i { display: block; height: 100%; background: #0f766e; }
+    @media (max-width: 800px) { #view .set-grid { grid-template-columns: 1fr; } }
+  `;
+  document.head.appendChild(css);
+  window.setTab = function (id) { window.__settingsTab = id; drawSettings(); };
+  window.setNote = function (type, on) {
+    let off = [];
+    try { off = JSON.parse(localStorage.getItem('crm-note-off') || '[]'); } catch (e) { off = []; }
+    off = off.filter((item) => item !== type);
+    if (!on) off.push(type);
+    localStorage.setItem('crm-note-off', JSON.stringify(off));
+    if (typeof loadBell === 'function') loadBell();
+  };
+  window.setSaveAccount = async function () {
+    const current = await api('/crm/api/setup');
+    const body = Object.assign({}, current || {}, { industry: document.getElementById('setIndustry').value, channel: document.getElementById('setChannel').value, goal: document.getElementById('setGoal').value, done: 1 });
+    const result = await api('/crm/api/setup', { method: 'POST', body: JSON.stringify(body) });
+    toast(result && !result.error ? 'Saved' : (result && result.error) || 'Could not save');
+  };
+  window.setExport = function () {
+    const rows = bag.contacts || [];
+    const head = ['firstName', 'lastName', 'email', 'phone', 'company'];
+    const lines = [head.join(',')].concat(rows.map((row) => head.map((key) => '"' + String(row[key] || '').replace(/"/g, '""') + '"').join(',')));
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'contacts.csv';
+    link.click();
+  };
+  window.setKey = async function () {
+    const result = await api('/crm/api/api-keys', { method: 'POST', body: JSON.stringify({ name: document.getElementById('keyName').value }) });
+    const box = document.getElementById('keyOut');
+    if (!result || result.error) { if (box) box.textContent = (result && result.error) || 'Could not create a key'; return; }
+    if (box) box.textContent = 'Copy this now. It is not shown again: ' + result.key;
+  };
+  async function readiness() {
+    const [setup, accounts, pipe, ints] = await Promise.all([api('/crm/api/setup'), api('/crm/api/accounts'), api('/crm/api/pipeline'), api('/crm/api/integrations')]);
+    const gaps = [];
+    let score = 0;
+    if (setup && setup.industry) score += 20; else gaps.push('Set the industry');
+    if (Array.isArray(accounts) && accounts.length) score += 15; else gaps.push('No user could be loaded');
+    const stages = (pipe && pipe.stages) || [];
+    const bare = stages.filter((row) => !Number(row.probability) && !row.closed);
+    if (stages.length && !bare.length) score += 20; else gaps.push(bare.length ? bare.length + ' stages have no chance' : 'No pipeline stages');
+    const connected = Array.isArray(ints) ? ints.filter((row) => row.status === 'connected') : [];
+    if (connected.length) score += 20; else gaps.push('Connect Gmail or Calendar');
+    if ((bag.contacts || []).length) score += 15; else gaps.push('Add a contact before you export');
+    if ((bag.leads || []).length) score += 10; else gaps.push('Add a lead so the score model has something to rank');
+    return { score, gaps };
+  }
+  window.drawSettings = async function () {
+    const tab = window.__settingsTab || 'account';
+    const tabs = [['account', 'Account'], ['users', 'Users and teams'], ['pipeline', 'Pipeline'], ['scoring', 'Lead scoring'], ['integrations', 'Integrations'], ['notifications', 'Notifications'], ['import', 'Import and export'], ['api', 'API and webhooks']];
+    document.getElementById('view').innerHTML = `<div class="set"><div class="set-score" id="setScore">Checking the workspace…</div><div class="set-grid"><nav class="setnav">${tabs.map(([id, label]) => `<button type="button" class="set-tab ${tab === id ? 'on' : ''}" onclick="setTab('${id}')">${label}</button>`).join('')}</nav><div id="settingsContent"><p class="cx-muted">Loading…</p></div></div></div>`;
+    const mark = await readiness();
+    const box = document.getElementById('setScore');
+    if (box) box.innerHTML = `<b>Setup ${mark.score} / 100</b><div class="cx-muted">${esc(mark.gaps[0] || 'The checked pieces are filled in.')}</div><div class="set-bar"><i style="width:${mark.score}%"></i></div>`;
+    if (tab === 'users' && window.__settingsTeam) return window.__settingsTeam();
+    if (tab === 'pipeline' && window.__settingsPipeline) return window.__settingsPipeline();
+    if (tab === 'integrations' && window.__settingsIntegrations) return window.__settingsIntegrations();
+    const el = document.getElementById('settingsContent');
+    if (!el) return;
+    if (tab === 'account') {
+      const data = await api('/crm/api/setup') || {};
+      const industry = ['Services', 'Retail', 'Manufacturing', 'Agriculture', 'Other'].map((name) => `<option ${data.industry === name ? 'selected' : ''}>${name}</option>`).join('');
+      el.innerHTML = `<div class="ws-card"><b>Account</b><p class="cx-muted">Signed in as ${esc(company || '')}. Currency is NGN. Time zone is Africa/Lagos. A logo is not stored.</p><label>Industry<select id="setIndustry">${industry}</select></label><label>How you sell<select id="setChannel">${['Phone & WhatsApp', 'Email', 'In-person', 'Mixed'].map((name) => `<option ${data.channel === name ? 'selected' : ''}>${name}</option>`).join('')}</select></label><label>Goal<select id="setGoal">${['Close deals', 'Customer support', 'Job delivery'].map((name) => `<option ${data.goal === name ? 'selected' : ''}>${name}</option>`).join('')}</select></label><p><button type="button" onclick="setSaveAccount()">Save</button></p></div>`;
+    } else if (tab === 'scoring') {
+      const data = await api('/crm/api/lead-scores');
+      const rows = (data && data.rows) || [];
+      const list = rows.slice().sort((a, b) => b.score - a.score).slice(0, 6).map((row) => `<tr><td>${esc(row.band || '')}</td><td>${row.score}</td><td>${esc((row.reasons || [])[0] || '')}</td></tr>`).join('') || '<tr><td colspan="3">No lead to score.</td></tr>';
+      el.innerHTML = `<div class="ws-card"><b>Lead scoring</b><p class="cx-muted">The model is ${esc((data && data.model) || 'the lead model')}. It uses the lead, the activity on that lead, and how leads from the same source turned out. A hand-typed plus or minus would not match that, so there is no point list to edit.</p><table class="ws-table"><thead><tr><th>Band</th><th>Score</th><th>Why</th></tr></thead><tbody>${list}</tbody></table><p class="cx-muted">${rows.length} leads scored. ${data && data.decided ? data.decided + ' leads have a known outcome.' : ''}</p></div>`;
+    } else if (tab === 'notifications') {
+      const off = JSON.parse(localStorage.getItem('crm-note-off') || '[]');
+      const row = (type, label) => `<label><input type="checkbox" ${off.includes(type) ? '' : 'checked'} onchange="setNote('${type}', this.checked)"> ${label}</label>`;
+      el.innerHTML = `<div class="ws-card"><b>Notifications</b><p class="cx-muted">These switches hide a type in the in-app bell. Email, WhatsApp, and Slack are not sent from here.</p>${row('lead', 'New lead')}${row('deal', 'Deal moved')}${row('task', 'Task')}<p class="cx-muted">A contact reply and a finished sequence are not separate alerts yet.</p></div>`;
+    } else if (tab === 'import') {
+      el.innerHTML = `<div class="ws-card"><b>Import and export</b><p class="cx-muted">CSV import is the contact import you already have. HubSpot and Salesforce import are not built.</p><p><button type="button" onclick="go('import')">Import contacts</button> <button type="button" class="ghost" onclick="setExport()">Download contacts CSV</button></p><p class="cx-muted">${(bag.contacts || []).length} contacts will be in the file.</p></div>`;
+    } else if (tab === 'api') {
+      const keys = await api('/crm/api/api-keys');
+      const hooks = await api('/crm/api/webhooks');
+      const keyRows = (Array.isArray(keys) ? keys : []).map((row) => `<tr><td>${esc(row.name)}</td><td>${esc(row.prefix || '')}</td></tr>`).join('') || '<tr><td colspan="2">No key yet.</td></tr>';
+      const hookRows = (Array.isArray(hooks) ? hooks : []).map((row) => `<tr><td>${esc(row.name)}</td><td>${esc(row.url)}</td></tr>`).join('') || '<tr><td colspan="2">No webhook yet.</td></tr>';
+      el.innerHTML = `<div class="ws-card"><b>API keys</b><table class="ws-table"><thead><tr><th>Name</th><th>Prefix</th></tr></thead><tbody>${keyRows}</tbody></table><label>Name<input id="keyName" placeholder="Server"></label><p><button type="button" onclick="setKey()">Create a key</button></p><p id="keyOut" class="cx-muted"></p></div><div class="ws-card"><b>Webhooks</b><table class="ws-table"><thead><tr><th>Name</th><th>URL</th></tr></thead><tbody>${hookRows}</tbody></table><p class="cx-muted">A new webhook still needs an https address. Owners and admins can create one from the API. The docs are the routes under /crm/api.</p></div>`;
+    }
+  };
+})();
