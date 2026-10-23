@@ -7622,7 +7622,7 @@
     const audience = (bag.contacts || []).filter((row) => row.email).slice(0, 8);
     const next = ranked[0] ? ranked[0].name + ' — ' + ranked[0].advice : (audience.length ? 'No campaign yet. The first email can go to ' + audience.length + ' people.' : 'No campaign yet, and no contact has an email.');
     const off = localStorage.getItem('crm-studio-off') === '1';
-    const hero = off ? '' : `<div class="ms-hero"><div><div class="ms-kicker">Marketing Studio</div><h1>Campaigns just got smarter. Meet Marketing Studio — built to help your team create, collaborate, and improve performance.</h1><div class="ms-point"><span>→</span><div><b>Spend less time in dashboards.</b> The list below is ordered by what needs a send, not by a guessed open rate.</div></div><div class="ms-point"><span>→</span><div><b>Turn performance into action.</b> ${esc(next)}</div></div><div class="ms-point"><span>→</span><div><b>One campaign record.</b> Email is sent from here. WhatsApp, SMS, and LinkedIn are only recorded after you send them yourself.</div></div><p><button type="button" onclick="mktTab='emails';drawMarketing()">Write an email</button> <button type="button" class="ghost" onclick="mktTab='forms';drawMarketing()">Make a form</button> <button type="button" class="ghost" onclick="mktTab='ads';drawMarketing()">Record ad spend</button></p></div><div class="ms-stage"><div class="ms-orb"></div><article class="ms-card c1"><b>${esc(audience[0] ? person(audience[0]) : 'No one yet')}</b><div class="cx-muted">${esc(audience[0] ? audience[0].email : 'Add an email on a contact')}</div></article><article class="ms-card c2"><b>${reachable}</b><div class="cx-muted">ready for the first email</div></article><article class="ms-card c3"><b>${list.reduce((sum, row) => sum + Number(row.sent || 0), 0)}</b><div class="cx-muted">sends recorded</div></article></div></div>`;
+    const hero = off ? '' : `<div class="ms-hero"><div><div class="ms-kicker">Marketing Studio</div><h1>Campaigns just got smarter. Meet Marketing Studio — built to help your team create, collaborate, and improve performance.</h1><div class="ms-point"><span>→</span><div><b>Spend less time in dashboards.</b> The list below is ordered by what needs a send, not by a guessed open rate.</div></div><div class="ms-point"><span>→</span><div><b>Turn performance into action.</b> ${esc(next)}</div></div><div class="ms-point"><span>→</span><div><b>One campaign record.</b> Email is sent from here. WhatsApp, SMS, and LinkedIn are only recorded after you send them yourself.</div></div><p><button type="button" onclick="mktTab='emails';drawMarketing()">Write an email</button> <button type="button" class="ghost" onclick="openWaBroadcast()">WhatsApp broadcast</button> <button type="button" class="ghost" onclick="mktTab='forms';drawMarketing()">Make a form</button> <button type="button" class="ghost" onclick="mktTab='ads';drawMarketing()">Record ad spend</button></p></div><div class="ms-stage"><div class="ms-orb"></div><article class="ms-card c1"><b>${esc(audience[0] ? person(audience[0]) : 'No one yet')}</b><div class="cx-muted">${esc(audience[0] ? audience[0].email : 'Add an email on a contact')}</div></article><article class="ms-card c2"><b>${reachable}</b><div class="cx-muted">ready for the first email</div></article><article class="ms-card c3"><b>${list.reduce((sum, row) => sum + Number(row.sent || 0), 0)}</b><div class="cx-muted">sends recorded</div></article></div></div>`;
     const table = ranked.map((row) => `<tr><td>${esc(row.name)}</td><td>${names[row.channel] || 'Email'}</td><td>${Number(row.sent || 0)}</td><td>—</td><td>—</td><td>—</td><td>${esc(row.status || '')}</td><td>${esc(row.advice)}</td></tr>`).join('') || '<tr><td colspan="8">No campaign yet. Write an email, or record a WhatsApp, SMS, or LinkedIn send below.</td></tr>';
     const people = audience.map((row) => `<article class="ms-person"><b>${esc(person(row))}</b><div class="cx-muted">${esc(row.email)}</div></article>`).join('') || '<p class="cx-muted">No contact has an email, so a campaign has nobody to reach.</p>';
     document.getElementById('view').innerHTML = `<div class="ms">${hero}<button type="button" class="ms-opt" onclick="mktOpt()">${off ? 'Show Marketing Studio' : 'Opt out of Marketing Studio'}</button><div class="ws-card"><table class="ws-table"><thead><tr><th>Campaign</th><th>Type</th><th>Sends</th><th>Open</th><th>Click</th><th>Replies</th><th>Status</th><th>Next</th></tr></thead><tbody>${table}</tbody></table><p class="cx-muted">Open, click, and replies are not tracked, so those columns stay empty. The order uses sends, how many addresses you have, and how long since the send.</p></div><div class="ws-card"><b>Who can receive the first email</b><div class="ms-people">${people}</div></div><div class="ws-card"><b>Record a send Afri did not make</b><p class="cx-muted">Use this after you have already sent it on WhatsApp, SMS, or LinkedIn. Afri does not send those.</p><div class="ms-log"><label>Name<input id="logName" placeholder="March price list"></label><label>Type<select id="logChannel"><option value="WHATSAPP">WhatsApp</option><option value="SMS">SMS</option><option value="LINKEDIN">LinkedIn</option></select></label><label>How many you sent<input id="logSent" inputmode="numeric" value="0"></label><button type="button" class="ghost" onclick="mktLog()">Record</button></div></div></div>`;
@@ -10785,5 +10785,158 @@ window.openSearchHit = function (kind, id) {
     shade.addEventListener('click', (e) => { if (e.target === shade) shade.remove(); });
     build('');
     input.focus();
+  };
+})();
+
+(function () {
+  const css = document.createElement('style');
+  css.textContent = `
+    .wa-sheet { position: fixed; top: 0; right: 0; width: min(400px, 100vw); height: 100vh; background: #0b141a; color: #e9edef; z-index: 75; display: flex; flex-direction: column; box-shadow: -12px 0 40px rgba(0,0,0,.35); }
+    .wa-head { padding: 14px 16px; background: #1f2c34; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+    .wa-head b { display: block; }
+    .wa-head span { color: #8696a0; font-size: 12px; }
+    .wa-head button { background: transparent !important; color: #e9edef !important; border: 0 !important; box-shadow: none !important; }
+    .wa-next { margin: 8px 12px; padding: 8px 10px; border-radius: 8px; background: #1f2c34; font-size: 12px; color: #d1fae5; }
+    .wa-log { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+    .wa-day { align-self: center; font-size: 11px; color: #8696a0; margin: 8px 0; }
+    .wa-bubble { max-width: 80%; padding: 8px 10px; border-radius: 10px; font-size: 14px; white-space: pre-wrap; }
+    .wa-bubble.out { align-self: flex-end; background: #005c4b; }
+    .wa-bubble.in { align-self: flex-start; background: #1f2c34; }
+    .wa-compose { padding: 10px; background: #1f2c34; display: grid; gap: 8px; }
+    .wa-compose textarea { background: #2a3942 !important; color: #fff !important; border: 0 !important; min-height: 64px; }
+    .wa-tools { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .wa-tools button, .wa-tools select { width: auto !important; background: #2a3942 !important; color: #e9edef !important; border: 0 !important; box-shadow: none !important; border-radius: 8px !important; }
+    .wa-tools .go { background: #00a884 !important; color: #fff !important; }
+    .wa-count { margin-left: auto; color: #8696a0; font-size: 12px; }
+    .wa-emoji { display: flex; gap: 4px; }
+    .wa-emoji button { padding: 4px 6px !important; }
+    .wa-pick { background: #111b21; color: #e9edef; }
+    .wa-pick label { color: #e9edef; }
+    .wa-table { width: 100%; font-size: 13px; }
+    .wa-table td { padding: 6px 0; border-bottom: 1px solid #1f2c34; }
+  `;
+  document.head.appendChild(css);
+
+  function digits(raw) {
+    let n = String(raw || '').replace(/\D/g, '');
+    if (n.startsWith('0')) n = '234' + n.slice(1);
+    else if (n.length === 10) n = '234' + n;
+    return n;
+  }
+  function templates() {
+    const saved = JSON.parse(localStorage.getItem('crm-wa-templates') || 'null');
+    return saved || ['Hello {name}, this is a quick note from us.', 'Following up on our last conversation.', 'Here is the price we discussed.'];
+  }
+  function fill(text, contact) {
+    return String(text || '').replaceAll('{name}', person(contact).split(' ')[0] || 'there');
+  }
+  function thread(rows, id) {
+    return (rows || []).filter((row) => row.type === 'WHATSAPP' && row.relatedId === id).sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+  }
+  function bodyOf(row) { return String(row.notes || row.subject || '').replace(/^(IN|OUT)\n?/, ''); }
+  function rankOne(contact) {
+    const phone = contact.mobile || contact.phone;
+    if (!phone) return null;
+    const mine = (bag.activities || []).filter((row) => row.type === 'WHATSAPP' && row.relatedId === contact.id);
+    const last = mine.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+    let score = 15;
+    const why = [];
+    if (!last) { score += 40; why.push('no WhatsApp yet'); }
+    else {
+      const days = Math.max(0, Math.round((Date.now() - new Date(last.createdAt).getTime()) / 86400000));
+      if (String(last.notes || '').startsWith('IN')) { score += 5; why.push('they wrote last'); }
+      else { score += Math.min(35, days * 4); why.push('you wrote ' + days + 'd ago, no reply logged'); }
+    }
+    if ((bag.deals || []).some((row) => row.contactId === contact.id && !String(row.stage || '').startsWith('CLOSED'))) { score += 20; why.push('open deal'); }
+    return { contact, score, why: why.join(' · ') };
+  }
+
+  async function saveMessage(contactId, text, direction) {
+    return api('/crm/api/activities', { method: 'POST', body: JSON.stringify({ type: 'WHATSAPP', subject: text.slice(0, 80) || 'WhatsApp', notes: direction + '\n' + text, status: 'DONE', relatedType: 'contact', relatedId: contactId }) });
+  }
+
+  window.openWhatsApp = async function (id) {
+    const old = document.getElementById('waSheet');
+    if (old) old.remove();
+    const contact = (bag.contacts || []).find((row) => row.id === id);
+    if (!contact) return toast('Open the contact first');
+    const number = digits(contact.mobile || contact.phone);
+    const ranked = (bag.contacts || []).map(rankOne).filter(Boolean).sort((a, b) => b.score - a.score);
+    const top = ranked[0];
+    const rows = await api('/crm/api/activities');
+    const mine = thread(Array.isArray(rows) ? rows : bag.activities, id);
+    const sheet = document.createElement('aside');
+    sheet.id = 'waSheet';
+    sheet.className = 'wa-sheet';
+    let day = '';
+    const bubbles = mine.map((row) => {
+      const when = String(row.createdAt || '').slice(0, 10);
+      const stamp = when !== day ? `<div class="wa-day">${esc(when)}</div>` : '';
+      day = when;
+      const side = String(row.notes || '').startsWith('IN') ? 'in' : 'out';
+      return stamp + `<div class="wa-bubble ${side}">${esc(bodyOf(row))}</div>`;
+    }).join('') || '<div class="wa-day">No message logged yet.</div>';
+    const options = templates().map((text, index) => `<option value="${index}">${esc(text.slice(0, 42))}</option>`).join('');
+    sheet.innerHTML = `<div class="wa-head"><div><b>WhatsApp — ${esc(person(contact))}</b><span>${number ? '+' + esc(number) : 'No phone on this contact'}</span></div><button type="button" onclick="document.getElementById('waSheet').remove()">Close</button></div>${top ? `<div class="wa-next">Next: ${esc(person(top.contact))} · ${esc(top.why)}</div>` : ''}<div class="wa-log">${bubbles}</div><div class="wa-compose"><div class="wa-tools"><select id="waTpl"><option value="">Use template</option>${options}</select></div><textarea id="waText" maxlength="4096" placeholder="Message"></textarea><div class="wa-emoji">${['😊','👍','🙏','✅','📅'].map((mark) => `<button type="button" data-emoji="${mark}">${mark}</button>`).join('')}<label>File<input id="waFile" type="file"></label><span class="wa-count" id="waCount">0 / 4096</span></div><div class="wa-tools"><button type="button" class="go" id="waSend">Send</button><button type="button" id="waReply">Log their reply</button></div></div>`;
+    document.body.appendChild(sheet);
+    const box = document.getElementById('waText');
+    const count = () => { document.getElementById('waCount').textContent = box.value.length + ' / 4096'; };
+    box.addEventListener('input', count);
+    document.getElementById('waTpl').onchange = (e) => { const text = templates()[Number(e.target.value)]; if (text) { box.value = fill(text, contact); count(); } };
+    sheet.querySelectorAll('[data-emoji]').forEach((btn) => { btn.onclick = () => { box.value += btn.dataset.emoji; count(); box.focus(); }; });
+    document.getElementById('waFile').onchange = (e) => { const file = e.target.files && e.target.files[0]; if (file) { box.value += (box.value ? '\n' : '') + '[File: ' + file.name + ']'; count(); toast('The name is in the message. Afri does not upload the file.'); } };
+    document.getElementById('waSend').onclick = async () => {
+      const text = box.value.trim();
+      if (!text) return toast('Write the message');
+      if (!number) return toast('Add a phone on this contact');
+      const saved = await saveMessage(id, text, 'OUT');
+      if (!saved || saved.error) return toast((saved && saved.error) || 'Could not log it');
+      window.open('https://wa.me/' + number + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
+      toast('Logged on the contact. WhatsApp has it ready. A read receipt is not tracked.');
+      refresh();
+      openWhatsApp(id);
+    };
+    document.getElementById('waReply').onclick = async () => {
+      const text = box.value.trim();
+      if (!text) return toast('Paste what they wrote');
+      const saved = await saveMessage(id, text, 'IN');
+      if (!saved || saved.error) return toast((saved && saved.error) || 'Could not log it');
+      toast('Reply logged');
+      refresh();
+      openWhatsApp(id);
+    };
+  };
+
+  window.openWaBroadcast = function () {
+    const old = document.getElementById('waSheet');
+    if (old) old.remove();
+    const ranked = (bag.contacts || []).map(rankOne).filter(Boolean).sort((a, b) => b.score - a.score);
+    const sheet = document.createElement('aside');
+    sheet.id = 'waSheet';
+    sheet.className = 'wa-sheet wa-pick';
+    const options = templates().map((text, index) => `<option value="${index}">${esc(text.slice(0, 48))}</option>`).join('');
+    sheet.innerHTML = `<div class="wa-head"><div><b>WhatsApp broadcast</b><span>Logged here. Afri does not deliver it.</span></div><button type="button" onclick="document.getElementById('waSheet').remove()">Close</button></div><div class="wa-compose"><label>Template<select id="bcTpl">${options}</select></label><textarea id="bcText"></textarea><p id="bcPreview"></p><button type="button" class="go" id="bcGo">Log and open the first chat</button><div id="bcOut"></div></div><div class="wa-log">${ranked.map((row) => `<label><input type="checkbox" value="${row.contact.id}" ${row.score >= 40 ? 'checked' : ''}> ${esc(person(row.contact))} · ${esc(row.why)} · ${row.score}</label>`).join('') || '<p>No contact has a phone.</p>'}</div>`;
+    document.body.appendChild(sheet);
+    const write = () => { const text = templates()[Number(document.getElementById('bcTpl').value)] || ''; document.getElementById('bcText').value = text; const first = ranked[0]; document.getElementById('bcPreview').textContent = first ? fill(text, first.contact) : ''; };
+    document.getElementById('bcTpl').onchange = write;
+    write();
+    document.getElementById('bcGo').onclick = async () => {
+      const text = document.getElementById('bcText').value.trim();
+      const ids = [...sheet.querySelectorAll('input:checked')].map((box) => box.value);
+      if (!text || !ids.length) return toast('Pick people and a message');
+      let logged = 0;
+      let first = null;
+      for (const id of ids) {
+        const contact = (bag.contacts || []).find((row) => row.id === id);
+        if (!contact) continue;
+        const saved = await saveMessage(id, fill(text, contact), 'OUT');
+        if (saved && !saved.error) { logged += 1; if (!first) first = contact; }
+      }
+      await api('/crm/api/campaigns/log', { method: 'POST', body: JSON.stringify({ channel: 'WHATSAPP', name: 'WhatsApp ' + new Date().toISOString().slice(0, 10), sent: logged }) });
+      if (first) window.open('https://wa.me/' + digits(first.mobile || first.phone) + '?text=' + encodeURIComponent(fill(text, first)), '_blank', 'noopener');
+      document.getElementById('bcOut').innerHTML = `<table class="wa-table"><tr><td>Logged</td><td>${logged}</td></tr><tr><td>Delivered</td><td>Not tracked</td></tr><tr><td>Read</td><td>Not tracked</td></tr></table>`;
+      toast(logged + ' logged. Only the first chat was opened.');
+      refresh();
+    };
   };
 })();

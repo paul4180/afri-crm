@@ -2540,7 +2540,7 @@ async function drawRecord() {
   const tags = (data.tags || []).map((row) => `<span class="score">${esc(row.name)}</span>`).join(' ') || '<span class="meta">No tag</span>';
   const tagPick = `<select id="recTag" onchange="attachTag('${{contact:'contacts',company:'companies',lead:'leads',deal:'deals'}[type]}','${rec.id}',this.value)"><option value="">Add a tag</option>${(bag.tags||[]).map((tag)=>`<option value="${tag.id}">${esc(tag.name)}</option>`).join('')}</select>`;
   const extra = (data.fields || []).map((row) => `<label>${esc(row.name)}<input data-field="${row.id}" value="${esc(row.value || '')}"></label>`).join('');
-  document.getElementById('view').innerHTML = `<div class="board-head"><div><button type="button" class="ghost" onclick="go('${back}')">Back</button></div><button type="button" onclick="saveProfile()">Save</button></div>
+  document.getElementById('view').innerHTML = `<div class="board-head"><div><button type="button" class="ghost" onclick="go('${back}')">Back</button>${type === 'contact' ? `<button type="button" class="ghost" onclick="openWhatsApp('${rec.id}')">WhatsApp</button>` : ''}</div><button type="button" onclick="saveProfile()">Save</button></div>
     <h1>${esc(title)}</h1>
     <div class="reports"><article class="report"><h2>Deals</h2><div style="font-size:32px">${(data.deals || []).length}</div></article><article class="report"><h2>Activity</h2><div style="font-size:32px">${(data.activities || []).length}</div></article><article class="report"><h2>Notes</h2><div style="font-size:32px">${(data.notes || []).length}</div></article><article class="report"><h2>${type === 'company' ? 'People' : 'Open tasks'}</h2><div style="font-size:32px">${type === 'company' ? (data.contacts || []).length : (data.activities || []).filter((row) => row.status === 'PLANNED').length}</div></article></div>
     ${type === 'deal' && rec.paidAt ? `<p class="hello">Paid on ${esc(String(rec.paidAt).slice(0, 10))}. The books recorded the money on the invoice from this deal.</p>` : ''}
@@ -3064,7 +3064,7 @@ document.getElementById('email').value = localStorage.getItem('crmEmail') || '';
   if (token) boot();
 })();
 </script>
-<script src="/crm-studio.js?v=99"></script>
+<script src="/crm-studio.js?v=100"></script>
 </body>
 </html>
 
