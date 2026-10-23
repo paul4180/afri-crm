@@ -7460,3 +7460,142 @@
       </div>`;
   };
 })();
+
+(function () {
+  const extra = document.createElement('style');
+  extra.textContent = `
+    .hs-kicker { font-size: 13px; color: #516f90 !important; display: flex; align-items: center; gap: 8px; margin: 0 0 8px; }
+    .hs-lead { font-family: Georgia, "Times New Roman", serif; font-size: clamp(32px, 4vw, 46px); font-weight: 500; letter-spacing: -0.03em; line-height: 1.15; margin: 0 0 16px; color: #2d3e50 !important; }
+    .hs-point { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0; color: #33475b; }
+    .hs-split { display: grid; grid-template-columns: minmax(0, 1.2fr) 300px; gap: 20px; align-items: start; }
+    .hs-stack { display: grid; gap: 10px; }
+    .hs-mini { background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 12px 14px; box-shadow: 0 8px 24px rgba(45,62,80,0.06); }
+    .hs-mini b { display: block; margin-bottom: 4px; }
+    .hs-agents { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+    .hs-agent { border: 1px solid #e5e8eb; border-radius: 14px; padding: 14px; background: #fff; }
+    .hs-agent .num { font-size: 28px; font-weight: 600; letter-spacing: -0.03em; }
+    .hs-agent p { color: #516f90 !important; min-height: 40px; }
+    .hs-tabs { display: flex; gap: 18px; border-bottom: 1px solid #e5e8eb; margin: 8px 0 16px; }
+    .hs-tabs button { background: transparent !important; color: #516f90 !important; border-radius: 0 !important; padding: 10px 0 !important; box-shadow: none !important; }
+    .hs-tabs button.on { color: #2d3e50 !important; box-shadow: inset 0 -2px 0 #2d3e50 !important; }
+    .hs-board { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; }
+    .hs-day { border: 1px solid #e5e8eb; border-radius: 12px; overflow: hidden; }
+    .hs-slot { display: grid; grid-template-columns: 72px 1fr; min-height: 42px; border-top: 1px solid #eef2f6; font-size: 13px; }
+    .hs-slot span { color: #7c98b6 !important; padding: 8px; }
+    .hs-slot div { padding: 8px; }
+    .hs-chip { display: inline-block; background: #e5f8fb; border-radius: 6px; padding: 2px 6px; }
+    @media (max-width: 980px) { .hs-split, .hs-board, .hs-agents { grid-template-columns: 1fr; } }
+  `;
+  document.head.appendChild(extra);
+
+  const navBefore = paintNav;
+  paintNav = function () {
+    navBefore();
+    const scroll = document.querySelector('#nav .navscroll');
+    if (!scroll || scroll.querySelector('[data-page="sales"]')) return;
+    const sales = navItem('sales', 'Sales workspace', svg('<path d="M4 7h16v12H4z"/><path d="M8 7V5h8v2"/>'));
+    const marker = scroll.querySelector('.nav-section-header');
+    if (marker) marker.insertAdjacentHTML('beforebegin', sales);
+    else scroll.insertAdjacentHTML('beforeend', sales);
+    document.querySelectorAll('#nav button').forEach((el) => el.classList.toggle('on', el.dataset.page === page));
+  };
+
+  let salesTab = 'summary';
+  function dueDay(row) { return String(row.dueAt || '').slice(0, 10); }
+  function planned(row) { return row.status === 'PLANNED'; }
+
+  function drawSales() {
+    const today = new Date().toISOString().slice(0, 10);
+    const tasks = (bag.activities || []).filter((row) => row.type === 'TASK' || row.type === 'CALL' || row.type === 'MEETING');
+    const meetings = tasks.filter((row) => row.type === 'MEETING' && planned(row) && (!dueDay(row) || dueDay(row) === today));
+    const dueToday = tasks.filter((row) => planned(row) && dueDay(row) === today);
+    const companies = bag.companies || [];
+    const deals = (bag.deals || []).filter((row) => !String(stageOf(row)).startsWith('CLOSED'));
+    const tabs = [['summary','Summary'],['companies','Companies'],['deals','Deals'],['tasks','Tasks'],['schedule','Schedule'],['dashboard','Dashboard']];
+    const tabBar = `<div class="hs-tabs">${tabs.map(([id, label]) => `<button type="button" class="${salesTab === id ? 'on' : ''}" onclick="salesTab='${id}';draw()">${label}</button>`).join('')}</div>`;
+    let main = '';
+    if (salesTab === 'companies') {
+      main = companies.map((row) => `<article class="hs-card"><div><b>${esc(row.name)}</b><p>${esc(row.industry || row.city || 'No industry yet')}</p></div><button type="button" class="ghost" onclick="openRecord('company','${row.id}')">Open</button></article>`).join('') || '<p class="hello">No company yet.</p>';
+    } else if (salesTab === 'deals') {
+      main = deals.map((row) => `<article class="hs-card"><div><b>${esc(row.name)}</b><p>${money(row.amount)} · ${esc(row.stage || '')}</p></div><button type="button" class="ghost" onclick="openRecord('deal','${row.id}')">Open</button></article>`).join('') || '<p class="hello">No open deal.</p>';
+    } else if (salesTab === 'tasks') {
+      main = dueToday.map((row) => `<article class="hs-card"><div><b>${esc(row.subject)}</b><p>${esc(row.type)} · due today</p></div><button type="button" class="ghost" onclick="go('tasks')">Open tasks</button></article>`).join('') || '<p class="hello">Nothing is due today.</p><button type="button" onclick="go(\'tasks\',\'task\')">Create a task</button>';
+    } else if (salesTab === 'dashboard') {
+      const won = (bag.deals || []).filter((row) => stageOf(row) === 'CLOSED_WON');
+      const revenue = won.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+      main = `<div class="hs-agents"><article class="hs-agent"><div class="num">${money(revenue)}</div><p>Won, this workspace</p></article><article class="hs-agent"><div class="num">${deals.length}</div><p>Open deals</p></article><article class="hs-agent"><div class="num">${(bag.contacts || []).length}</div><p>Contacts</p></article></div><button type="button" class="ghost" onclick="go('dashboard')">Open reporting</button>`;
+    } else if (salesTab === 'schedule') {
+      main = '<p class="hello">Meetings dated today sit on the clock. A task with only a date is listed under the clock.</p>';
+    } else {
+      main = `<article class="hs-card"><div><b>Tasks</b><p>Keep the list that is actually due, not a sample.</p></div><button type="button" class="ghost" onclick="salesTab='tasks';draw()">Open</button></article>
+        <article class="hs-card"><div><b>Outreach</b><p>${(bag.contacts || []).length} contacts. ${companies.length} companies.</p></div><button type="button" class="ghost" onclick="go('contacts')">Open contacts</button></article>`;
+    }
+    const hours = [];
+    for (let hour = 8; hour <= 18; hour++) {
+      const label = (hour % 12 || 12) + (hour < 12 ? ':00 AM' : ':00 PM');
+      const hit = meetings.filter((row) => {
+        const match = String(row.dueAt || '').match(/T(\d{2})/);
+        return match && Number(match[1]) === hour;
+      });
+      hours.push(`<div class="hs-slot"><span>${label}</span><div>${hit.map((row) => `<span class="hs-chip">${esc(row.subject)}</span>`).join(' ') || ''}</div></div>`);
+    }
+    const untimed = meetings.filter((row) => !/T\d{2}/.test(String(row.dueAt || ''))).map((row) => `<div class="hs-chip">${esc(row.subject)}</div>`).join(' ');
+    document.getElementById('view').innerHTML = `<div class="board-head"><h1 style="margin:0">Sales <span class="meta" style="font-weight:500">| ${esc(company)}</span></h1></div>${tabBar}<div class="hs-board"><div>${main}</div><aside class="hs-day"><div style="padding:12px 14px"><b>Today</b><div class="meta">${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>${untimed ? '<div style="margin-top:8px">' + untimed + '</div>' : ''}</div>${hours.join('')}</aside></div>`;
+  }
+
+  drawAgent = function () {
+    const hot = (bag.leads || []).filter((row) => row.rating === 'HOT');
+    const today = new Date().toISOString().slice(0, 10);
+    const tasks = (bag.activities || []).filter((row) => (row.type === 'TASK' || row.type === 'CALL') && row.status === 'PLANNED' && dueDay(row) && dueDay(row) <= today);
+    const open = (bag.deals || []).filter((row) => !String(stageOf(row)).startsWith('CLOSED'));
+    const worth = open.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    document.getElementById('view').innerHTML = `
+      <p class="hs-kicker">Agent Hub</p>
+      <h1 class="hs-lead">The agents that read this workspace.</h1>
+      <p class="hello">Each number is a record you already have. Asking a question uses the model only when its key is on the server, and it is told not to invent a figure.</p>
+      <div class="hs-agents">
+        <article class="hs-agent"><div class="num">${tasks.length}</div><b>Follow-up</b><p>Tasks and calls due today or earlier.</p><button type="button" onclick="go('tasks')">Open the queue</button></article>
+        <article class="hs-agent"><div class="num">${hot.length}</div><b>Lead rating</b><p>Leads you marked hot. This is your rating, not a guessed score.</p><button type="button" class="ghost" onclick="go('leads')">Open leads</button></article>
+        <article class="hs-agent"><div class="num">${money(worth)}</div><b>Pipeline</b><p>${open.length} open deals, in naira.</p><button type="button" class="ghost" onclick="go('deals')">Open deals</button></article>
+      </div>
+      <div class="card"><h2>Ask this workspace</h2><label>Question<textarea id="ask" style="height:80px" placeholder="Which deals are still open?"></textarea></label><button type="button" onclick="askAgent()">Ask</button><p id="answer" class="hello"></p></div>`;
+  };
+
+  const rawMarketing = drawMarketing;
+  drawMarketing = async function () {
+    if (mktTab !== 'studio') return rawMarketing();
+    const rows = await api('/crm/api/campaigns');
+    const list = Array.isArray(rows) ? rows : [];
+    const forms = (bag.objects || []).filter((row) => row.kind === 'form');
+    document.getElementById('view').innerHTML = `
+      <div class="hs-split">
+        <div>
+          <p class="hs-kicker">Marketing Studio</p>
+          <h1 class="hs-lead">Campaigns, forms, and the spend you record. Nothing here is a sample.</h1>
+          <div class="hs-point"><span>→</span><div><b>Send one email.</b> It goes to contacts who have an address, through Gmail, Outlook, or the mail key. If none of those is connected, it does not pretend to send.</div></div>
+          <div class="hs-point"><span>→</span><div><b>A form becomes a lead.</b> The public page is the one you save. A visitor’s answers land in Leads.</div></div>
+          <p><button type="button" onclick="mktTab='emails';drawMarketing()">Write an email</button> <button type="button" class="ghost" onclick="mktTab='forms';drawMarketing()">Make a form</button> <button type="button" class="ghost" onclick="mktTab='ads';drawMarketing()">Record ad spend</button></p>
+        </div>
+        <div class="hs-stack">
+          <article class="hs-mini"><b>Campaigns</b><div class="meta">${list.length} saved · ${list.reduce((sum, row) => sum + Number(row.sent || 0), 0)} sent</div></article>
+          <article class="hs-mini"><b>Forms</b><div class="meta">${forms.length} public form${forms.length === 1 ? '' : 's'}</div></article>
+          <article class="hs-mini"><b>Latest</b><div class="meta">${list[0] ? esc(list[0].name) + ' · ' + esc(list[0].status || '') : 'No campaign yet'}</div></article>
+        </div>
+      </div>`;
+  };
+
+  const route = draw;
+  draw = function () {
+    if (page === 'sales') return drawSales();
+    return route();
+  };
+  const openGo = go;
+  go = function (id, form) {
+    if (id === 'marketing') mktTab = 'studio';
+    return openGo(id, form);
+  };
+  Object.defineProperty(window, 'salesTab', {
+    get() { return salesTab; },
+    set(value) { salesTab = value; },
+  });
+})();
