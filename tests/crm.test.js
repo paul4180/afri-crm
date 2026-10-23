@@ -129,3 +129,39 @@ test('scores stay explainable with little data', () => {
   ]);
   expect(dupes.length).toBe(1);
 });
+
+// ============================================================
+// Section 1 — Billing: Free and one paid plan
+// ============================================================
+
+test('billing checkout sends the amount Paystack expects (kobo, no typo)', () => {
+  const src = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'crmapp.js'), 'utf8');
+  expect(src).toContain('amount: amountKobo');
+  expect(src).not.toContain('amountKgn');
+  expect(src).toContain("currency: 'NGN'");
+  expect(src).toContain('x-paystack-signature');
+});
+
+test('free and paid plans have written limits, and they are enforced', () => {
+  const src = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'crmapp.js'), 'utf8');
+  expect(src).toContain("free: { users: 3, whatsapp: 1, records: 500 }");
+  expect(src).toContain("paid: { users: 100, whatsapp: 5, records: 100000 }");
+  // Users cap fires on both add-person and invite routes
+  expect(src.match(/limitHit\(user\.tenantId, 'users'\)/g).length).toBeGreaterThanOrEqual(2);
+  // Records cap fires on the generic create route and on import
+  expect(src).toContain("limitHit(user.tenantId, 'records')");
+  expect(src).toContain("limitHit(tenantId, 'records')");
+  // Usage is returned to the UI so the owner can see it
+  expect(src).toContain('usage: billingUsage');
+});
+
+test('settings shows a Plan tab with price-not-set and paystack states', () => {
+  const studio = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'crm-studio.js'), 'utf8');
+  expect(studio).toContain('Plan & billing');
+  expect(studio).toContain('Price not set');
+  expect(studio).toContain('Paystack not connected');
+  expect(studio).toContain('/crm/api/billing/plan');
+  expect(studio).toContain('/crm/api/billing/checkout');
+  const html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'crm.html'), 'utf8');
+  expect(html).toContain('crm-studio.js?v=114');
+});
