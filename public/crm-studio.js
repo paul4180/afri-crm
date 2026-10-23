@@ -10065,6 +10065,14 @@ window.openSearchHit = function (kind, id) {
     .ah-preview article { background: #111827; border-radius: 12px; padding: 14px; }
     .ah-modal button.ah-btn { background: transparent !important; color: #fff !important; border: 1px solid rgba(255,255,255,.3) !important; border-radius: 8px !important; }
     .ah-modal button.ah-btn.go { background: #0f766e !important; border-color: #0f766e !important; }
+    .ah-modal button.ah-btn.go { background: #0f766e !important; color: #fff !important; border: 0 !important; }
+    .ah-modal button.ah-btn.ghost { background: transparent !important; color: #fff !important; border: 1px solid rgba(255,255,255,.4) !important; box-shadow: none !important; }
+    .ah-face { display: grid; gap: 8px; }
+    .ah-face .big, .ah-money { font-size: 28px; font-weight: 700; color: #fff !important; }
+    .ah-bars { display: grid; gap: 6px; margin-top: 8px; }
+    .ah-bars div { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; align-items: center; font-size: 12px; color: rgba(255,255,255,.8); }
+    .ah-bars i { display: block; height: 8px; border-radius: 99px; background: #2dd4bf; }
+    #view .ah-brain { background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 14px; margin: 12px 0; }
     @media (max-width: 900px) { #view .ah-grid, #view .ah-form, .ah-preview { grid-template-columns: 1fr; } }
   `;
   document.head.appendChild(css);
@@ -10220,14 +10228,32 @@ window.openSearchHit = function (kind, id) {
       extra = `<div class="ah-card" style="margin-top:12px"><b>What this agent sees</b>${rows}<p class="cx-muted">These are records already in the workspace.</p></div>`;
       if (focusId === 'sa') extra += `<div class="ah-card" style="margin-top:12px"><b>Ask</b><textarea id="ask" style="height:70px" placeholder="Draft a follow-up for the first open deal. Do not invent a price."></textarea><p><button type="button" class="ah-btn go" onclick="askAgent()">Ask</button></p><p id="answer" class="cx-muted"></p></div>`;
     }
-    document.getElementById('view').innerHTML = `<div class="ah"><div class="cal-toolbar"><h1>Agent Hub</h1><button type="button" class="ah-btn go" onclick="ahMode('build')">New agent</button></div><p class="cx-muted">Start with ${esc(top.why)}. The order is the amount at stake. A deal with no chance adds nothing, so it is not treated as a likely win. Activate still writes a task only for churn risk and follow-up.</p><div class="ah-grid">${cards}${custom}</div>${extra}</div>`;
+    document.getElementById('view').innerHTML = `<div class="ah"><div class="cal-toolbar"><h1>Agent Hub</h1><button type="button" class="ah-btn go" onclick="ahMode('build')">New agent</button></div><p class="cx-muted">Start with ${esc(top.why)}. The order is the amount at stake. A deal with no chance adds nothing, so it is not treated as a likely win.</p><div id="ahBrain" class="ah-brain"><p class="cx-muted">The brain is reading the workspace.</p></div><div class="ah-grid">${cards}${custom}</div>${extra}</div>`;
+    if (skipBrain) skipBrain = false; else ahBrain(false);
     if (!localStorage.getItem('crm-agent-welcome') && !document.getElementById('ahWelcome')) {
       const shade = document.createElement('div');
       shade.id = 'ahWelcome';
       shade.className = 'ah-shade';
-      shade.innerHTML = `<div class="ah-modal"><h2>Welcome to Agent Hub</h2><p>Build, activate, and monitor agents that read this workspace. They do not invent a customer or a percentage.</p><div class="ah-preview"><article><b>CR · Churn Risk</b><div>${churn().length} contacts on an open deal have been quiet for 30 days.</div></article><article><b>Weighted pipeline</b><div>${money(weighted())}</div><div>Open amount times the chance on the deal. Not a target, and not a change from last month.</div></article></div><button type="button" class="ah-btn go" onclick="ahDismiss();ahMode('build')">Build agent</button> <button type="button" class="ah-btn" onclick="ahDismiss()">Dismiss</button></div>`;
+      const tally = {};
+      openDeals().forEach((row) => { const stage = stageHit(row); const name = (stage && stage.name) || 'Open'; tally[name] = (tally[name] || 0) + Number(row.amount || 0) * chanceOf(row); });
+      const peak = Math.max(1, ...Object.values(tally));
+      const bars = Object.entries(tally).slice(0, 4).map(([name, value]) => `<div><span>${esc(name)}</span><i style="width:${Math.max(6, Math.round(value / peak * 100))}%"></i><b>${money(value)}</b></div>`).join('') || '<div><span>No open deal</span><i style="width:6%"></i><b>—</b></div>';
+      shade.innerHTML = `<div class="ah-modal"><h2>Welcome to Agent Hub</h2><p>The brain reads your records, ranks the six agents, and writes a task only when you run it.</p><div class="ah-preview"><article class="ah-face"><div class="ah-top"><span class="ah-mark" style="background:#db2777">CR</span><div><b>Churn Risk</b><div>${churn().length ? 'Quiet on an open deal' : 'Nothing is quiet'}</div></div></div><div class="big">${churn().length}</div><div>Contacts with an open deal and no activity for 30 days.</div></article><article><div>Weighted pipeline</div><div class="ah-money">${money(weighted())}</div><div class="ah-bars">${bars}</div><div>Each bar is open amount times the chance already on the deal. Not a target.</div></article></div><button type="button" class="ah-btn go" onclick="ahDismiss();ahMode('build')">Build agent</button> <button type="button" class="ah-btn ghost" onclick="ahDismiss()">Dismiss</button></div>`;
       document.body.appendChild(shade);
     }
+  };
+
+  let skipBrain = false;
+  window.ahBrain = async function (execute) {
+    const box = document.getElementById('ahBrain');
+    if (!box) return;
+    const result = await api('/crm/api/agent-brain', { method: 'POST', body: JSON.stringify({ execute: !!execute }) });
+    if (!result || result.error) { box.innerHTML = '<p class="cx-muted">The brain could not read the workspace.</p>'; return; }
+    const looked = result.signals || {};
+    const order = (result.order || []).map((row, index) => `<tr><td>${index + 1}</td><td>${esc(row.name)}</td><td>${esc(row.why)}</td><td>${money(row.stake || 0)}</td></tr>`).join('');
+    const history = (result.history || []).map((row) => `<tr><td>${esc(row.summary || '')}</td><td>${row.acted ? row.acted + ' tasks' : 'Looked only'}</td><td>${esc(String(row.createdAt || '').slice(0, 16).replace('T', ' '))}</td></tr>`).join('') || '<tr><td colspan="3">No earlier run.</td></tr>';
+    box.innerHTML = `<b>Brain</b><p class="cx-muted">It read ${looked.contacts || 0} contacts, ${looked.deals || 0} open deals, ${looked.leads || 0} leads, and ${looked.activities || 0} activities. First: ${esc((result.top && result.top.why) || '')}. ${execute ? (result.acted ? 'It opened ' + result.acted + ' tasks.' : 'The first agent does not write, so nothing was created.') : 'This pass only looked.'}</p><table class="ws-table"><thead><tr><th>#</th><th>Agent</th><th>Why</th><th>Stake</th></tr></thead><tbody>${order}</tbody></table><p><button type="button" class="ah-btn go" onclick="ahBrain(true)">Run the brain</button></p><table class="ws-table"><thead><tr><th>Earlier</th><th>What it did</th><th>When</th></tr></thead><tbody>${history}</tbody></table>`;
+    if (execute && result.acted) { skipBrain = true; refresh(); }
   };
   const prev = draw;
   draw = function () { if (page === 'agents') page = 'agent'; return prev(); };

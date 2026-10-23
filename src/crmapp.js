@@ -135,6 +135,11 @@ CREATE INDEX IF NOT EXISTS ix_contacts_tenant ON contacts(tenantId);
 CREATE INDEX IF NOT EXISTS ix_companies_tenant ON companies(tenantId);
 CREATE INDEX IF NOT EXISTS ix_deals_tenant ON deals(tenantId);
 CREATE INDEX IF NOT EXISTS ix_activities_tenant ON activities(tenantId);
+CREATE TABLE IF NOT EXISTS agent_runs (
+  id TEXT PRIMARY KEY, tenantId TEXT NOT NULL, summary TEXT, topId TEXT,
+  stake REAL DEFAULT 0, detail TEXT, acted INTEGER DEFAULT 0,
+  createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS workspace (
   tenantId TEXT PRIMARY KEY, size TEXT, industry TEXT, goal TEXT, tools TEXT, done INTEGER DEFAULT 0
 );
@@ -3737,6 +3742,57 @@ export function registerCrm(app, prisma) {
     }
     return { enrolled, looked: plan.suggested.length };
   });
+
+function agentBrain(tenantId) {
+  const stages = stagesFor(tenantId);
+  const stageBy = new Map();
+  for (const stage of stages) { stageBy.set(stage.id, stage); if (stage.code) stageBy.set(stage.code, stage); }
+  const info = (value) => stageBy.get(value) || null;
+  const isWon = (row) => { const stage = info(row.stage); return row.stage === 'CLOSED_WON' || Boolean(stage && (stage.code === 'CLOSED_WON' || (stage.closed && /won/i.test(stage.name || '')))); };
+  const isLost = (row) => { const stage = info(row.stage); return row.stage === 'CLOSED_LOST' || Boolean(stage && (stage.code === 'CLOSED_LOST' || (stage.closed && /lost/i.test(stage.name || '')))); };
+  const isOpen = (row) => { const stage = info(row.stage); if (isWon(row) || isLost(row) || (stage && stage.closed) || String(row.stage || '').startsWith('CLOSED')) return false; return true; };
+  const contacts = list('contacts', tenantId);
+  const leads = list('leads', tenantId);
+  const activities = list('activities', tenantId);
+  const deals = list('deals', tenantId).filter(isOpen);
+  const companies = list('companies', tenantId);
+  const latest = (id) => activities.filter((row) => row.relatedId === id).map((row) => row.createdAt || '').sort().pop() || '';
+  const daysOf = (id) => { const stamp = latest(id); if (!stamp) return 45; return Math.min(90, Math.max(0, (Date.now() - new Date(stamp).getTime()) / 86400000)); };
+  const quiet = (id, days) => { const stamp = latest(id); return !stamp || Date.now() - new Date(stamp).getTime() > days * 86400000; };
+  const chance = (row) => { const stage = info(row.stage); return Math.min(1, Math.max(0, Number(row.probability || (stage && stage.probability) || 0) / 100)); };
+  const ofContact = (id) => deals.filter((row) => row.contactId === id);
+  const stakeOf = (rows, days, cap) => rows.reduce((sum, row) => sum + Number(row.amount || 0) * chance(row) * Math.min(1, days / cap), 0);
+  const cr = contacts.filter((row) => quiet(row.id, 30) && ofContact(row.id).length).map((row) => ({ id: row.id, stake: stakeOf(ofContact(row.id), daysOf(row.id), 30) }));
+  const fu = contacts.filter((row) => {
+    const acts = activities.filter((item) => item.relatedId === row.id).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    const last = acts[0];
+    if (!last || (last.type !== 'EMAIL' && last.type !== 'WHATSAPP')) return false;
+    return Date.now() - new Date(last.createdAt || 0).getTime() >= 2 * 86400000;
+  }).map((row) => ({ id: row.id, stake: stakeOf(ofContact(row.id), daysOf(row.id), 7) }));
+  const soonCut = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+  const soon = deals.filter((row) => !String(row.nextStep || '').trim() && String(row.closeDate || '').slice(0, 10) && String(row.closeDate).slice(0, 10) <= soonCut);
+  const missing = deals.filter((row) => !chance(row));
+  const fresh = leads.filter((row) => (row.status === 'NEW' || row.status === 'WORKING') && quiet(row.id, 3));
+  const wonDeals = list('deals', tenantId).filter(isWon);
+  const counts = {};
+  wonDeals.forEach((deal) => { const company = companies.find((row) => row.id === deal.companyId); if (company && company.industry) counts[company.industry] = (counts[company.industry] || 0) + 1; });
+  const topIndustry = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  const found = topIndustry ? leads.filter((row) => row.status !== 'CONVERTED' && row.status !== 'DEAD' && String(row.industry || row.companyName || '').toLowerCase().includes(String(topIndustry[0]).toLowerCase())) : [];
+  const sum = (rows) => rows.reduce((total, row) => total + Number(row.stake || 0), 0);
+  const weighted = deals.reduce((total, row) => total + Number(row.amount || 0) * chance(row), 0);
+  const byStage = {};
+  deals.forEach((row) => { const stage = info(row.stage); const name = (stage && stage.name) || 'Open'; if (!byStage[name]) byStage[name] = { name, amount: 0, weighted: 0, count: 0 }; byStage[name].amount += Number(row.amount || 0); byStage[name].weighted += Number(row.amount || 0) * chance(row); byStage[name].count += 1; });
+  const order = [
+    { id: 'cr', name: 'Churn Risk', stake: sum(cr), count: cr.length, why: cr.length ? 'Quiet contacts still sit on an open deal' : 'Nobody on an open deal has gone quiet' },
+    { id: 'fu', name: 'Follow-up', stake: sum(fu), count: fu.length, why: fu.length ? fu.length + ' emails or WhatsApp messages are unanswered' : 'No email or WhatsApp is waiting' },
+    { id: 'sa', name: 'Sales Assistant', stake: soon.reduce((total, row) => total + Number(row.amount || 0) * chance(row), 0), count: soon.length, why: soon.length ? soon.length + ' deals have no next step inside 14 days' : 'No close date is inside 14 days without a next step' },
+    { id: 'ro', name: 'Revenue Oracle', stake: missing.reduce((total, row) => total + Number(row.amount || 0), 0) * 0.01, count: missing.length, why: missing.length ? missing.length + ' open deals have no chance' : 'Every open deal has a chance' },
+    { id: 'ls', name: 'Lead Scorer', stake: fresh.length * 100, count: fresh.length, why: fresh.length + ' new leads have had no activity for 3 days' },
+    { id: 'pr', name: 'Prospect Finder', stake: found.length * 100, count: found.length, why: found.length ? found.length + ' leads match a won industry' : 'No lead matches a won industry' },
+  ].sort((a, b) => b.stake - a.stake || b.count - a.count);
+  return { signals: { contacts: contacts.length, deals: deals.length, leads: leads.length, activities: activities.length }, weighted, stages: Object.values(byStage), order, top: order[0], follow: fu.map((row) => row.id) };
+}
+
   app.post('/crm/api/quiet-check', async (req, reply) => {
     const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
     const contacts = visibleRows(list('contacts', user.tenantId), user, 'contacts');
@@ -3755,6 +3811,60 @@ export function registerCrm(app, prisma) {
       opened += 1;
     }
     return { opened };
+  });
+
+
+  app.post('/crm/api/agent-brain', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    const plan = agentBrain(user.tenantId);
+    let acted = 0;
+    const execute = Boolean(req.body && req.body.execute);
+    if (execute) {
+      if (!canWrite(user, reply)) return;
+      const today = new Date().toISOString().slice(0, 10);
+      if (plan.top.id === 'cr') {
+        const result = { opened: 0 };
+        const contacts = list('contacts', user.tenantId);
+        const activities = list('activities', user.tenantId);
+        const dealRows = list('deals', user.tenantId);
+        const openContact = new Set();
+        for (const deal of dealRows) {
+          const stage = (stagesFor(user.tenantId) || []).find((item) => item.id === deal.stage || item.code === deal.stage);
+          const closed = deal.stage === 'CLOSED_WON' || deal.stage === 'CLOSED_LOST' || String(deal.stage || '').startsWith('CLOSED') || (stage && stage.closed);
+          if (!closed && deal.contactId) openContact.add(deal.contactId);
+        }
+        for (const contact of contacts) {
+          if (result.opened >= 20) break;
+          if (!openContact.has(contact.id)) continue;
+          const latest = activities.filter((item) => item.relatedId === contact.id).map((item) => item.createdAt || '').sort().pop();
+          if (latest && Date.now() - new Date(latest).getTime() < 30 * 86400000) continue;
+          const open = activities.some((item) => item.relatedId === contact.id && item.status === 'PLANNED' && /quiet for 30 days/i.test(item.subject || ''));
+          if (open) continue;
+          const name = ((contact.firstName || '') + ' ' + (contact.lastName || '')).trim() || 'Contact';
+          insert('activities', user.tenantId, { type: 'TASK', subject: 'Check in, quiet for 30 days: ' + name, dueAt: today, status: 'PLANNED', relatedType: 'contact', relatedId: contact.id, ownerId: contact.ownerId || user.sub, notes: 'Opened by the agent brain.' });
+          result.opened += 1;
+        }
+        acted = result.opened;
+      } else if (plan.top.id === 'fu') {
+        const contacts = list('contacts', user.tenantId);
+        for (const id of plan.follow.slice(0, 20)) {
+          const contact = contacts.find((row) => row.id === id);
+          if (!contact) continue;
+          const name = ((contact.firstName || '') + ' ' + (contact.lastName || '')).trim() || 'Contact';
+          const subject = 'Follow up: ' + name;
+          const activities = list('activities', user.tenantId);
+          if (activities.some((item) => item.relatedId === id && item.status === 'PLANNED' && String(item.subject || '').startsWith('Follow up:'))) continue;
+          insert('activities', user.tenantId, { type: 'TASK', subject, dueAt: today, status: 'PLANNED', relatedType: 'contact', relatedId: id, ownerId: contact.ownerId || user.sub, notes: 'Opened by the agent brain.' });
+          acted += 1;
+        }
+      }
+    }
+    const summary = (plan.top.why || 'Nothing to do').slice(0, 240);
+    db.prepare('INSERT INTO agent_runs (id, tenantId, summary, topId, stake, detail, acted) VALUES (?,?,?,?,?,?,?)').run(
+      crypto.randomUUID(), user.tenantId, summary, plan.top.id, Number(plan.top.stake || 0), JSON.stringify(plan.order).slice(0, 4000), acted
+    );
+    const history = db.prepare('SELECT summary, topId, stake, acted, createdAt FROM agent_runs WHERE tenantId = ? ORDER BY createdAt DESC LIMIT 8').all(user.tenantId);
+    return { signals: plan.signals, weighted: plan.weighted, stages: plan.stages, order: plan.order, top: plan.top, acted, history };
   });
 
   app.get('/crm/api/analytics', async (req, reply) => {
