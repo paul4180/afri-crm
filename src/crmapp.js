@@ -3647,6 +3647,124 @@ export function registerCrm(app, prisma) {
     return db.prepare('SELECT * FROM sequences WHERE id = ?').get(row.id);
   });
 
+  app.get('/crm/api/analytics', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    const tenantId = user.tenantId;
+    const deals = visibleRows(list('deals', tenantId), user, 'deals');
+    const contacts = visibleRows(list('contacts', tenantId), user, 'contacts');
+    const activities = visibleRows(list('activities', tenantId), user, 'activities');
+    const companies = list('companies', tenantId);
+    const stages = stagesFor(tenantId);
+    const people = await prisma.user.findMany({ where: { tenantId }, select: { id: true, fullName: true, email: true } });
+    const targets = db.prepare('SELECT month, amount FROM targets WHERE tenantId = ?').all(tenantId);
+    const targetOf = (month) => { const row = targets.find((item) => item.month === month); return row ? Number(row.amount) : 0; };
+    const companyOf = (id) => (companies.find((row) => row.id === id) || {}).name || '';
+    const personOf = (id) => { const row = people.find((item) => item.id === id); return row ? (row.fullName || row.email) : 'Unassigned'; };
+    const today = lagosKey(new Date());
+    const thisMonth = today.slice(0, 7);
+    const lastMonth = (() => { const [y, m] = thisMonth.split('-').map(Number); const d = new Date(y, m - 2, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); })();
+    const year = thisMonth.slice(0, 4);
+    const months = [];
+    for (let m = 1; m <= Number(thisMonth.slice(5, 7)); m++) months.push(year + '-' + String(m).padStart(2, '0'));
+    const monthName = (key) => new Date(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, 1).toLocaleString('en-GB', { month: 'short' });
+    const wonIn = (month) => deals.filter((row) => row.stage === 'CLOSED_WON' && String(row.closeDate || '').slice(0, 7) === month);
+    const lostIn = (month) => deals.filter((row) => row.stage === 'CLOSED_LOST' && String(row.closeDate || row.createdAt || '').slice(0, 7) === month);
+    const openedIn = (month) => deals.filter((row) => !String(row.stage || '').startsWith('CLOSED') && String(row.createdAt || '').slice(0, 7) === month);
+    const sum = (rows) => rows.reduce((total, row) => total + Number(row.amount || 0), 0);
+    const rate = (won, lost) => (won + lost) ? Math.round(won / (won + lost) * 100) : null;
+    const trend = (now, then) => {
+      if (!then && !now) return { dir: 'flat', text: 'No change' };
+      if (!then) return { dir: 'up', text: 'None last month' };
+      if (!now) return { dir: 'down', text: 'None this month' };
+      const pct = Math.round((now - then) / then * 100);
+      return { dir: now > then ? 'up' : now < then ? 'down' : 'flat', text: (pct > 0 ? '+' : '') + pct + '% vs last month' };
+    };
+    const points = (now, then) => {
+      if (now == null || then == null) return { dir: 'flat', text: 'Not enough closed deals' };
+      const delta = now - then;
+      return { dir: delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat', text: (delta > 0 ? '+' : '') + delta + ' pts vs last month' };
+    };
+    const wonNow = wonIn(thisMonth), wonThen = wonIn(lastMonth);
+    const lostNow = lostIn(thisMonth), lostThen = lostIn(lastMonth);
+    const open = deals.filter((row) => !String(row.stage || '').startsWith('CLOSED'));
+    const undated = deals.filter((row) => row.stage === 'CLOSED_WON' && !row.closeDate).length;
+    const stageRows = stages.filter((stage) => !String(stage.code || '').startsWith('CLOSED')).map((stage) => {
+      const rows = open.filter((row) => row.stage === stage.code || row.stage === stage.id);
+      return { label: stage.name || stage.code, count: rows.length, value: sum(rows) };
+    });
+    const revenue = months.map((month) => ({ month, label: monthName(month), revenue: sum(wonIn(month)), target: targetOf(month) }));
+    const topDeals = open.slice().sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0)).slice(0, 5).map((row) => ({ id: row.id, name: row.name, company: companyOf(row.companyId), value: Number(row.amount || 0), stage: row.stage }));
+    const scored = contacts.map((row) => {
+      const mine = deals.filter((deal) => deal.contactId === row.id);
+      const openAmt = sum(mine.filter((deal) => !String(deal.stage || '').startsWith('CLOSED')));
+      const wonAny = mine.some((deal) => deal.stage === 'CLOSED_WON');
+      const acts = activities.filter((item) => item.relatedId === row.id).length;
+      let score = 0;
+      if (openAmt) score += Math.min(40, Math.round(Math.log10(openAmt) * 8));
+      if (wonAny) score += 15;
+      if (acts) score += Math.min(25, acts * 5);
+      if (row.email && (row.phone || row.mobile)) score += 10;
+      return { id: row.id, name: ((row.firstName || '') + ' ' + (row.lastName || '')).trim(), company: companyOf(row.companyId), score: Math.min(100, score) };
+    }).filter((row) => row.score > 0).sort((a, b) => b.score - a.score).slice(0, 5);
+    const kinds = ['CALL', 'EMAIL', 'MEETING', 'WHATSAPP'];
+    const days = [];
+    for (let i = 29; i >= 0; i--) days.push(lagosKey(new Date(Date.now() - i * 86400000)));
+    const in30 = (row) => days.includes(String(row.createdAt || '').slice(0, 10));
+    const logged = activities.filter(in30);
+    const activity = {
+      calls: logged.filter((row) => row.type === 'CALL').length,
+      emails: logged.filter((row) => row.type === 'EMAIL').length,
+      meetings: logged.filter((row) => row.type === 'MEETING').length,
+      whatsapp: logged.filter((row) => row.type === 'WHATSAPP').length,
+      days: days.map((day) => ({ day: day.slice(8), counts: Object.fromEntries(kinds.map((kind) => [kind, logged.filter((row) => row.type === kind && String(row.createdAt || '').slice(0, 10) === day).length])) })),
+    };
+    const repIds = new Set(people.map((row) => row.id));
+    logged.forEach((row) => { if (row.ownerId) repIds.add(row.ownerId); });
+    const byRep = [...repIds].map((id) => {
+      const rows = logged.filter((row) => (row.ownerId || '') === (id || ''));
+      return { name: personOf(id), calls: rows.filter((row) => row.type === 'CALL').length, emails: rows.filter((row) => row.type === 'EMAIL').length, meetings: rows.filter((row) => row.type === 'MEETING').length, whatsapp: rows.filter((row) => row.type === 'WHATSAPP').length, total: rows.length };
+    }).filter((row) => row.total).sort((a, b) => b.total - a.total);
+    const cycle = (rows) => {
+      const spans = rows.map((row) => {
+        if (!row.closeDate || !row.createdAt) return null;
+        const days = Math.round((new Date(row.closeDate).getTime() - new Date(row.createdAt).getTime()) / 86400000);
+        return days >= 0 ? days : null;
+      }).filter((n) => n != null);
+      return spans.length ? Math.round(spans.reduce((total, n) => total + n, 0) / spans.length) : null;
+    };
+    const teamIds = new Set(people.map((row) => row.id));
+    deals.forEach((row) => teamIds.add(row.ownerId || ''));
+    const team = [...teamIds].map((id) => {
+      const mine = deals.filter((row) => (row.ownerId || '') === id);
+      const won = mine.filter((row) => row.stage === 'CLOSED_WON' && String(row.closeDate || '').slice(0, 4) === year);
+      const lost = mine.filter((row) => row.stage === 'CLOSED_LOST' && String(row.closeDate || row.createdAt || '').slice(0, 4) === year);
+      const openRows = mine.filter((row) => !String(row.stage || '').startsWith('CLOSED'));
+      const revenue = sum(won);
+      return {
+        name: id ? personOf(id) : 'Unassigned',
+        open: openRows.length,
+        won: won.length,
+        lost: lost.length,
+        revenue,
+        avgSize: won.length ? Math.round(revenue / won.length) : 0,
+        cycle: cycle(won),
+        spark: months.map((month) => sum(won.filter((row) => String(row.closeDate || '').slice(0, 7) === month))),
+      };
+    }).filter((row) => row.open || row.won || row.lost).sort((a, b) => b.revenue - a.revenue || b.won - a.won);
+    return {
+      month: thisMonth,
+      lastMonth,
+      undated,
+      sales: {
+        revenue: { value: sum(wonNow), ...trend(sum(wonNow), sum(wonThen)) },
+        pipeline: { value: sum(open), ...trend(openedIn(thisMonth).length, openedIn(lastMonth).length), note: 'The arrow is new deals opened, not a saved pipeline from last month.' },
+        won: { value: wonNow.length, ...trend(wonNow.length, wonThen.length) },
+        winRate: { value: rate(wonNow.length, lostNow.length), ...points(rate(wonNow.length, lostNow.length), rate(wonThen.length, lostThen.length)) },
+      },
+      revenue, stages: stageRows, topDeals, contacts: scored, activity, byRep, team,
+    };
+  });
+
   app.get('/crm/api/reports', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     const tenantId = user.tenantId;

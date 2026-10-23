@@ -897,6 +897,7 @@ function paintLauncher() {
     feed: 'What changed',
     sequences: 'A task that opens when a deal moves',
     forecast: 'Won deals against the month target',
+    reports: 'Revenue, activity, and the team, from this workspace',
     quotes: 'A price, with VAT, that can become an invoice',
     articles: 'An answer you can reuse',
     surveys: 'A question you asked',
@@ -1064,7 +1065,7 @@ function draw() {
     orders: drawOrders, forms: () => drawKind('form', 'Forms'), events: () => drawKind('event', 'Events'),
     articles: () => drawKind('article', 'Knowledge'), surveys: () => drawKind('survey', 'Surveys'),
     pages: () => drawSite('page', 'Pages', false), landing: () => drawSite('page', 'Landing pages', true), blog: () => drawSite('post', 'Blog', false),
-    sequences: drawSequences, forecast: drawForecast, feed: drawFeed, settings: () => { if (typeof window.drawSettings === "function") window.drawSettings(); }, integrations: () => { if (typeof window.drawIntegrations === "function") window.drawIntegrations(); }, calls: () => drawActivity('CALL', 'Calls'),
+    sequences: drawSequences, forecast: drawForecast, reports: () => { if (typeof window.drawReports === 'function') window.drawReports(); else drawForecast(); }, feed: drawFeed, settings: () => { if (typeof window.drawSettings === "function") window.drawSettings(); }, integrations: () => { if (typeof window.drawIntegrations === "function") window.drawIntegrations(); }, calls: () => drawActivity('CALL', 'Calls'),
     meetings: () => drawActivity('MEETING', 'Meetings'), calendar: drawCalendar, segments: drawSegments,
     intent: drawIntent, quality: drawQuality, import: drawImport, model: drawModel, prospect: drawProspect, dev: drawDev, hold: drawHold,
     pipeline: drawPipeline, teams: drawTeams, tags: drawTags, users: drawUsers, workflows: drawAutomation, automation: drawAutomation, comm: drawComm, record: drawRecord, audit: drawAudit, backups: drawBackups, guide: drawGuide,
@@ -3056,7 +3057,7 @@ document.getElementById('email').value = localStorage.getItem('crmEmail') || '';
   if (token) boot();
 })();
 </script>
-<script src="/crm-studio.js?v=78"></script>
+<script src="/crm-studio.js?v=79"></script>
 </body>
 </html>
 

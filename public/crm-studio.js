@@ -7747,7 +7747,7 @@
         ${navItem('teams', 'Teams', icon('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="3"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'))}
         ${navItem('tasks', 'Tasks', icon('<path d="M9 11l2 2 4-4"/><rect x="4" y="4" width="16" height="16" rx="2"/>'))}
         ${navItem('calendar', 'Calendar', icon('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/>'))}
-        ${navItem('dashboard', 'Reports', icon('<path d="M4 19V5M4 19h16"/><path d="M8 16v-5M12 16V8M16 16v-3"/>'))}
+        ${navItem('reports', 'Reports', icon('<path d="M4 19V5M4 19h16"/><path d="M8 16v-5M12 16V8M16 16v-3"/>'))}
         ${navItem('sequences', 'Sequences', icon('<path d="M13 2 3 14h8l-1 8 10-12h-8z"/>'))}
         ${navItem('sales', 'Sales workspace', icon('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>'))}
         ${navItem('agent', 'Agent hub', icon('<path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/>'))}
@@ -9520,4 +9520,97 @@ window.openSearchHit = function (kind, id) {
     else toast('On this calendar. Connect Google to send the next one there.');
     refresh();
   };
+})();
+
+(function () {
+  const css = document.createElement('style');
+  css.textContent = `
+    #view .rpt { background: #f4f6f8 !important; color: #0f172a !important; border-radius: 16px; padding: 16px; min-height: 72vh; }
+    #view .rpt h1, #view .rpt h2, #view .rpt b { color: #0f172a !important; }
+    #view .rpt h1 { margin: 0; font-size: 22px; }
+    #view .rpt h2 { margin: 0 0 10px; font-size: 15px; }
+    #view .rpt .cx-muted { color: #64748b !important; }
+    #view .rpt-tabs { display: flex; gap: 8px; margin: 12px 0; }
+    #view .rpt button.rpt-tab:not(.ghost):not(.x):not(.iconbtn) { background: #fff !important; color: #334155 !important; border: 1px solid #d0d7e2 !important; border-radius: 8px !important; padding: 6px 12px !important; box-shadow: none !important; width: auto !important; }
+    #view .rpt button.rpt-tab.on:not(.ghost):not(.x):not(.iconbtn) { background: #0f766e !important; color: #fff !important; border-color: #0f766e !important; }
+    #view .rpt-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    #view .rpt-kpi, #view .rpt-card { background: #fff !important; border: 1px solid #e5e8eb; border-radius: 12px; padding: 14px; }
+    #view .rpt-kpi b { font-size: 26px; display: block; }
+    #view .rpt-kpi .up { color: #15803d !important; } #view .rpt-kpi .down { color: #b91c1c !important; }
+    #view .rpt-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    #view .rpt-bar { display: grid; grid-template-columns: 110px 1fr auto; gap: 8px; align-items: center; margin: 6px 0; font-size: 13px; }
+    #view .rpt-track { background: #eef2f6; border-radius: 99px; height: 10px; }
+    #view .rpt-fill { background: #0f766e; height: 10px; border-radius: 99px; }
+    #view .rpt table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    #view .rpt td, #view .rpt th { text-align: left; padding: 6px 4px; border-bottom: 1px solid #eef2f6; color: #0f172a; }
+    #view .rpt-days { display: flex; align-items: flex-end; gap: 3px; height: 120px; overflow-x: auto; }
+    #view .rpt-col { width: 14px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
+    #view .rpt-spark { display: flex; align-items: flex-end; gap: 2px; height: 28px; }
+    #view .rpt-spark i { display: block; width: 6px; background: #0f766e; border-radius: 2px 2px 0 0; }
+    @media (max-width: 900px) { #view .rpt-kpis, #view .rpt-row { grid-template-columns: 1fr; } }
+  `;
+  document.head.appendChild(css);
+  let rptTab = 'sales';
+  const moneyOf = (n) => (typeof money === 'function' ? money(n || 0) : String(n || 0));
+  function kpi(label, value, trend) {
+    return `<article class="rpt-kpi"><span class="cx-muted">${esc(label)}</span><b>${esc(value)}</b><span class="${esc(trend.dir || 'flat')}">${esc(trend.text || '')}</span></article>`;
+  }
+  function bars(rows) {
+    const max = Math.max(1, ...rows.map((row) => row.value || 0));
+    if (!rows.length) return '<p class="cx-muted">No open deal in a stage.</p>';
+    return rows.map((row) => `<div class="rpt-bar"><span>${esc(row.label)}</span><div class="rpt-track"><div class="rpt-fill" style="width:${Math.max(2, Math.round(row.value / max * 100))}%"></div></div><b>${moneyOf(row.value)} · ${row.count}</b></div>`).join('');
+  }
+  function area(rows) {
+    if (!rows.some((row) => row.revenue || row.target)) return '<p class="cx-muted">No revenue and no target this year.</p>';
+    const max = Math.max(1, ...rows.map((row) => Math.max(row.revenue, row.target)));
+    const w = 520, h = 180, pad = 28, n = rows.length;
+    const x = (i) => pad + (n === 1 ? 0 : i * (w - pad * 2) / (n - 1));
+    const y = (v) => h - pad - (v / max) * (h - pad * 2);
+    const line = (key) => rows.map((row, i) => x(i) + ',' + y(row[key])).join(' ');
+    const base = h - pad;
+    const poly = x(0) + ',' + base + ' ' + line('revenue') + ' ' + x(n - 1) + ',' + base;
+    const labels = rows.map((row, i) => `<text x="${x(i)}" y="${h - 8}" text-anchor="middle" font-size="11" fill="#64748b">${esc(row.label)}</text>`).join('');
+    return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="180"><polygon points="${poly}" fill="rgba(15,118,110,.16)"></polygon><polyline points="${line('revenue')}" fill="none" stroke="#0f766e" stroke-width="2"></polyline><polyline points="${line('target')}" fill="none" stroke="#d97706" stroke-width="2" stroke-dasharray="5 4"></polyline>${labels}</svg><p class="cx-muted">Teal is revenue. Gold dashes are the target you saved.</p>`;
+  }
+  function days(rows) {
+    const max = Math.max(1, ...rows.map((row) => Object.values(row.counts).reduce((s, n) => s + n, 0)));
+    const color = { CALL: '#16a34a', EMAIL: '#2563eb', MEETING: '#7c3aed', WHATSAPP: '#0f766e' };
+    return `<div class="rpt-days">${rows.map((row) => {
+      const bits = ['CALL', 'EMAIL', 'MEETING', 'WHATSAPP'].map((kind) => `<i style="display:block;height:${Math.round((row.counts[kind] || 0) / max * 100)}px;background:${color[kind]}"></i>`).join('');
+      return `<div class="rpt-col" title="${esc(row.day)}">${bits}</div>`;
+    }).join('')}</div><p class="cx-muted">Green calls, blue email, purple meetings, teal WhatsApp. Last 30 days.</p>`;
+  }
+  window.drawReports = async function () {
+    document.getElementById('view').innerHTML = '<div class="rpt"><h1>Reports</h1><p class="cx-muted">Working from the records…</p></div>';
+    const data = await api('/crm/api/analytics');
+    if (!data || data.error) { document.getElementById('view').innerHTML = '<div class="rpt"><h1>Reports</h1><p>Could not load the figures.</p></div>'; return; }
+    const tabs = [['sales', 'Sales'], ['activity', 'Activity'], ['team', 'Team']].map(([id, label]) => `<button type="button" class="rpt-tab ${rptTab === id ? 'on' : ''}" onclick="setReport('${id}')">${label}</button>`).join('');
+    let body = '';
+    if (rptTab === 'sales') {
+      const s = data.sales;
+      const deals = (data.topDeals || []).map((row) => `<tr style="cursor:pointer" onclick="openRecord('deal','${row.id}')"><td>${esc(row.name)}</td><td>${esc(row.company || '—')}</td><td>${moneyOf(row.value)}</td><td>${esc(row.stage || '')}</td></tr>`).join('') || '<tr><td colspan="4">No open deal.</td></tr>';
+      const people = (data.contacts || []).map((row) => `<tr style="cursor:pointer" onclick="openRecord('contact','${row.id}')"><td>${esc(row.name || 'Unnamed')}</td><td>${row.score}</td><td>${esc(row.company || '—')}</td></tr>`).join('') || '<tr><td colspan="3">No contact has a deal or an activity yet.</td></tr>';
+      body = `<div class="rpt-kpis">${kpi('Revenue this month', moneyOf(s.revenue.value), s.revenue)}${kpi('Open pipeline', moneyOf(s.pipeline.value), s.pipeline)}${kpi('Deals won', String(s.won.value), s.won)}${kpi('Win rate', s.winRate.value == null ? '—' : s.winRate.value + '%', s.winRate)}</div>
+        <p class="cx-muted">${esc(s.pipeline.note || '')}${data.undated ? ' ' + data.undated + ' won deal' + (data.undated === 1 ? ' has' : 's have') + ' no close date, so ' + (data.undated === 1 ? 'it is' : 'they are') + ' not in a month.' : ''}</p>
+        <div class="rpt-row"><article class="rpt-card"><h2>Revenue this year</h2>${area(data.revenue || [])}</article><article class="rpt-card"><h2>Pipeline by stage</h2>${bars(data.stages || [])}</article></div>
+        <div class="rpt-row"><article class="rpt-card"><h2>Top open deals</h2><table><tr><th>Deal</th><th>Company</th><th>Value</th><th>Stage</th></tr>${deals}</table></article><article class="rpt-card"><h2>Contacts by score</h2><table><tr><th>Contact</th><th>Score</th><th>Company</th></tr>${people}</table></article></div>`;
+    } else if (rptTab === 'activity') {
+      const a = data.activity || { calls: 0, emails: 0, meetings: 0, whatsapp: 0, days: [] };
+      const reps = (data.byRep || []).map((row) => `<tr><td>${esc(row.name)}</td><td>${row.calls}</td><td>${row.emails}</td><td>${row.meetings}</td><td>${row.whatsapp}</td></tr>`).join('') || '<tr><td colspan="5">No activity in the last 30 days.</td></tr>';
+      body = `<div class="rpt-kpis">${kpi('Calls', String(a.calls), { text: 'Last 30 days' })}${kpi('Emails', String(a.emails), { text: 'Logged, not necessarily sent' })}${kpi('Meetings', String(a.meetings), { text: 'Last 30 days' })}${kpi('WhatsApp', String(a.whatsapp), { text: 'Logged on a record' })}</div>
+        <article class="rpt-card" style="margin-top:12px"><h2>By day</h2>${days(a.days || [])}</article>
+        <article class="rpt-card" style="margin-top:12px"><h2>By rep</h2><table><tr><th>Rep</th><th>Calls</th><th>Emails</th><th>Meetings</th><th>WhatsApp</th></tr>${reps}</table></article>`;
+    } else {
+      const rows = (data.team || []).map((row) => {
+        const max = Math.max(1, ...row.spark);
+        const spark = `<span class="rpt-spark">${row.spark.map((n) => `<i style="height:${Math.max(2, Math.round(n / max * 28))}px"></i>`).join('')}</span>`;
+        return `<tr><td>${esc(row.name)}</td><td>${row.open}</td><td>${row.won}</td><td>${row.lost}</td><td>${moneyOf(row.revenue)}</td><td>${row.won ? moneyOf(row.avgSize) : '—'}</td><td>${row.cycle == null ? '—' : row.cycle + 'd'}</td><td>${spark}</td></tr>`;
+      }).join('') || '<tr><td colspan="8">No deal is owned yet.</td></tr>';
+      body = `<article class="rpt-card"><h2>This year</h2><p class="cx-muted">Ranked by revenue from won deals that have a close date. The spark is that revenue by month. Cycle is the average days from created to close.</p><table><tr><th>Rep</th><th>Open</th><th>Won</th><th>Lost</th><th>Revenue</th><th>Avg size</th><th>Cycle</th><th></th></tr>${rows}</table></article>`;
+    }
+    document.getElementById('view').innerHTML = `<div class="rpt"><div class="cal-toolbar"><h1>Reports</h1></div><div class="rpt-tabs">${tabs}</div>${body}</div>`;
+  };
+  window.setReport = function (id) { rptTab = id; drawReports(); };
+  drawSalesAnalytics = function () { rptTab = 'sales'; drawReports(); };
+  if (page === 'reports' || page === 'analytics') drawReports();
 })();
