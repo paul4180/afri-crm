@@ -11081,3 +11081,83 @@ window.findDuplicates = async function () {
   toast('Merged');
   refresh();
 };
+
+// ============================================================
+// Settings → Plan & billing (Section 1). Owner sees the plan,
+// renewal date, last payment, and usage against the limits.
+// Upgrade opens Paystack checkout when the price and key are set;
+// otherwise the button explains what is missing.
+// ============================================================
+(function () {
+  var planTab = { id: 'plan', label: 'Plan & billing' };
+  var baseTabs = [
+    { id: 'workspace', label: 'Workspace' }, { id: 'team', label: 'Team' },
+    { id: 'pipeline', label: 'Pipeline' }, { id: 'permissions', label: 'Permissions' },
+    { id: 'sessions', label: 'Sessions' }, { id: 'webhooks', label: 'Webhooks' },
+    { id: 'integrations', label: 'Integrations' }, { id: 'preferences', label: 'Preferences' },
+  ];
+  function fmtDate(v) {
+    if (!v) return '—';
+    try { return new Date(v).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) { return String(v).slice(0, 10); }
+  }
+  function fmtNaira(n) { return '₦' + Number(n).toLocaleString('en-NG'); }
+  function chip(d) {
+    if (d.plan === 'paid' && d.status === 'paid') return '<span style="background:#dcfce7;color:#166534;border-radius:99px;padding:3px 10px;font-size:12px;font-weight:600">Active</span>';
+    if (d.status === 'pending') return '<span style="background:#fef3c7;color:#92400e;border-radius:99px;padding:3px 10px;font-size:12px;font-weight:600">Payment started — not finished</span>';
+    if (d.status === 'failed') return '<span style="background:#fee2e2;color:#991b1b;border-radius:99px;padding:3px 10px;font-size:12px;font-weight:600">Last payment failed</span>';
+    if (d.status === 'expired') return '<span style="background:#f1f5f9;color:#475569;border-radius:99px;padding:3px 10px;font-size:12px;font-weight:600">Paid period ended — back on Free</span>';
+    return '<span style="background:#f1f5f9;color:#475569;border-radius:99px;padding:3px 10px;font-size:12px;font-weight:600">Free</span>';
+  }
+  function bar(label, used, cap) {
+    const pct = Math.min(100, Math.round((used / (cap || 1)) * 100));
+    const color = pct >= 100 ? '#dc2626' : pct >= 80 ? '#d97706' : '#0f766e';
+    return '<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span style="color:#334155;font-weight:600">' + label + '</span><span style="color:#64748b">' + used + ' of ' + cap + '</span></div><div style="height:8px;border-radius:99px;background:#eef2f6;overflow:hidden"><div style="height:8px;border-radius:99px;background:' + color + ';width:' + pct + '%"></div></div></div>';
+  }
+  window.__settingsPlan = async function () {
+    const el = document.getElementById('settingsContent');
+    if (!el) return;
+    const d = await api('/crm/api/billing/plan');
+    if (!d || d.error) { el.innerHTML = '<p class="hello">Could not load the plan.</p>'; return; }
+    const isPaid = d.plan === 'paid' && d.status === 'paid';
+    let upgrade = '';
+    if (isPaid) {
+      upgrade = '<p class="hello" style="margin-top:16px">Your paid plan runs until <b>' + fmtDate(d.planExpiresAt) + '</b>. A new payment adds 30 days to that date — it does not start over.</p>';
+    } else if (!d.paystackReady) {
+      upgrade = '<p class="hello" style="margin-top:16px">Payments are not connected yet. Paystack needs to be switched on for this workspace before checkout can open.</p><button type="button" class="ws-btn" disabled style="opacity:.6;cursor:not-allowed">Paystack not connected</button>';
+    } else if (d.priceNotSet) {
+      upgrade = '<p class="hello" style="margin-top:16px">The price for the paid plan has not been set yet, so checkout stays closed. The owner sets it on the server (PLAN_PRICE_NGN).</p><button type="button" class="ws-btn" disabled style="opacity:.6;cursor:not-allowed">Price not set</button>';
+    } else {
+      upgrade = '<p class="hello" style="margin-top:16px">One payment covers 30 days for this whole workspace. Paystack handles the card; your records are never touched by a downgrade.</p><button type="button" class="ws-btn go" onclick="window.__billingCheckout()">Upgrade — ' + fmtNaira(d.priceNgn) + ' / month</button>';
+    }
+    el.innerHTML =
+      '<div class="settings-section"><h3>Current plan</h3>' +
+      '<div style="display:flex;align-items:center;gap:10px;margin:6px 0 2px"><b style="font-size:18px">' + (isPaid ? 'Paid' : 'Free') + '</b>' + chip(d) + '</div>' +
+      '<div class="ah-pick"><span>Renews / ends</span><b>' + (isPaid ? fmtDate(d.planExpiresAt) : 'No end date on Free') + '</b></div>' +
+      '<div class="ah-pick"><span>Last payment</span><b>' + (d.lastPaidAt ? fmtDate(d.lastPaidAt) : 'No payment yet') + '</b></div>' +
+      '<div class="ah-pick"><span>Workspace</span><b>' + esc(d.workspaceName || '') + '</b></div>' +
+      '</div>' +
+      '<div class="settings-section" style="margin-top:20px"><h3>What you use against the plan</h3>' +
+      bar('Users', d.usage.users, d.limits.users) +
+      bar('WhatsApp numbers', d.usage.whatsapp, d.limits.whatsapp) +
+      bar('Records (contacts, companies, deals, leads)', d.usage.records, d.limits.records) +
+      '<p class="hello" style="font-size:12px">The Free plan keeps every record you already saved — it only caps new ones. Nothing is deleted when a paid period ends.</p>' +
+      '</div>' +
+      '<div class="settings-section" style="margin-top:20px"><h3>' + (isPaid ? 'Extend the plan' : 'Upgrade') + '</h3>' + upgrade + '</div>';
+  };
+  window.__billingCheckout = async function () {
+    const res = await api('/crm/api/billing/checkout', { method: 'POST' });
+    if (!res || res.error) return toast((res && res.error) || 'Could not start checkout');
+    if (res.checkoutUrl) { toast('Opening Paystack…'); window.location.href = res.checkoutUrl; }
+  };
+  var prev = window.drawSettings;
+  if (!prev) return;
+  window.drawSettings = function () {
+    const tab = window.__settingsTab || 'workspace';
+    if (tab !== 'plan') return prev();
+    const navHtml = baseTabs.slice(0, 2).concat([planTab], baseTabs.slice(2)).map(function (t) {
+      return '<button class="' + (tab === t.id ? 'on' : '') + '" onclick="window.__settingsTab=\'' + t.id + '\';drawSettings()">' + t.label + '</button>';
+    }).join('');
+    document.getElementById('view').innerHTML = '<div class="board-head"><h1>Settings</h1></div><div class="settings-layout"><nav class="settings-nav">' + navHtml + '</nav><div class="settings-content" id="settingsContent">Loading...</div></div>';
+    window.__settingsPlan();
+  };
+})();

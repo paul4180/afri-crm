@@ -1691,6 +1691,11 @@ export function registerCrm(app, prisma) {
     });
     app.post('/crm/api/' + name, async (req, reply) => {
       const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+      // Free-plan record cap: contacts + companies + deals + leads.
+      if (['contacts', 'companies', 'deals', 'leads'].includes(name)) {
+        const limRecords = limitHit(user.tenantId, 'records');
+        if (limRecords) return reply.code(402).send({ error: 'The Free plan allows ' + limRecords.records + ' records (contacts, companies, deals, leads). Upgrade in Settings → Plan for more. Nothing you already saved is deleted.' });
+      }
       // Validate BEFORE insert — reject malformed input with a 400.
       const errors = validate(name, req.body || {});
       if (errors.length) {
@@ -1863,6 +1868,10 @@ export function registerCrm(app, prisma) {
     const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
     const tenantId = user.tenantId;
     const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+    const limRecordsImport = limitHit(tenantId, 'records');
+    const recordCap = limRecordsImport ? limRecordsImport.records : Infinity;
+    const usedRecords = billingUsage(tenantId).records;
+    if (usedRecords >= recordCap) return reply.code(402).send({ error: 'The Free plan allows ' + recordCap + ' records. Upgrade in Settings → Plan to import more. Nothing you already saved is deleted.' });
     let imported = 0, skipped = 0;
     const errors = [];
     for (let i = 0; i < rows.length; i++) {
@@ -3784,6 +3793,8 @@ export function registerCrm(app, prisma) {
   app.post('/crm/api/people', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only an owner or an admin can add a person' });
+    const limUsers = limitHit(user.tenantId, 'users');
+    if (limUsers) return reply.code(402).send({ error: 'The Free plan allows ' + limUsers.users + ' users. Upgrade in Settings → Plan to add more. Your records are never deleted.' });
     const email = String(req.body?.email || '').trim().toLowerCase();
     const fullName = String(req.body?.fullName || '').trim().slice(0, 120);
     const password = String(req.body?.password || '');
@@ -3818,6 +3829,31 @@ export function registerCrm(app, prisma) {
       paystackRef TEXT, lastPaidAt TEXT, planExpiresAt TEXT, updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
+  // Current usage for the plan limits. Records = contacts +
+  // companies + deals + leads. WhatsApp lines: the schema keeps one
+  // line per workspace, so free (1 line) is always satisfied.
+  function billingUsage(tenantId) {
+    let records = 0;
+    for (const t of ['contacts', 'companies', 'deals', 'leads']) {
+      try { records += db.prepare('SELECT COUNT(*) AS n FROM ' + t + ' WHERE tenantId = ?').get(tenantId).n; } catch (e) { /* table missing */ }
+    }
+    let users = 0;
+    // Only active seats count. The workspace seeds two demo reps, so
+    // counting everyone would put a fresh Free workspace at its cap on
+    // day one — switching a demo rep off frees the seat instead.
+    try { users = db.prepare('SELECT COUNT(*) AS n FROM crm_accounts WHERE workspaceId = ? AND (active IS NULL OR active = 1)').get(tenantId).n; } catch (e) { /* table missing */ }
+    let whatsapp = 0;
+    try { whatsapp = db.prepare('SELECT COUNT(*) AS n FROM wa_lines WHERE tenantId = ?').get(tenantId)?.n || 0; } catch (e) { /* table missing */ }
+    return { users, whatsapp, records };
+  }
+  // Returns the limit object when the workspace has reached the cap
+  // for this kind, or null when there is still room.
+  function limitHit(tenantId, kind) {
+    const plan = billingFor(tenantId);
+    const lim = PLAN_LIMITS[plan.plan] || PLAN_LIMITS.free;
+    const usage = billingUsage(tenantId);
+    return (usage[kind] || 0) >= lim[kind] ? lim : null;
+  }
   function billingFor(tenantId) {
     const row = db.prepare('SELECT * FROM billing WHERE tenantId = ?').get(tenantId);
     if (!row) return { tenantId, plan: 'free', status: '', paystackRef: null, lastPaidAt: null, planExpiresAt: null };
@@ -3840,6 +3876,7 @@ export function registerCrm(app, prisma) {
       lastPaidAt: info.lastPaidAt || null,
       planExpiresAt: info.planExpiresAt || null,
       limits: PLAN_LIMITS[info.plan] || PLAN_LIMITS.free,
+      usage: billingUsage(user.tenantId),
       priceNgn,
       paystackReady,
       priceNotSet: priceNgn === null,
@@ -3853,13 +3890,15 @@ export function registerCrm(app, prisma) {
     if (!priceNgn) return reply.code(424).send({ error: 'Price is not set. Set PLAN_PRICE_NGN on the server to enable checkout.' });
     const amountKobo = Math.round(Number(priceNgn) * 100);
     if (!amountKobo || amountKobo <= 0) return reply.code(400).send({ error: 'The price must be a positive number in naira' });
-    const email = String(user.email || '').trim().toLowerCase();
+    // The JWT does not carry the email — read it from the account row.
+    const acc = db.prepare('SELECT email FROM crm_accounts WHERE id = ?').get(user.sub);
+    const email = String((acc && acc.email) || '').trim().toLowerCase();
     if (!email || !email.includes('@')) return reply.code(400).send({ error: 'No valid email on this account' });
     const origin = originOf(req);
     const res = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + process.env.PAYSTACK_SECRET_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, amount: amountKgn, currency: 'NGN', callback_url: origin + '/crm', metadata: { tenantId: user.tenantId, plan: 'paid' } }),
+      body: JSON.stringify({ email, amount: amountKobo, currency: 'NGN', callback_url: origin + '/crm', metadata: { tenantId: user.tenantId, plan: 'paid' } }),
     });
     const data = await res.json().catch(() => ({}));
     const ref = (data.data && data.data.reference) || '';
@@ -4938,6 +4977,8 @@ function agentBrain(tenantId) {
     const role = String(req.body?.role || 'SALES').toUpperCase();
     if (!email) return reply.code(400).send({ error: 'Email is required.' });
     if (!['ADMIN', 'MANAGER', 'SALES', 'VIEWER'].includes(role)) return reply.code(400).send({ error: 'Role must be Admin, Manager, Sales, or Viewer.' });
+    const limUsersInvite = limitHit(user.tenantId, 'users');
+    if (limUsersInvite) return reply.code(402).send({ error: 'The Free plan allows ' + limUsersInvite.users + ' users. Upgrade in Settings → Plan to add more. Your records are never deleted.' });
     if (db.prepare('SELECT id FROM crm_accounts WHERE email = ?').get(email)) return reply.code(409).send({ error: 'That email already has a CRM account.' });
     const tempPassword = crypto.randomBytes(4).toString('hex');
     const hash = await bcrypt.hash(tempPassword, 10);
