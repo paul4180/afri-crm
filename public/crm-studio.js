@@ -7932,6 +7932,15 @@
     #view .dash button.dash-card { background: rgba(255,255,255,0.05) !important; color: #94a3b8 !important; border-radius: 8px !important; }
     .dash-card:hover { border-color: #0d9488 !important; background: rgba(13,148,136,0.08) !important; }
     .dash-empty { padding: 16px 20px; color: #64748b !important; font-size: 13px; }
+    .dash-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.06); cursor: pointer; text-align: left; }
+    .dash-line:hover { background: rgba(255,255,255,0.04); }
+    .dash-line b { display: block; color: #f8fafc !important; font-size: 14px; font-weight: 600; }
+    .dash-line .dash-meta { color: #94a3b8 !important; font-size: 12px; }
+    .dash-side { text-align: right; }
+    .dash-pill { display: inline-block; font-size: 11px; border-radius: 999px; padding: 2px 8px; background: rgba(255,255,255,0.08); color: #e2e8f0 !important; }
+    .dash-pill.late { background: rgba(239,68,68,0.18); color: #fecaca !important; }
+    .dash-pill.today { background: rgba(245,158,11,0.18); color: #fde68a !important; }
+    .dash-note { margin: 8px 0 0; color: rgba(255,255,255,0.72) !important; font-size: 13px; max-width: 640px; }
     @media (max-width: 1100px) { .dash-kpis, .dash-grid { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 720px) { .dash-top, .dash-kpis, .dash-grid { display: block; } .dash-kpi, .dash-panel { margin-bottom: 12px; } }
   `;
@@ -7983,7 +7992,8 @@
     }
     const today = new Date().toISOString().slice(0, 10);
     const dayOf = (row) => String(row.dueAt || '').slice(0, 10);
-    const openDeals = (bag.deals || []).filter((row) => !String(stageOf(row)).startsWith('CLOSED'));
+    const stageHit0 = (value) => (bag.stages || []).find((row) => row.id === value || row.code === value) || null;
+    const openDeals = (bag.deals || []).filter((row) => { const stage = stageHit0(row.stage); if (stage) return !(stage.closed || String(stage.code || '').startsWith('CLOSED')); return !String(stageOf(row) || '').startsWith('CLOSED'); });
     const pipeline = openDeals.reduce((sum, row) => sum + Number(row.amount || 0), 0);
     const due = (bag.activities || []).filter((row) => (row.type === 'TASK' || row.type === 'CALL' || row.type === 'MEETING') && row.status === 'PLANNED' && dayOf(row) === today);
     const hot = (bag.leads || []).filter((row) => row.rating === 'HOT');
@@ -7994,27 +8004,61 @@
     const show = panels();
     const sw = (key) => `<button type="button" class="dash-switch ${show[key] ? 'on' : ''}" onclick="toggleHomePanel('${key}')" aria-label="Show or hide"><i></i></button>`;
     const empty = '<div class="dash-empty">None yet.</div>';
-    const contacts = (bag.contacts || []).slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).slice(0, 4);
-    const accounts = (bag.companies || []).slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).slice(0, 4);
-    const deals = openDeals.slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).slice(0, 4);
-    const tasks = (bag.activities || []).filter((row) => row.type === 'TASK' || row.type === 'CALL' || row.type === 'MEETING' || row.type === 'EMAIL')
-      .slice().sort((a, b) => String(a.dueAt || a.createdAt || '').localeCompare(String(b.dueAt || b.createdAt || ''))).slice(0, 4);
+    const stageHit = (value) => (bag.stages || []).find((row) => row.id === value || row.code === value) || null;
+    const closedDeal = (row) => { const stage = stageHit(row.stage); if (stage) return Boolean(stage.closed) || String(stage.code || '').startsWith('CLOSED'); return String(stageOf(row) || '').startsWith('CLOSED'); };
+    const stageName = (row) => { const stage = stageHit(row.stage); return stage ? (stage.name || stage.code) : 'Open'; };
+    const openNow = (bag.deals || []).filter((row) => !closedDeal(row));
+    const actsFor = (id) => (bag.activities || []).filter((row) => row.relatedId === id && row.status !== 'HELD' && row.status !== 'DONE');
+    const rankContact = (row) => {
+      const acts = actsFor(row.id);
+      const late = acts.find((item) => dayOf(item) && dayOf(item) < today);
+      const now = acts.find((item) => dayOf(item) === today);
+      const mine = openNow.filter((deal) => deal.contactId === row.id);
+      const worth = mine.reduce((sum, deal) => sum + Number(deal.amount || 0), 0);
+      if (late) return { score: 100, why: 'Overdue · ' + (late.subject || 'a task') };
+      if (now) return { score: 70, why: 'Due today · ' + (now.subject || 'a task') };
+      if (worth) return { score: 40 + Math.min(20, Math.round(Math.log10(worth) * 6)), why: 'Open deal · ' + money(worth) };
+      return { score: 1, why: row.email || row.phone || 'No open work' };
+    };
+    const rankCompany = (row) => {
+      const mine = openNow.filter((deal) => deal.companyId === row.id);
+      const worth = mine.reduce((sum, deal) => sum + Number(deal.amount || 0), 0);
+      return { score: worth, why: mine.length ? mine.length + ' open · ' + money(worth) : (row.industry || row.city || 'No open deal') };
+    };
+    const rankDeal = (row) => {
+      const close = String(row.closeDate || '').slice(0, 10);
+      const soon = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+      if (close && close < today) return { score: 1000 + Number(row.amount || 0), why: stageName(row) + ' · close date passed' };
+      if (close && close <= soon) return { score: 500 + Number(row.amount || 0), why: stageName(row) + ' · closes ' + close };
+      return { score: Number(row.amount || 0), why: stageName(row) };
+    };
+    const rankTask = (row) => {
+      const day = dayOf(row);
+      if (day && day < today && row.status !== 'HELD') return { score: 100, tag: 'Overdue', cls: 'late' };
+      if (day === today) return { score: 70, tag: 'Due today', cls: 'today' };
+      return { score: 10, tag: chip(row), cls: '' };
+    };
+    const line = (click, name, why, tag, cls) => `<div class="dash-line" onclick="${click}"><div><b>${esc(name)}</b><span class="dash-meta">${esc(why || '')}</span></div><div class="dash-side">${tag ? `<span class="dash-pill ${cls || ''}">${esc(tag)}</span>` : ''}</div></div>`;
+    const contacts = (bag.contacts || []).map((row) => ({ row, ...rankContact(row) })).sort((a, b) => b.score - a.score).slice(0, 4);
+    const accounts = (bag.companies || []).map((row) => ({ row, ...rankCompany(row) })).sort((a, b) => b.score - a.score).slice(0, 4);
+    const deals = openNow.map((row) => ({ row, ...rankDeal(row) })).sort((a, b) => b.score - a.score).slice(0, 4);
+    const tasks = (bag.activities || []).filter((row) => (row.type === 'TASK' || row.type === 'CALL' || row.type === 'MEETING' || row.type === 'EMAIL') && row.status !== 'HELD' && row.status !== 'DONE')
+      .map((row) => ({ row, ...rankTask(row) })).sort((a, b) => b.score - a.score || String(a.row.dueAt || '').localeCompare(String(b.row.dueAt || ''))).slice(0, 4);
     const story = (bag.activities || []).slice().sort((a, b) => String(b.createdAt || b.dueAt || '').localeCompare(String(a.createdAt || a.dueAt || ''))).slice(0, 6);
-    const row = (click, name, meta, right) => `<button type="button" class="dash-row" onclick="${click}"><span><b class="dash-name">${esc(name)}</b><div class="dash-meta">${esc(meta || '')}</div></span><span class="dash-right dash-time">${right}</span></button>`;
-    const contactRows = contacts.map((rowx) => row(`openRecord('contact','${rowx.id}')`, person(rowx), rowx.email || rowx.phone || '', esc(rel(rowx.createdAt)))).join('') || empty;
-    const accountRows = accounts.map((rowx) => row(`openRecord('company','${rowx.id}')`, rowx.name, rowx.industry || rowx.city || '', esc(rel(rowx.createdAt)))).join('') || empty;
-    const dealRows = deals.map((rowx) => row(`openRecord('deal','${rowx.id}')`, rowx.name, money(rowx.amount), esc(rel(rowx.createdAt)))).join('') || empty;
-    const taskRows = tasks.map((rowx) => row(`go('tasks')`, rowx.subject || 'Task', dueWord(rowx), esc(chip(rowx)))).join('') || empty;
+    const contactRows = contacts.map(({ row: rowx, why }) => line(`openRecord('contact','${rowx.id}')`, person(rowx), why, rel(rowx.createdAt))).join('') || empty;
+    const accountRows = accounts.map(({ row: rowx, why }) => line(`openRecord('company','${rowx.id}')`, rowx.name, why, '')).join('') || empty;
+    const dealRows = deals.map(({ row: rowx, why }) => line(`openRecord('deal','${rowx.id}')`, rowx.name, why, money(rowx.amount))).join('') || empty;
+    const taskRows = tasks.map(({ row: rowx, tag, cls }) => line(`go('tasks')`, rowx.subject || 'Task', dueWord(rowx), tag, cls)).join('') || empty;
     const cards = story.map((rowx) => {
       const kind = rowx.relatedType && rowx.relatedId && ['contact', 'company', 'deal', 'lead'].includes(rowx.relatedType)
         ? `openRecord('${rowx.relatedType}','${rowx.relatedId}')` : `go('tasks')`;
-      return `<button type="button" class="dash-card" onclick="${kind}">${esc(rowx.subject || rowx.type || 'Activity')}</button>`;
+      return line(kind, rowx.subject || rowx.type || 'Activity', chip(rowx) + (rel(rowx.createdAt) ? ' · ' + rel(rowx.createdAt) : ''), '');
     }).join('') || '<div class="dash-empty">No activity yet.</div>';
     const panel = (key, label, body) => `<section class="dash-panel"><header class="dash-ph"><span>${label}</span>${sw(key)}</header>${show[key] ? body : ''}</section>`;
     document.getElementById('view').innerHTML = `<div class="dash">
       <section class="dash-hero">
         <div class="dash-top">
-          <div><h1 class="dash-today">Today</h1><p class="dash-sub">${hello} · ${esc(when)} · ${n(openDeals.length, 'open deal', 'open deals')} · ${n(due.length, 'task due', 'tasks due')}</p></div>
+          <div><h1 class="dash-today">Today</h1><p class="dash-sub">${hello} · ${esc(when)} · ${n(openDeals.length, 'open deal', 'open deals')} · ${n(due.length, 'task due', 'tasks due')}</p><p class="dash-note">Lists are ordered by overdue work, then what is due, then open money. Newest is only the tie-break.</p></div>
           <div class="dash-links"><button type="button" class="dash-link" onclick="go('guide')">↗ Start guide</button><button type="button" class="dash-link" onclick="homeDemo()">◈ Demo data</button><button type="button" class="dash-link" onclick="homePack=null;drawHome()">↻ Refresh</button></div>
         </div>
       </section>
