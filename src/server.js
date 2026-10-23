@@ -56,6 +56,12 @@ app.get('/about', async (req, reply) => reply.sendFile('about.html'));
 app.get('/blog', async (req, reply) => reply.sendFile('blog.html'));
 app.get('/careers', async (req, reply) => reply.sendFile('careers.html'));
 app.get('/press', async (req, reply) => reply.sendFile('press.html'));
+app.get('/pricing', async (req, reply) => reply.sendFile('pricing.html'));
+app.get('/docs', async (req, reply) => reply.sendFile('docs.html'));
+app.get('/api', async (req, reply) => reply.sendFile('api.html'));
+app.get('/status', async (req, reply) => reply.sendFile('status.html'));
+app.get('/community', async (req, reply) => reply.sendFile('community.html'));
+app.get('/changelog', async (req, reply) => reply.sendFile('changelog.html'));
 
 // ============================================================
 // Prisma — optional, for cross-product features only
@@ -105,7 +111,7 @@ app.addHook('onSend', async (req, reply) => {
   const url = req.url || '';
   if (url.endsWith('.js') || url.endsWith('.css') || url.endsWith('.svg') || url.endsWith('.png') || url.endsWith('.ico')) {
     reply.header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
-  } else if (url.endsWith('.html') || url === '/' || url === '/crm' || url === '/privacy' || url === '/terms' || url === '/about' || url === '/blog' || url === '/careers' || url === '/press') {
+  } else if (url.endsWith('.html') || url === '/' || url === '/crm' || url === '/privacy' || url === '/terms' || url === '/about' || url === '/blog' || url === '/careers' || url === '/press' || url === '/pricing' || url === '/docs' || url === '/api' || url === '/status' || url === '/community' || url === '/changelog') {
     reply.header('Cache-Control', 'no-cache, must-revalidate');
   }
 });

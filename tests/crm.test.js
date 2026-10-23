@@ -43,3 +43,24 @@ test('webhook URL must be https', () => {
   expect(validUrl.startsWith('https://')).toBe(true);
   expect(invalidUrl.startsWith('https://')).toBe(false);
 });
+
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+test('pricing page states the free plan and does not invent a price', () => {
+  const file = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'pricing.html');
+  const html = fs.readFileSync(file, 'utf8');
+  expect(html).toContain('₦0');
+  expect(html).toContain('not for sale');
+  expect(html).not.toContain('$9');
+});
+
+test('landing footer no longer uses dead anchors', () => {
+  const file = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'landing.html');
+  const html = fs.readFileSync(file, 'utf8');
+  expect(html).toContain('href="/docs"');
+  expect(html).toContain('href="/status"');
+  expect(html).not.toContain('href="#status"');
+  expect(html).not.toContain('>88<');
+});

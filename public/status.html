@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Status — Afri CRM</title>
+<meta name="description" content="Whether the Afri CRM site answered.">
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Inter, system-ui, sans-serif; background: #faf9f7; color: #0f172a; line-height: 1.55; }
+  a { color: #0f766e; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 24px; background: #fff; border-bottom: 1px solid #e2e8f0; }
+  header a.brand { color: #0f172a; text-decoration: none; font-weight: 700; }
+  nav { display: flex; gap: 14px; flex-wrap: wrap; font-size: 14px; }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 36px; letter-spacing: -0.03em; margin: 0 0 12px; }
+  h2 { font-size: 20px; margin: 28px 0 8px; }
+  p, li { color: #334155; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; margin: 16px 0; }
+  .price { font-size: 40px; margin: 0; }
+  .muted { color: #64748b; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td, th { text-align: left; padding: 8px 0; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="/">Afri</a>
+  <nav>
+    <a href="/pricing">Pricing</a>
+    <a href="/docs">Docs</a>
+    <a href="/api">API</a>
+    <a href="/status">Status</a>
+    <a href="/crm">Sign in</a>
+  </nav>
+</header>
+<main>
+<h1>Status</h1>
+<div class="card">
+  <p class="price" style="font-size:28px">This page loaded</p>
+  <p>That means the site process answered. There is no separate history of past outages.</p>
+  <p>Machines check <a href="/health">/health</a>. A healthy answer is <code>status: ok</code>.</p>
+</div>
+<p class="muted">If sign-in fails while this page works, the database or the sign-in secret is the next place to look. This page cannot see that.</p>
+</main>
+</body>
+</html>
