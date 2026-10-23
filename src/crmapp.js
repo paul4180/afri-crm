@@ -238,6 +238,10 @@ CREATE TABLE IF NOT EXISTS field_values (
   UNIQUE(fieldId, recordId)
 );
 CREATE INDEX IF NOT EXISTS ix_crm_audit ON audit(tenantId, recordId);
+CREATE TABLE IF NOT EXISTS shares (
+  tenantId TEXT NOT NULL, object TEXT NOT NULL, recordId TEXT NOT NULL, userId TEXT NOT NULL,
+  PRIMARY KEY (tenantId, object, recordId, userId)
+);
 CREATE TABLE IF NOT EXISTS pipelines (
   id TEXT PRIMARY KEY, tenantId TEXT NOT NULL, name TEXT NOT NULL, isDefault INTEGER DEFAULT 1
 );
@@ -347,6 +351,11 @@ for (const [table, col, type] of [
   ['leads', 'sample', 'INTEGER DEFAULT 0'],
   ['activities', 'sample', 'INTEGER DEFAULT 0'],
   ['notes', 'sample', 'INTEGER DEFAULT 0'],
+  ['activities', 'repeat', 'TEXT'],
+  ['deals', 'currency', "TEXT DEFAULT 'NGN'"],
+  ['deal_lines', 'discount', 'REAL DEFAULT 0'],
+  ['crm_prefs', 'quietStart', 'TEXT'],
+  ['crm_prefs', 'quietEnd', 'TEXT'],
   ['contacts', 'lifecycle', 'TEXT'],
   ['contacts', 'language', 'TEXT'],
   ['contacts', 'whatsappOptIn', 'TEXT'],
@@ -417,8 +426,8 @@ const FIELDS = {
   companies: ['name', 'industry', 'type', 'website', 'phone', 'email', 'street', 'city', 'state', 'country', 'description', 'years', 'offering', 'area', 'satisfaction', 'ownerId', 'source'],
   contacts: ['firstName', 'lastName', 'title', 'email', 'phone', 'mobile', 'companyId', 'street', 'city', 'state', 'country', 'description', 'method', 'serviceFrequency', 'serviceType', 'lastService', 'ownerId', 'source', 'status', 'lifecycle', 'language', 'whatsappOptIn', 'consent', 'utmSource', 'utmMedium', 'utmCampaign'],
   leads: ['firstName', 'lastName', 'title', 'companyName', 'email', 'phone', 'mobile', 'website', 'source', 'status', 'industry', 'rating', 'street', 'city', 'state', 'country', 'description', 'ownerId', 'deadReason'],
-  deals: ['name', 'companyId', 'contactId', 'leadId', 'amount', 'probability', 'stage', 'closeDate', 'type', 'source', 'nextStep', 'description', 'lostReason', 'ownerId'],
-  activities: ['type', 'subject', 'dueAt', 'status', 'relatedType', 'relatedId', 'notes', 'ownerId', 'priority', 'minutes'],
+  deals: ['name', 'companyId', 'contactId', 'leadId', 'amount', 'probability', 'stage', 'closeDate', 'type', 'source', 'nextStep', 'description', 'lostReason', 'ownerId', 'currency'],
+  activities: ['type', 'subject', 'dueAt', 'status', 'relatedType', 'relatedId', 'notes', 'ownerId', 'priority', 'minutes', 'repeat'],
   products: ['name', 'code', 'price', 'description', 'category', 'stock', 'attrs'],
 };
 const NUM = new Set(['amount', 'probability', 'price', 'quantity', 'unitPrice', 'discount', 'stock', 'minutes']);
@@ -507,6 +516,7 @@ function writeAudit(tenantId, userId, action, object, recordId, detail) {
 const ears = new Set();
 function notifyUser(tenantId, userId, note) {
   if (!tenantId || !userId || !note?.title) return null;
+  if (note.kind !== 'task.due' && inQuiet(tenantId, userId)) return null;
   const id = crypto.randomUUID();
   db.prepare('INSERT INTO notifications (id, tenantId, userId, kind, title, body, recordType, recordId, sourceId) VALUES (?,?,?,?,?,?,?,?,?)')
     .run(id, tenantId, userId, String(note.kind || 'note').slice(0, 40), String(note.title).slice(0, 160), String(note.body || '').slice(0, 300), note.recordType || null, note.recordId || null, note.sourceId || null);
@@ -589,8 +599,19 @@ function teamUserIds(tenantId, userId) {
 function canSee(user, row) {
   if (!row) return false;
   if (['OWNER', 'ADMIN', 'VIEWER', 'AUDITOR'].includes(user.role)) return true;
+  if (row.id && db.prepare('SELECT 1 FROM shares WHERE tenantId = ? AND recordId = ? AND userId = ?').get(user.tenantId, row.id, user.sub)) return true;
   if (!row.ownerId) return true;
   return teamUserIds(user.tenantId, user.sub).has(row.ownerId);
+}
+function inQuiet(tenantId, userId) {
+  const pref = db.prepare('SELECT quietStart, quietEnd FROM crm_prefs WHERE tenantId = ? AND userId = ?').get(tenantId, userId);
+  if (!pref || pref.quietStart == null || pref.quietStart === '' || pref.quietEnd == null || pref.quietEnd === '') return false;
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hourCycle: 'h23', timeZone: 'Africa/Lagos' }).format(new Date()));
+  const start = Number(pref.quietStart);
+  const end = Number(pref.quietEnd);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start === end) return false;
+  if (start < end) return hour >= start && hour < end;
+  return hour >= start || hour < end;
 }
 
 function sameTenant(table, tenantId, id) {
@@ -1674,6 +1695,15 @@ export function registerCrm(app, prisma) {
         if (pushed.error) created.googleError = pushed.error;
         if (pushed.skipped) created.googleSkipped = pushed.skipped;
       }
+      if (name === 'leads' && !created.ownerId) {
+        const people = db.prepare("SELECT id FROM crm_accounts WHERE workspaceId = ? AND COALESCE(active, 1) = 1 AND role IN ('OWNER','ADMIN','MANAGER','SALES') AND email NOT LIKE '%@sample.invalid'").all(user.tenantId);
+        if (people.length) {
+          const ranked = people.map((person) => ({ id: person.id, n: db.prepare("SELECT COUNT(*) AS n FROM leads WHERE tenantId = ? AND ownerId = ? AND status NOT IN ('CONVERTED','DEAD')").get(user.tenantId, person.id).n }));
+          ranked.sort((a, b) => a.n - b.n || String(a.id).localeCompare(String(b.id)));
+          patch('leads', user.tenantId, created.id, { ownerId: ranked[0].id });
+          created = one('leads', user.tenantId, created.id);
+        }
+      }
       if (name === 'leads') applyWorkflow(user.tenantId, 'lead.created', created);
       if (created.ownerId && created.ownerId !== user.sub && (name === 'leads' || name === 'deals' || name === 'activities')) {
         const type = { leads: 'lead', deals: 'deal', activities: created.relatedType || 'task' }[name];
@@ -1716,6 +1746,13 @@ export function registerCrm(app, prisma) {
         if (type) notifyUser(user.tenantId, data.ownerId, { kind: 'assigned', title: row.name || (row.firstName + ' ' + (row.lastName || '')).trim() || row.subject, body: 'Assigned to you', recordType: type, recordId: row.id });
       } else if (name === 'deals' && row.stage !== before.stage && row.ownerId && row.ownerId !== user.sub) {
         notifyUser(user.tenantId, row.ownerId, { kind: 'deal', title: row.name + ' moved', body: row.stage, recordType: 'deal', recordId: row.id });
+      }
+      if (name === 'activities' && before.status !== 'DONE' && row.status === 'DONE' && (row.repeat === 'daily' || row.repeat === 'weekly')) {
+        const days = row.repeat === 'weekly' ? 7 : 1;
+        const base = new Date(row.dueAt || Date.now());
+        const from = Number.isNaN(base.getTime()) ? new Date() : base;
+        const due = new Date(from.getTime() + days * 86400000).toISOString().slice(0, 10);
+        insert('activities', user.tenantId, { type: row.type, subject: row.subject, dueAt: due, status: 'PLANNED', relatedType: row.relatedType, relatedId: row.relatedId, ownerId: row.ownerId, priority: row.priority || 'NORMAL', repeat: row.repeat, notes: '' });
       }
       return row;
     });
@@ -4185,6 +4222,59 @@ function agentBrain(tenantId) {
     return { ok: true };
   });
 
+
+  app.post('/crm/api/bulk/contacts', async (req, reply) => {
+    const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+    const ids = Array.isArray(req.body && req.body.ids) ? req.body.ids.map((id) => String(id)).slice(0, 200) : [];
+    const patchBody = clean('contacts', (req.body && req.body.patch) || {});
+    const data = {};
+    for (const key of ['ownerId', 'lifecycle', 'status', 'source']) if (patchBody[key] !== undefined) data[key] = patchBody[key];
+    if (!ids.length || !Object.keys(data).length) return reply.code(400).send({ error: 'Choose people and one field to change' });
+    let changed = 0;
+    for (const id of ids) {
+      const row = one('contacts', user.tenantId, id);
+      if (!row || !canSee(user, row)) continue;
+      if (patch('contacts', user.tenantId, id, data)) changed += 1;
+    }
+    writeAudit(user.tenantId, user.sub, 'bulk', 'contacts', '', changed + ' contacts updated');
+    return { changed };
+  });
+  app.get('/crm/api/export', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    if (user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'Only an owner or an admin can export' });
+    const pack = {
+      exportedAt: new Date().toISOString(),
+      contacts: db.prepare('SELECT * FROM contacts WHERE tenantId = ?').all(user.tenantId),
+      companies: db.prepare('SELECT * FROM companies WHERE tenantId = ?').all(user.tenantId),
+      deals: db.prepare('SELECT * FROM deals WHERE tenantId = ?').all(user.tenantId),
+      leads: db.prepare('SELECT * FROM leads WHERE tenantId = ?').all(user.tenantId),
+      activities: db.prepare('SELECT * FROM activities WHERE tenantId = ?').all(user.tenantId),
+    };
+    writeAudit(user.tenantId, user.sub, 'export', 'workspace', user.tenantId, 'Full export');
+    reply.header('Content-Disposition', 'attachment; filename="afri-crm-export.json"');
+    return pack;
+  });
+  app.post('/crm/api/prefs', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    const start = !req.body || req.body.quietStart == null || req.body.quietStart === '' ? null : String(Number(req.body.quietStart));
+    const end = !req.body || req.body.quietEnd == null || req.body.quietEnd === '' ? null : String(Number(req.body.quietEnd));
+    db.prepare('INSERT INTO crm_prefs (tenantId, userId, quietStart, quietEnd) VALUES (?,?,?,?) ON CONFLICT(tenantId, userId) DO UPDATE SET quietStart = excluded.quietStart, quietEnd = excluded.quietEnd').run(user.tenantId, user.sub, start, end);
+    return { quietStart: start, quietEnd: end };
+  });
+  app.post('/crm/api/share', async (req, reply) => {
+    const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+    const object = String((req.body && req.body.object) || '');
+    const recordId = String((req.body && req.body.recordId) || '');
+    const userId = String((req.body && req.body.userId) || '');
+    if (!['contacts', 'companies', 'deals', 'leads'].includes(object) || !recordId || !userId) return reply.code(400).send({ error: 'Choose a record and a person' });
+    const row = one(object, user.tenantId, recordId);
+    if (!row) return reply.code(404).send({ error: 'Not found' });
+    const person = db.prepare('SELECT id FROM crm_accounts WHERE id = ? AND workspaceId = ?').get(userId, user.tenantId);
+    if (!person) return reply.code(404).send({ error: 'That person is not in this business' });
+    db.prepare('INSERT OR IGNORE INTO shares (tenantId, object, recordId, userId) VALUES (?,?,?,?)').run(user.tenantId, object, recordId, userId);
+    writeAudit(user.tenantId, user.sub, 'share', object, recordId, userId);
+    return { ok: true };
+  });
   function dealLineTotal(tenantId, dealId) {
     const lines = db.prepare('SELECT lineTotal FROM deal_lines WHERE tenantId = ? AND dealId = ?').all(tenantId, dealId);
     if (!lines.length) return null;
@@ -4210,8 +4300,11 @@ function agentBrain(tenantId) {
     if (!Number.isFinite(quantity) || quantity <= 0) return reply.code(400).send({ error: 'Quantity has to be more than zero' });
     if (!Number.isFinite(unitPrice) || unitPrice < 0) return reply.code(400).send({ error: 'Price cannot be negative' });
     const id = crypto.randomUUID();
-    db.prepare('INSERT INTO deal_lines (id, tenantId, dealId, productId, description, quantity, unitPrice, lineTotal) VALUES (?,?,?,?,?,?,?,?)')
-      .run(id, user.tenantId, deal.id, product ? product.id : null, description, quantity, unitPrice, Math.round(quantity * unitPrice));
+    const discount = Number(body.discount || 0);
+    if (!Number.isFinite(discount) || discount < 0 || discount > 100) return reply.code(400).send({ error: 'Discount is a percent from 0 to 100' });
+    if (discount > 10 && user.role !== 'OWNER' && user.role !== 'ADMIN') return reply.code(403).send({ error: 'A discount over 10% needs an owner or an admin' });
+    db.prepare('INSERT INTO deal_lines (id, tenantId, dealId, productId, description, quantity, unitPrice, discount, lineTotal) VALUES (?,?,?,?,?,?,?,?,?)')
+      .run(id, user.tenantId, deal.id, product ? product.id : null, description, quantity, unitPrice, discount, Math.round(quantity * unitPrice * (1 - discount / 100)));
     const amount = dealLineTotal(user.tenantId, deal.id);
     writeAudit(user.tenantId, user.sub, 'line', 'deals', deal.id, description);
     return { id, amount };

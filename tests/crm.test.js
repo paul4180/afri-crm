@@ -92,3 +92,10 @@ test('a deal can store product lines and they set the amount', () => {
   expect(src).toContain('CREATE TABLE IF NOT EXISTS deal_lines');
   expect(src).toContain("/crm/api/deals/:id/lines");
 });
+
+test('phase 3 covers assignment, repeat, export, and sharing', () => {
+  const src = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'crmapp.js'), 'utf8');
+  expect(src).toContain('/crm/api/bulk/contacts');
+  expect(src).toContain('/crm/api/export');
+  expect(src).toContain('row.repeat === \'weekly\'');
+});

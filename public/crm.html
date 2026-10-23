@@ -773,7 +773,7 @@ async function boot() {
   document.getElementById('whoMark').textContent = initials(name);
   document.getElementById('whoName').textContent = company;
   document.getElementById('who').title = name;
-  document.getElementById('menu').innerHTML = `<div style="padding:8px"><b>${esc(me.fullName || '')}</b><div class="meta">${esc(me.email || '')}</div></div><div style="padding:8px">${esc(company)}</div><button type="button" onclick="setPresence('available')">Available</button><button type="button" onclick="setPresence('busy')">Busy</button><button type="button" onclick="setPresence('away')">Away</button><button type="button" onclick="go('dashboard')">Reports</button><button type="button" onclick="go('analytics')">Analytics</button><button type="button" onclick="go('integrations')">Connections</button><button type="button" onclick="go('guide')">Start guide</button><button type="button" onclick="if (typeof openQuickTour==='function') openQuickTour()">Tour</button><button type="button" onclick="toggleTheme()">Dark or light</button><button type="button" onclick="document.getElementById('phoneBox')&&document.getElementById('phoneBox').classList.add('on')">Mobile app</button><button type="button" onclick="openOnboardingWizard(JSON.parse(localStorage.getItem('crm-wizard')||'null')||undefined)">Finish setup</button><button type="button" onclick="showSessions()">Sessions</button><button type="button" onclick="openSetup()">Workspace</button><a href="/app">Open the books</a><button type="button" onclick="logout()">Sign out</button>`;
+  document.getElementById('menu').innerHTML = `<div style="padding:8px"><b>${esc(me.fullName || '')}</b><div class="meta">${esc(me.email || '')}</div></div><div style="padding:8px">${esc(company)}</div><button type="button" onclick="setPresence('available')">Available</button><button type="button" onclick="setPresence('busy')">Busy</button><button type="button" onclick="setPresence('away')">Away</button><button type="button" onclick="go('dashboard')">Reports</button><button type="button" onclick="go('analytics')">Analytics</button><button type="button" onclick="go('integrations')">Connections</button><button type="button" onclick="go('guide')">Start guide</button><button type="button" onclick="if (typeof openQuickTour==='function') openQuickTour()">Tour</button><button type="button" onclick="toggleTheme()">Dark or light</button><button type="button" onclick="document.getElementById('phoneBox')&&document.getElementById('phoneBox').classList.add('on')">Mobile app</button><button type="button" onclick="openOnboardingWizard(JSON.parse(localStorage.getItem('crm-wizard')||'null')||undefined)">Finish setup</button><button type="button" onclick="showSessions()">Sessions</button><button type="button" onclick="exportWorkspace()">Export</button><button type="button" onclick="quietHours()">Quiet hours</button><button type="button" onclick="openSetup()">Workspace</button><a href="/app">Open the books</a><button type="button" onclick="logout()">Sign out</button>`;
   const tool = new URLSearchParams(location.search).get('tool');
   const pageQuery = new URLSearchParams(location.search).get('page');
   let resumeSetup = false;
@@ -1902,7 +1902,7 @@ async function saveTask() {
   if (!subject) return toast('Say what it is');
   const deal = document.getElementById('tDeal').value;
   const who = document.getElementById('tWho').value;
-  const result = await api('/crm/api/activities', { method: 'POST', body: JSON.stringify({ subject, type: document.getElementById('tType').value, dueAt: document.getElementById('tDue').value, priority: document.getElementById('tPriority').value, status: 'PLANNED', ownerId: document.getElementById('tOwner').value, relatedType: deal ? 'deal' : who ? 'contact' : null, relatedId: deal || who || null }) });
+  const result = await api('/crm/api/activities', { method: 'POST', body: JSON.stringify({ subject, type: document.getElementById('tType').value, dueAt: document.getElementById('tDue').value, priority: document.getElementById('tPriority').value, status: 'PLANNED', ownerId: document.getElementById('tOwner').value, relatedType: deal ? 'deal' : who ? 'contact' : null, relatedId: deal || who || null, repeat: (document.getElementById('tRepeat') || {}).value || '' }) });
   if (!result || result.error) return toast('Could not save');
   toast('Task saved'); refresh();
 }
@@ -3100,7 +3100,7 @@ document.getElementById('email').value = localStorage.getItem('crmEmail') || '';
   if (token) boot();
 })();
 </script>
-<script src="/crm-studio.js?v=109"></script>
+<script src="/crm-studio.js?v=110"></script>
 </body>
 </html>
 

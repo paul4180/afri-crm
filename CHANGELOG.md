@@ -40,3 +40,15 @@
 - A deal has a product list. Each line has a name, a quantity, and a price. The deal amount becomes the total of those lines.
 - Create quote uses those lines when they exist.
 - Dropping a deal on Closed lost asks why, including a second pipeline whose stage code starts with CLOSED_LOST.
+
+## Phase 3, the rest that can run without a new vendor
+
+- A new lead with no owner goes to the person who has the fewest open leads. The list shows how long a lead has been waiting if nobody has logged work on it.
+- A task can be a visit or a demo, and it can repeat every day or every week. Marking it done creates the next one.
+- A discount over 10% on a deal line is refused unless the person is an owner or an admin.
+- A deal stores a currency.
+- Tick contacts, then Update selected, to change their owner or their stage together.
+- Share this contact lets another person in the business open that record.
+- Save a file name stores a document on the deal.
+- Export downloads the contacts, companies, deals, leads, and tasks as JSON.
+- Quiet hours, in Lagos time, hold notifications except a task that is due.
