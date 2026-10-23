@@ -9071,3 +9071,181 @@ window.openSearchHit = function (kind, id) {
     saveLead.__scored = true;
   }
 })();
+
+(function () {
+  const css = document.createElement('style');
+  css.textContent = `
+    #view .cx.tk .tk-banner { display: flex; justify-content: space-between; gap: 12px; align-items: center; background: rgba(59,130,246,.1); border-left: 3px solid #3b82f6; border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+    #view .cx.tk .tk-pills { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+    #view .cx.tk .tk-pill { background: #f1f5f9; border-radius: 999px; padding: 4px 10px; font-size: 12px; }
+    #view .cx.tk .st { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; }
+    #view .cx.tk .st.open { background: #f1f5f9; color: #475569; }
+    #view .cx.tk .st.run { background: #dbeafe; color: #1d4ed8; }
+    #view .cx.tk .st.done { background: #dcfce7; color: #15803d; }
+    #view .cx.tk .st.late { background: #fee2e2; color: #b91c1c; }
+    #view .cx.tk .pri.urgent { color: #b91c1c; font-weight: 700; }
+    #view .cx.tk .pri.high { color: #b45309; font-weight: 700; }
+    #view .cx.tk .tk-foot { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid #e5e8eb; }
+    #view .cx.tk .tk-start { position: relative; }
+    #view .cx.tk .tk-tip { display: none; position: absolute; right: 0; top: 38px; width: 240px; background: #0f172a; color: #fff; border-radius: 8px; padding: 10px 12px; font-size: 12px; z-index: 5; }
+    #view .cx.tk .tk-start:hover .tk-tip, #view .cx.tk .tk-start:focus-within .tk-tip { display: block; }
+  `;
+  document.head.appendChild(css);
+
+  const TYPES = [['TASK', 'To-do'], ['CALL', 'Call'], ['EMAIL', 'Email'], ['MEETING', 'Meeting'], ['WHATSAPP', 'WhatsApp']];
+  let tkMode = 'list';
+  let tkQuery = '';
+  let tkMine = false;
+  let tkOwner = '';
+  let tkType = '';
+  let tkStatus = '';
+  let tkDue = '';
+  let tkSort = 'due';
+  let tkSaved = 'all';
+  let tkMenu = '';
+  let tkCols = true;
+  let tkExtra = [];
+  const tkShow = { type: 1, contact: 1, due: 1, status: 1, priority: 1, owner: 1 };
+  try { tkExtra = JSON.parse(localStorage.getItem('crm-task-views') || '[]'); } catch (e) { tkExtra = []; }
+
+  function dueOf(row) { return String(row.dueAt || '').slice(0, 10); }
+  function isDone(row) { return row.status === 'HELD' || row.status === 'DONE' || row.status === 'COMPLETED'; }
+  function isOpen(row) { return !isDone(row); }
+  function stateOf(row) {
+    if (isDone(row)) return ['done', 'Done'];
+    const due = dueOf(row);
+    const today = new Date().toISOString().slice(0, 10);
+    if (due && due < today) return ['late', 'Overdue'];
+    if (row.status === 'IN_PROGRESS') return ['run', 'In progress'];
+    return ['open', 'Open'];
+  }
+  function typeLabel(type) { return (TYPES.find((row) => row[0] === type) || [type, type || 'To-do'])[1]; }
+  function priClass(value) { return value === 'URGENT' ? 'urgent' : value === 'HIGH' ? 'high' : ''; }
+  function priLabel(value) { return value === 'URGENT' ? 'Urgent' : value === 'HIGH' ? 'High' : value === 'LOW' ? 'Low' : 'Normal'; }
+  function taskWho(row) {
+    if (row.relatedType === 'company') { const name = companyName(row.relatedId); return name ? { type: 'company', id: row.relatedId, name } : null; }
+    const name = relatedName(row);
+    return name ? { type: row.relatedType, id: row.relatedId, name } : null;
+  }
+  function taskHay(row) {
+    const who = taskWho(row);
+    return [row.subject, row.notes, row.type, who && who.name, ownerName(row.ownerId)].join(' ');
+  }
+
+  window.setTk = function (key, value) {
+    if (key === 'mode') tkMode = value;
+    if (key === 'saved') tkSaved = value;
+    if (key === 'menu') tkMenu = tkMenu === value ? '' : value;
+    if (key === 'cols') tkCols = !tkCols;
+    if (key === 'col') tkShow[value] = tkShow[value] ? 0 : 1;
+    if (key === 'mine') tkMine = !tkMine;
+    if (key === 'query') {
+      tkQuery = value;
+      const box = document.querySelector('#view .cx-search');
+      window.__tkCaret = box ? box.selectionStart : String(value).length;
+    }
+    drawTaskBoard();
+    if (key === 'query') {
+      const box = document.querySelector('#view .cx-search');
+      if (box) { box.focus(); const n = Math.min(window.__tkCaret || 0, box.value.length); box.setSelectionRange(n, n); }
+    }
+  };
+  window.addTaskView = function () {
+    const name = window.prompt('Name this view. It keeps tasks whose subject contains the word.');
+    if (!name) return;
+    tkExtra.push(name.trim());
+    localStorage.setItem('crm-task-views', JSON.stringify(tkExtra));
+    tkSaved = 'word:' + name.trim();
+    drawTaskBoard();
+  };
+  window.setTaskStatus = async function (id, status) {
+    const result = await api('/crm/api/activities/' + id, { method: 'PATCH', body: JSON.stringify({ status }) });
+    if (!result || result.error) return toast((result && result.error) || 'Could not update it');
+    refresh();
+  };
+  window.dropTask = function (event, status) {
+    event.preventDefault();
+    const id = event.dataTransfer.getData('text/plain');
+    if (id) setTaskStatus(id, status);
+  };
+
+  window.drawTaskBoard = function () {
+    const showForm = openForm === 'task';
+    if (showForm) openForm = '';
+    const today = new Date().toISOString().slice(0, 10);
+    const mine = me.sub || me.id;
+    const q = tkQuery.trim();
+    const headerQ = (document.getElementById('q') || {}).value || '';
+    const pool = (bag.activities || []).filter((row) => TYPES.some((item) => item[0] === row.type));
+    let rows = pool.filter((row) => smartMatch(headerQ, taskHay(row)) && smartMatch(q, taskHay(row)));
+    if (tkSaved === 'today') rows = rows.filter((row) => isOpen(row) && dueOf(row) === today);
+    if (tkSaved === 'overdue') rows = rows.filter((row) => isOpen(row) && dueOf(row) && dueOf(row) < today);
+    if (tkSaved === 'upcoming') rows = rows.filter((row) => isOpen(row) && dueOf(row) > today);
+    if (tkSaved.indexOf('word:') === 0) {
+      const word = tkSaved.slice(5).toLowerCase();
+      rows = rows.filter((row) => String(row.subject || '').toLowerCase().includes(word));
+    }
+    if (tkMine) rows = rows.filter((row) => row.ownerId === mine);
+    if (tkOwner) rows = rows.filter((row) => row.ownerId === tkOwner);
+    if (tkType) rows = rows.filter((row) => row.type === tkType);
+    if (tkStatus === 'open') rows = rows.filter((row) => stateOf(row)[0] === 'open');
+    if (tkStatus === 'run') rows = rows.filter((row) => row.status === 'IN_PROGRESS');
+    if (tkStatus === 'done') rows = rows.filter((row) => isDone(row));
+    if (tkStatus === 'late') rows = rows.filter((row) => stateOf(row)[0] === 'late');
+    if (tkDue) rows = rows.filter((row) => dueOf(row) && dueOf(row) <= tkDue);
+    rows.sort((a, b) => tkSort === 'name' ? String(a.subject || '').localeCompare(String(b.subject || '')) : tkSort === 'priority' ? priLabel(a.priority).localeCompare(priLabel(b.priority)) : dueOf(a).localeCompare(dueOf(b)));
+    const counts = {
+      today: pool.filter((row) => isOpen(row) && dueOf(row) === today).length,
+      overdue: pool.filter((row) => isOpen(row) && dueOf(row) && dueOf(row) < today).length,
+    };
+    const owners = (bag.people || []).map((row) => `<option value="${row.id}" ${tkOwner === row.id ? 'selected' : ''}>${esc(row.fullName || row.email)}</option>`).join('');
+    const filtersOn = [tkMine, tkOwner, tkType, tkStatus, tkDue].filter(Boolean).length;
+    const pills = [
+      tkMine ? '<span class="tk-pill">Assigned to: me <button type="button" class="cx-tool" onclick="setTk(\'mine\')">×</button></span>' : '',
+      tkType ? `<span class="tk-pill">${esc(typeLabel(tkType))} <button type="button" class="cx-tool" onclick="tkType='';drawTaskBoard()">×</button></span>` : '',
+      tkStatus ? `<span class="tk-pill">${esc(tkStatus)} <button type="button" class="cx-tool" onclick="tkStatus='';drawTaskBoard()">×</button></span>` : '',
+      tkDue ? `<span class="tk-pill">Due by ${esc(tkDue)} <button type="button" class="cx-tool" onclick="tkDue='';drawTaskBoard()">×</button></span>` : '',
+    ].filter(Boolean).join('');
+    let body = '';
+    if (tkMode === 'board') {
+      const cols = [['open', 'Open', 'PLANNED'], ['run', 'In progress', 'IN_PROGRESS'], ['late', 'Overdue', ''], ['done', 'Done', 'HELD']];
+      body = `<div class="dl-board">${cols.map(([id, label, status]) => {
+        const list = rows.filter((row) => stateOf(row)[0] === id);
+        const cards = list.map((row) => `<article class="cx-card" draggable="${status ? 'true' : 'false'}" ondragstart="event.dataTransfer.setData('text/plain','${row.id}')" onclick="openTask('${row.relatedType || ''}','${row.relatedId || ''}')"><b>${esc(row.subject)}</b><div class="cx-muted">${esc(typeLabel(row.type))} · ${esc(dueOf(row) || 'No date')}</div><span class="st ${stateOf(row)[0]}">${stateOf(row)[1]}</span></article>`).join('') || '<div class="cx-muted">None</div>';
+        const drop = status ? `ondragover="event.preventDefault()" ondrop="dropTask(event,'${status}')"` : '';
+        return `<div class="cx-col" ${drop}><b>${label} · ${list.length}</b>${cards}</div>`;
+      }).join('')}</div>`;
+    } else {
+      const th = (key, label) => tkShow[key] ? `<th>${label}</th>` : '';
+      const td = (key, html) => tkShow[key] ? `<td>${html}</td>` : '';
+      const lines = rows.map((row) => {
+        const who = taskWho(row);
+        const st = stateOf(row);
+        const late = st[0] === 'late';
+        return `<tr class="cx-row"><td><input type="checkbox" data-pick="task" value="${row.id}"></td><td><b class="cx-name" style="cursor:pointer" onclick="openTask('${row.relatedType || ''}','${row.relatedId || ''}')">${esc(row.subject)}</b></td>${td('type', esc(typeLabel(row.type)))}${td('contact', who ? `<button type="button" class="cx-link" onclick="openRecord('${who.type}','${who.id}')">${esc(who.name)}</button>` : '—')}${td('due', `<span class="${late ? 'st late' : ''}">${esc(dueOf(row) || '—')}</span>`)}${td('status', `<span class="st ${st[0]}">${st[1]}</span>`)}${td('priority', `<span class="pri ${priClass(row.priority)}">${esc(priLabel(row.priority))}</span>`)}${td('owner', esc(ownerName(row.ownerId) || 'Unassigned'))}<td class="cx-menu"><button type="button" class="cx-tool" onclick="setTk('menu','${row.id}')">⋮</button>${tkMenu === row.id ? `<div class="cx-pop"><button type="button" class="cx-tool" onclick="setTaskStatus('${row.id}','IN_PROGRESS')">In progress</button><button type="button" class="cx-tool" onclick="setTaskStatus('${row.id}','HELD')">Done</button><button type="button" class="cx-tool" onclick="snooze('${row.id}')">Due tomorrow</button></div>` : ''}</td></tr>`;
+      }).join('');
+      body = `<table class="cx-table"><tr><th></th><th>Task</th>${th('type','Type')}${th('contact','Contact')}${th('due','Due date')}${th('status','Status')}${th('priority','Priority')}${th('owner','Owner')}<th></th></tr>${lines || '<tr><td colspan="8"><div class="cx-muted" style="padding:16px">No task in this view.</div></td></tr>'}</table>`;
+    }
+    const views = [['all', 'All tasks'], ['today', 'Due today (' + counts.today + ')'], ['overdue', 'Overdue (' + counts.overdue + ')'], ['upcoming', 'Upcoming']].concat(tkExtra.map((name) => ['word:' + name, name]));
+    const banner = calBanner ? `<div class="tk-banner"><div>Want these tasks next to a calendar you already use? Connect Google Calendar under Integrations. Afri reads the next events. It does not write these tasks onto that calendar.</div><button type="button" class="cx-tool" onclick="hideCal()">×</button></div>` : '';
+    const form = `<div class="drawer dealbox" id="taskForm" ${showForm ? '' : 'hidden'} onclick="if(event.target.id==='taskForm')this.hidden=true"><aside><div class="sheethead"><h2>Add task</h2><button type="button" class="ghost" onclick="document.getElementById('taskForm').hidden=true">Close</button></div><div class="dealform"><label>Subject<input id="tSubject"></label><label>Type<select id="tType">${TYPES.map(([id, label]) => `<option value="${id}">${label}</option>`).join('')}</select></label><label>Due<input id="tDue" type="date"></label><label>Priority<select id="tPriority"><option value="URGENT">Urgent</option><option value="HIGH">High</option><option value="NORMAL" selected>Normal</option><option value="LOW">Low</option></select></label><label>Assigned to<select id="tOwner"><option value="">Me</option>${ownerOptions()}</select></label><label>Contact<select id="tWho"><option value="">None</option>${(bag.contacts||[]).map((row)=>`<option value="${row.id}">${esc(person(row))}</option>`).join('')}</select></label><label>Deal<select id="tDeal"><option value="">None</option>${(bag.deals||[]).map((row)=>`<option value="${row.id}">${esc(row.name)}</option>`).join('')}</select></label></div><div class="dealactions"><button type="button" onclick="saveTask()">Create</button></div></aside></div>`;
+    document.getElementById('view').innerHTML = `<div class="cx tk">${banner}
+      <div class="cx-head"><h1>Tasks</h1><button type="button" class="cx-go" onclick="document.getElementById('taskForm').hidden=false">+ Add task</button></div>
+      <div class="cx-views">${views.map(([id, label]) => `<button type="button" class="cx-tab ${tkSaved===id?'on':''}" onclick="setTk('saved','${id}')">${esc(label)}</button>`).join('')}<button type="button" class="cx-tab" onclick="addTaskView()">+ view</button></div>
+      <div class="cx-bar"><div class="cx-left"><input class="cx-search" placeholder="Search tasks  /" value="${esc(q)}" oninput="setTk('query', this.value)"><button type="button" class="cx-tool" onclick="setTk('mine')">Assigned to me${tkMine ? ' · on' : ''}</button><select onchange="tkOwner=this.value;drawTaskBoard()"><option value="">Owner</option>${owners}</select><select onchange="tkType=this.value;drawTaskBoard()"><option value="">Type</option>${TYPES.map(([id, label]) => `<option value="${id}" ${tkType===id?'selected':''}>${label}</option>`).join('')}</select><select onchange="tkStatus=this.value;drawTaskBoard()"><option value="">Status</option><option value="open" ${tkStatus==='open'?'selected':''}>Open</option><option value="run" ${tkStatus==='run'?'selected':''}>In progress</option><option value="late" ${tkStatus==='late'?'selected':''}>Overdue</option><option value="done" ${tkStatus==='done'?'selected':''}>Done</option></select><input type="date" value="${tkDue}" title="Due on or before" onchange="tkDue=this.value;drawTaskBoard()"></div><div class="cx-right"><select onchange="tkSort=this.value;drawTaskBoard()"><option value="due" ${tkSort==='due'?'selected':''}>Sort by due date</option><option value="name" ${tkSort==='name'?'selected':''}>Sort by name</option><option value="priority" ${tkSort==='priority'?'selected':''}>Sort by priority</option></select><button type="button" class="cx-tool ${tkMode==='board'?'on':''}" onclick="setTk('mode','board')">Board</button><button type="button" class="cx-tool ${tkMode==='list'?'on':''}" onclick="setTk('mode','list')">List</button><span class="tk-start"><button type="button" class="cx-tool" onclick="go('player')">Start tasks</button><span class="tk-tip">Start all tasks walks overdue and due-today work, one at a time. Done and Tomorrow are saved on the task.</span></span><button type="button" class="cx-tool" onclick="setTk('cols')">Columns${filtersOn ? '' : ''}</button></div></div>
+      ${tkCols ? '' : `<div class="cx-panel">${Object.keys(tkShow).map((key) => `<label style="margin-right:10px"><input type="checkbox" ${tkShow[key]?'checked':''} onchange="setTk('col','${key}')"> ${key}</label>`).join('')}</div>`}
+      ${pills ? `<div class="tk-pills">${pills}</div>` : ''}
+      ${body}
+      <div class="tk-foot"><span>${rows.length} task${rows.length===1?'':'s'}</span><span><button type="button" class="cx-tool" onclick="refresh()">Refresh</button> <button type="button" class="cx-tool" onclick="exportTasks()">Export</button></span></div>
+      ${form}</div>`;
+  };
+  drawTasks = function () { drawTaskBoard(); };
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== '/' || page !== 'tasks' || event.metaKey || event.ctrlKey || event.altKey) return;
+    const tag = (event.target && event.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    event.preventDefault();
+    const box = document.querySelector('#view .cx-search');
+    if (box) box.focus();
+  });
+})();

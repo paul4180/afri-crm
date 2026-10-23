@@ -1921,7 +1921,7 @@ function columnChart(rows, pick) {
 }
 function playQueue() {
   const today = new Date().toISOString().slice(0, 10);
-  return (bag.activities || []).filter((row) => (row.type === 'TASK' || row.type === 'CALL' || row.type === 'MEETING') && row.status === 'PLANNED' && String(row.dueAt || '').slice(0, 10) && String(row.dueAt).slice(0, 10) <= today);
+  return (bag.activities || []).filter((row) => ['TASK','CALL','MEETING','EMAIL','WHATSAPP'].includes(row.type) && (row.status === 'PLANNED' || row.status === 'IN_PROGRESS') && String(row.dueAt || '').slice(0, 10) && String(row.dueAt).slice(0, 10) <= today);
 }
 function drawPlayer() {
   const queue = playQueue();
@@ -3056,7 +3056,7 @@ document.getElementById('email').value = localStorage.getItem('crmEmail') || '';
   if (token) boot();
 })();
 </script>
-<script src="/crm-studio.js?v=74"></script>
+<script src="/crm-studio.js?v=75"></script>
 </body>
 </html>
 
