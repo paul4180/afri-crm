@@ -8236,7 +8236,7 @@
       ${cxShowFilters ? `<div class="cx-panel"><label>Owner<select onchange="contactOwner=this.value;drawContacts()"><option value="">Anyone</option>${owners}</select></label> <label>Status<select onchange="contactStatus=this.value;drawContacts()"><option value="">Any</option><option ${contactStatus==='ACTIVE'?'selected':''}>ACTIVE</option><option ${contactStatus==='CUSTOMER'?'selected':''}>CUSTOMER</option><option ${contactStatus==='INACTIVE'?'selected':''}>INACTIVE</option></select></label> <label>Created from<input type="date" value="${esc(contactFrom)}" onchange="contactFrom=this.value;drawContacts()"></label> <button type="button" class="cx-tool" onclick="contactOwner='';contactStatus='';contactFrom='';drawContacts()">Clear</button></div>` : ''}
       ${cxShowSort ? `<div class="cx-panel"><button type="button" class="cx-tool" onclick="setCx('sort','name')">Name</button><button type="button" class="cx-tool" onclick="setCx('sort','new')">Newest</button><button type="button" class="cx-tool" onclick="setCx('sort','touch')">Last activity</button><button type="button" class="cx-tool" onclick="setCx('sort','value')">Deal value</button><button type="button" class="cx-tool" onclick="setCx('sort','score')">Lead score</button></div>` : ''}
       ${cxShowCols ? `<div class="cx-panel">${['company','value','score','activity','owner','status'].map((key) => `<label style="margin-right:10px"><input type="checkbox" ${cxCols[key]?'checked':''} onchange="setCx('col','${key}')"> ${key}</label>`).join('')}</div>` : ''}
-      <div class="cx-views">${views.map(([id, label]) => `<button type="button" class="${cxSaved===id?'on':''}" onclick="setCx('saved','${id.replace(/'/g, '')}')">${esc(label)}</button>`).join('')}<button type="button" onclick="addContactView()">+ Add view</button></div>
+      <div class="cx-views">${views.map(([id, label]) => `<button type="button" class="cx-tab ${cxSaved===id?'on':''}" onclick="setCx('saved','${id.replace(/'/g, '')}')">${esc(label)}</button>`).join('')}<button type="button" class="cx-tab" onclick="addContactView()">+ Add view</button></div>
       ${body}<div class="cx-muted" style="margin-top:8px">${rows.length} contact${rows.length===1?'':'s'}</div>${form}</div>`;
   };
 
@@ -8320,4 +8320,47 @@
         </aside>
       </div>`;
   };
+})();
+
+(function () {
+  const fix = document.createElement('style');
+  fix.textContent = `
+    body, #app, .app, .work, #view {
+      background-image: none !important;
+    }
+    body { background: #e7edf2 !important; }
+    .work, #view { background: #f4f6f8 !important; }
+    #view { background: #fff !important; }
+    #view .cx {
+      background: #fff !important;
+      border: 1px solid #e5e8eb;
+      border-radius: 12px;
+      padding: 16px 16px 8px;
+    }
+    #view .cx .cx-head { display: flex !important; justify-content: space-between !important; align-items: center !important; margin: 0 0 12px !important; }
+    #view .cx .cx-bar { display: flex !important; justify-content: flex-start !important; align-items: center !important; gap: 8px !important; flex-wrap: nowrap !important; margin: 0 0 4px !important; }
+    #view .cx .cx-left, #view .cx .cx-right { display: flex !important; align-items: center !important; gap: 8px !important; flex-wrap: nowrap !important; }
+    #view .cx .cx-right { margin-left: auto !important; }
+    #view .cx .cx-views { display: flex !important; justify-content: flex-start !important; align-items: flex-end !important; gap: 2px !important; flex-wrap: nowrap !important; overflow: auto; border-bottom: 1px solid #e5e8eb; margin: 8px -16px 12px !important; padding: 0 8px !important; }
+    #view .cx .cx-left button.cx-tool,
+    #view .cx .cx-right button.cx-tool,
+    #view .cx .cx-head button.cx-tool,
+    #view .cx .cx-panel button.cx-tool {
+      background: #fff !important; color: #334155 !important; border: 1px solid #d5dde6 !important;
+      border-radius: 8px !important; height: 34px !important; min-height: 34px !important; padding: 0 12px !important;
+      font-size: 13px !important; font-weight: 600 !important; box-shadow: none !important;
+    }
+    #view .cx .cx-right button.cx-tool.on { background: #0f172a !important; color: #fff !important; border-color: #0f172a !important; }
+    #view .cx .cx-head button.cx-go, #view .cx button.cx-go {
+      background: #0d9488 !important; color: #fff !important; border: 0 !important; border-radius: 8px !important;
+      height: 36px !important; min-height: 36px !important; padding: 0 14px !important; font-weight: 650 !important; box-shadow: none !important;
+    }
+    #view .cx .cx-views button.cx-tab {
+      background: transparent !important; color: #64748b !important; border: 0 !important; border-radius: 0 !important;
+      height: auto !important; min-height: 0 !important; padding: 10px 12px !important; font-size: 14px !important; font-weight: 600 !important; box-shadow: none !important;
+    }
+    #view .cx .cx-views button.cx-tab.on { color: #0f172a !important; background: transparent !important; box-shadow: inset 0 -2px 0 #0d9488 !important; }
+    #view .cx .cx-search { height: 34px !important; background: #fff !important; border: 1px solid #d5dde6 !important; border-radius: 8px !important; color: #0f172a !important; }
+  `;
+  document.head.appendChild(fix);
 })();
