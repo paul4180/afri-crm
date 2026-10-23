@@ -4639,54 +4639,78 @@ function agentBrain(tenantId) {
     // Defensive: never let demo-seeding failure crash signup or the
     // admin "Load demo data" button. Log + bail to the caller.
     try {
-      if (db.prepare('SELECT COUNT(*) AS n FROM companies WHERE tenantId = ?').get(workspaceId).n > 0) return;
       ensurePipeline(workspaceId);
       ensureSequences(workspaceId);
       ensureWorkflows(workspaceId);
-    const tags = ['VIP', 'Wholesale', 'Lagos', 'Abuja', 'Repeat buyer'];
+    const tags = ['VIP', 'Wholesale', 'Lagos', 'Abuja', 'Kano', 'Port Harcourt'];
     for (let i = 0; i < tags.length; i++) {
-      db.prepare('INSERT INTO tags (id, tenantId, name, color) VALUES (?,?,?,?)').run(crypto.randomUUID(), workspaceId, tags[i], ['#dc2626','#7c3aed','#2563eb','#059669','#d97706'][i]);
+      db.prepare('INSERT OR IGNORE INTO tags (id, tenantId, name, color) VALUES (?,?,?,?)').run(crypto.randomUUID(), workspaceId, tags[i], ['#dc2626','#7c3aed','#2563eb','#059669','#d97706','#0f766e'][i]);
     }
+    const rep = (fullName, email) => {
+      const existing = db.prepare('SELECT id FROM crm_accounts WHERE email = ?').get(email);
+      if (existing) return existing.id;
+      const id = crypto.randomUUID();
+      db.prepare('INSERT INTO crm_accounts (id, workspaceId, email, passwordHash, fullName, role, active) VALUES (?,?,?,?,?,?,1)').run(id, workspaceId, email, bcrypt.hashSync(crypto.randomBytes(24).toString('hex'), 10), fullName, 'SALES');
+      return id;
+    };
+    const amara = rep('Amara Osei', 'amara@sample.invalid');
+    const yemi = rep('Yemi Lawal', 'yemi@sample.invalid');
     const companies = [
-      ['Zenith Foods Ltd','Food & Beverage','CUSTOMER','Lagos','contact@zenithfoods.ng','01-234-5678'],
-      ['Lekki Tech Hub','Technology','PROSPECT','Lagos','hello@lekkitech.ng','01-876-5432'],
-      ['Atlantic Logistics','Transportation','CUSTOMER','Port Harcourt','info@atlanticlog.ng','084-123-4567'],
-      ['Savannah Trading Co','Trading','PROSPECT','Abuja','sales@savannahtc.ng','09-345-6789'],
-      ['Naija Builds Ltd','Construction','PARTNER','Abuja','projects@naijabuilds.ng','09-987-6543'],
+      ['Zenith Foods Ltd','Food & Beverage','CUSTOMER','Lagos','hello@zenithfoods.ng',''],
+      ['Lekki Tech Hub','Technology','PROSPECT','Lagos','hello@lekkitech.ng',''],
+      ['Atlantic Logistics','Transportation','CUSTOMER','Port Harcourt','info@atlanticlog.ng',''],
+      ['Savannah Trading Co','Trading','PROSPECT','Kano','sales@savannahtc.ng',''],
+      ['Dangote Industries','Conglomerate','CUSTOMER','Lagos','hello@dangote.ng',''],
+      ['MTN Nigeria','Telecommunications','PROSPECT','Lagos','hello@mtn.ng',''],
+      ['Access Bank','Banking','PROSPECT','Lagos','hello@accessbank.ng',''],
+      ['BUA Foods','FMCG','CUSTOMER','Abuja','hello@buafoods.ng',''],
+      ['First Bank','Banking','PROSPECT','Lagos','hello@firstbank.ng',''],
+      ['Zenith Bank','Banking','PROSPECT','Lagos','hello@zenithbank.ng',''],
     ];
     const companyIds = companies.map(function(c) {
+      var found = db.prepare('SELECT id FROM companies WHERE tenantId = ? AND name = ?').get(workspaceId, c[0]);
+      if (found) return found.id;
       var id = crypto.randomUUID();
-      db.prepare('INSERT INTO companies (id, tenantId, name, industry, type, city, email, phone, country, ownerId, source, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, c[0], c[1], c[2], c[3], c[4], c[5], 'Nigeria', ownerId, 'Referral', new Date(Date.now() - Math.random() * 30 * 86400000).toISOString());
+      db.prepare('INSERT INTO companies (id, tenantId, name, industry, type, city, email, phone, country, ownerId, source, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, c[0], c[1], c[2], c[3], c[4], c[5], 'Nigeria', ownerId, 'Sample', new Date().toISOString());
       return id;
     });
     var contacts = [
-      ['Ada','Okafor','Operations Manager',companyIds[0],'ada@zenithfoods.ng','0803-555-0101'],
-      ['Bola','Adeyemi','CEO',companyIds[1],'bola@lekkitech.ng','0805-555-0202'],
-      ['Chidi','Nwosu','Sales Director',companyIds[2],'chidi@atlanticlog.ng','0807-555-0303'],
-      ['Fatima','Bello','General Manager',companyIds[3],'fatima@savannahtc.ng','0809-555-0404'],
-      ['Emeka','Obi','Project Director',companyIds[4],'emeka@naijabuilds.ng','0811-555-0505'],
-      ['Grace','Eze','Marketing Lead',companyIds[1],'grace@lekkitech.ng','0813-555-0606'],
-      ['Tunde','Adesanya','Procurement',companyIds[0],'tunde@zenithfoods.ng','0815-555-0707'],
-      ['Zainab','Yusuf','Founder',companyIds[3],'zainab@savannahtc.ng','0817-555-0808'],
+      ['Ada','Okafor','Operations Manager',companyIds[0],'ada@zenithfoods.ng','+234 803 123 4567','Lagos'],
+      ['Bola','Adeyemi','CEO',companyIds[1],'bola@lekkitech.ng','+234 812 456 7890','Lagos'],
+      ['Chidi','Nwosu','Sales Director',companyIds[2],'chidi@atlanticlog.ng','+234 701 234 5678','Port Harcourt'],
+      ['Fatima','Bello','General Manager',companyIds[3],'fatima@savannahtc.ng','+234 815 678 9012','Kano'],
+      ['Emeka','Obi','Project Director',companyIds[5],'emeka@mtn.ng','+234 802 345 6789','Lagos'],
+      ['Ngozi','Eze','Relationship Manager',companyIds[6],'ngozi@accessbank.ng','+234 809 456 7890','Lagos'],
+      ['Tunde','Bakare','Procurement',companyIds[4],'tunde@dangote.ng','+234 803 567 8901','Lagos'],
+      ['Amaka','Okonkwo','Product Lead',companyIds[8],'amaka@firstbank.ng','+234 814 678 9012','Lagos'],
+      ['Yusuf','Ibrahim','Commercial Manager',companyIds[7],'yusuf@buafoods.ng','+234 806 789 0123','Abuja'],
+      ['Sade','Williams','Branch Lead',companyIds[9],'sade@zenithbank.ng','+234 811 890 1234','Lagos'],
     ];
     var contactIds = contacts.map(function(c) {
+      var found = db.prepare('SELECT id FROM contacts WHERE tenantId = ? AND email = ?').get(workspaceId, c[4]);
+      if (found) return found.id;
       var id = crypto.randomUUID();
-      db.prepare('INSERT INTO contacts (id, tenantId, firstName, lastName, title, companyId, email, phone, city, country, ownerId, source, status, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, c[0], c[1], c[2], c[3], c[4], c[5], 'Lagos', 'Nigeria', ownerId, 'Referral', 'ACTIVE', new Date(Date.now() - Math.random() * 20 * 86400000).toISOString());
+      db.prepare('INSERT INTO contacts (id, tenantId, firstName, lastName, title, companyId, email, phone, city, country, ownerId, source, status, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, c[0], c[1], c[2], c[3], c[4], c[5], c[6], 'Nigeria', ownerId, 'Sample', 'ACTIVE', new Date().toISOString());
       return id;
     });
-    var stages = db.prepare('SELECT id, code FROM stages WHERE tenantId = ? ORDER BY position').all(workspaceId);
-    var findStage = function(code) { return (stages.find(function(s) { return s.code === code; }) || stages[0]).id; };
+    var stages = db.prepare('SELECT id, code, name FROM stages WHERE tenantId = ? ORDER BY position').all(workspaceId);
+    var findStage = function(code) { return (stages.find(function(s) { return s.code === code || String(s.code || '').startsWith(code); }) || stages[0] || { id: code }).id; };
     var deals = [
-      ['Software implementation for Zenith', companyIds[0], contactIds[0], 2500000, 'PROPOSAL_SENT', 60, '2026-11-15'],
-      ['Annual support contract', companyIds[1], contactIds[1], 1200000, 'NEGOTIATION', 80, '2026-10-30'],
-      ['Hardware upgrade package', companyIds[2], contactIds[2], 800000, 'NEEDS_ASSESSMENT', 40, '2026-12-01'],
-      ['Consulting retainer', companyIds[3], contactIds[3], 3000000, 'PROSPECTING', 10, '2026-12-15'],
-      ['Training program (won)', companyIds[4], contactIds[4], 450000, 'CLOSED_WON', 100, '2026-09-20'],
+      ['Software implementation — Zenith Foods', companyIds[0], contactIds[0], 2500000, 'PROPOSAL_SENT', 60, '2026-11-15', amara],
+      ['Cloud migration — Dangote', companyIds[4], contactIds[6], 8200000, 'NEGOTIATION', 80, '2026-11-30', yemi],
+      ['ERP integration — MTN Nigeria', companyIds[5], contactIds[4], 9200000, 'PROSPECTING', 10, '2026-12-20', amara],
+      ['Annual license — Atlantic Log', companyIds[2], contactIds[2], 1800000, 'NEEDS_ASSESSMENT', 40, '2026-11-28', yemi],
+      ['Payroll system — Access Bank', companyIds[6], contactIds[5], 900000, 'INITIAL_CONTACT', 20, '2026-12-05', amara],
+      ['Fleet tracking — Savannah Trading', companyIds[3], contactIds[3], 1300000, 'PROPOSAL_SENT', 60, '2026-11-22', yemi],
+      ['HR platform — Lekki Tech Hub', companyIds[1], contactIds[1], 850000, 'NEGOTIATION', 80, '2026-11-18', amara],
+      ['Website redesign — BUA Foods', companyIds[7], contactIds[8], 450000, 'CLOSED_WON', 100, '2026-10-02', ownerId],
     ];
     var dealIds = [];
     deals.forEach(function(d) {
+      var found = db.prepare('SELECT id FROM deals WHERE tenantId = ? AND name = ?').get(workspaceId, d[0]);
+      if (found) { dealIds.push(found.id); return; }
       var id = crypto.randomUUID();
-      db.prepare('INSERT INTO deals (id, tenantId, name, companyId, contactId, amount, stage, probability, closeDate, type, source, ownerId, nextStep, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, d[0], d[1], d[2], d[3], findStage(d[4]), d[5], d[6], 'NEW', 'Referral', ownerId, d[4] === 'CLOSED_WON' ? 'Send onboarding' : 'Schedule follow-up', new Date(Date.now() - Math.random() * 15 * 86400000).toISOString());
+      db.prepare('INSERT INTO deals (id, tenantId, name, companyId, contactId, amount, stage, probability, closeDate, type, source, ownerId, nextStep, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, d[0], d[1], d[2], d[3], findStage(d[4]), d[5], d[6], 'NEW', 'Sample', d[7], d[4] === 'CLOSED_WON' ? 'Hand over the site' : 'Follow up', new Date().toISOString());
       dealIds.push(id);
     });
     var today = new Date().toISOString().slice(0,10);
@@ -4694,28 +4718,31 @@ function agentBrain(tenantId) {
     var nextWeek = new Date(Date.now() + 7*86400000).toISOString().slice(0,10);
     var yesterday = new Date(Date.now() - 86400000).toISOString().slice(0,10);
     var tasks = [
-      ['CALL','Call Ada about the software proposal', contactIds[0], 'deal', yesterday, 'PLANNED', 'HIGH'],
-      ['TASK','Send updated quote to Bola', contactIds[1], 'contact', today, 'PLANNED', 'HIGH'],
-      ['MEETING','Demo session with Atlantic Logistics', contactIds[2], 'deal', tomorrow, 'PLANNED', 'NORMAL'],
-      ['TASK','Follow up on Savannah Trading retainer', contactIds[3], 'deal', nextWeek, 'PLANNED', 'NORMAL'],
-      ['CALL','Check in with Emeka on training', contactIds[4], 'deal', yesterday, 'PLANNED', 'NORMAL'],
-      ['TASK','Update pricing sheet for Q4', null, null, today, 'PLANNED', 'NORMAL'],
-      ['EMAIL','Send contract to Zenith Foods', contactIds[0], 'deal', today, 'PLANNED', 'HIGH'],
-      ['CALL','Welcome call to Zainab', contactIds[7], 'contact', tomorrow, 'PLANNED', 'NORMAL'],
+      ['CALL','Call Ada about the software proposal', contactIds[0], 'contact', yesterday, 'PLANNED', 'HIGH', amara],
+      ['EMAIL','Send updated quote to Bola', contactIds[1], 'contact', today, 'PLANNED', 'HIGH', amara],
+      ['MEETING','Demo session with Atlantic Logistics', contactIds[2], 'contact', tomorrow, 'PLANNED', 'NORMAL', yemi],
+      ['TASK','Follow up on Savannah Trading', contactIds[3], 'contact', nextWeek, 'PLANNED', 'NORMAL', yemi],
+      ['WHATSAPP','WhatsApp Emeka about the ERP brief', contactIds[4], 'contact', today, 'PLANNED', 'NORMAL', amara],
+      ['CALL','Call Ngozi about payroll', contactIds[5], 'contact', tomorrow, 'PLANNED', 'NORMAL', amara],
     ];
     tasks.forEach(function(t) {
-      var id = crypto.randomUUID();
-      db.prepare('INSERT INTO activities (id, tenantId, type, subject, relatedType, relatedId, dueAt, status, priority, ownerId, notes, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(id, workspaceId, t[0], t[1], t[3] || null, t[2] || null, t[4], t[5], t[6], ownerId, '', new Date(Date.now() - Math.random() * 5 * 86400000).toISOString());
+      if (db.prepare('SELECT id FROM activities WHERE tenantId = ? AND subject = ?').get(workspaceId, t[1])) return;
+      db.prepare('INSERT INTO activities (id, tenantId, type, subject, relatedType, relatedId, dueAt, status, priority, ownerId, notes, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(crypto.randomUUID(), workspaceId, t[0], t[1], t[3] || null, t[2] || null, t[4], t[5], t[6], t[7], '', new Date().toISOString());
     });
+    if (!db.prepare("SELECT id FROM activities WHERE tenantId = ? AND type = 'WHATSAPP' AND relatedId = ?").get(workspaceId, contactIds[0])) {
+      db.prepare('INSERT INTO activities (id, tenantId, type, subject, relatedType, relatedId, status, ownerId, notes, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?)').run(crypto.randomUUID(), workspaceId, 'WHATSAPP', 'Hello Ada, sending the updated proposal.', 'contact', contactIds[0], 'DONE', amara, 'OUT\nHello Ada, sending the updated proposal.', new Date(Date.now() - 86400000).toISOString());
+      db.prepare('INSERT INTO activities (id, tenantId, type, subject, relatedType, relatedId, status, ownerId, notes, createdAt) VALUES (?,?,?,?,?,?,?,?,?,?)').run(crypto.randomUUID(), workspaceId, 'WHATSAPP', 'Thanks. I will review it with the board.', 'contact', contactIds[0], 'DONE', amara, 'IN\nThanks. I will review it with the board.', new Date().toISOString());
+    }
     var notes = [
       [contactIds[0], 'contact', 'Ada mentioned they are evaluating 3 vendors. We are the frontrunner because of local support.'],
       [contactIds[1], 'contact', 'Bola wants a pilot program for 5 users before committing to the annual contract.'],
-      [contactIds[3], 'contact', 'Savannah Trading is expanding to 3 new branches. They need multi-branch inventory management.'],
+      [contactIds[3], 'contact', 'Fatima asked for the fleet-tracking price before the Kano board meets.'],
     ];
     notes.forEach(function(n) {
+      if (db.prepare('SELECT id FROM notes WHERE tenantId = ? AND relatedId = ? AND body = ?').get(workspaceId, n[0], n[2])) return;
       db.prepare('INSERT INTO notes (id, tenantId, relatedType, relatedId, body, createdAt) VALUES (?,?,?,?,?,?)').run(crypto.randomUUID(), workspaceId, n[1], n[0], n[2], new Date().toISOString());
     });
-    db.prepare('INSERT OR REPLACE INTO workspace (tenantId, size, industry, goal, channel, done) VALUES (?,?,?,?,?,?)').run(workspaceId, '11-50', 'Services', 'Close deals', 'Phone & WhatsApp', 0);
+    db.prepare('INSERT INTO workspace (tenantId, size, industry, goal, channel, done) VALUES (?,?,?,?,?,?) ON CONFLICT(tenantId) DO UPDATE SET size = COALESCE(workspace.size, excluded.size)').run(workspaceId, '11-50', 'Services', 'Close deals', 'Phone & WhatsApp', 0);
     // Populate FTS5 index so search works immediately after seeding
     if (fts5Ready) {
       try {
