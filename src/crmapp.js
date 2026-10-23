@@ -2499,26 +2499,43 @@ export function registerCrm(app, prisma) {
   });
   app.get('/crm/api/day', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
-    const out = { events: [], inbox: null };
+    const out = { events: [], inbox: null, sources: [] };
+    const day = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? new Date(value + 'T00:00:00Z') : null;
+    let start = day(req.query && req.query.from) || new Date();
+    let end = day(req.query && req.query.to) || new Date(Date.now() + 7 * 86400000);
+    if (end < start) end = new Date(start.getTime() + 7 * 86400000);
+    if (end.getTime() - start.getTime() > 42 * 86400000) end = new Date(start.getTime() + 42 * 86400000);
+    const wide = !!(req.query && req.query.from);
     const calendar = db.prepare('SELECT * FROM connections WHERE tenantId = ? AND provider = ?').get(user.tenantId, 'calendar');
     const gmail = db.prepare('SELECT * FROM connections WHERE tenantId = ? AND provider = ?').get(user.tenantId, 'gmail');
     const outlook = db.prepare('SELECT * FROM connections WHERE tenantId = ? AND provider = ?').get(user.tenantId, 'outlook');
+    out.sources.push({ id: 'afri', name: 'Afri CRM', on: true, live: true });
     if (calendar) {
       const token = await freshToken(calendar);
+      const source = { id: 'google', name: 'Google Calendar', on: true, email: calendar.email || '', live: false };
       if (token) {
-        const end = new Date(Date.now() + 7 * 86400000).toISOString();
-        const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?' + new URLSearchParams({ timeMin: new Date().toISOString(), timeMax: end, maxResults: '5', singleEvents: 'true', orderBy: 'startTime' }), { headers: { Authorization: 'Bearer ' + token } });
+        const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?' + new URLSearchParams({ timeMin: start.toISOString(), timeMax: end.toISOString(), maxResults: wide ? '40' : '5', singleEvents: 'true', orderBy: 'startTime' }), { headers: { Authorization: 'Bearer ' + token } });
         const data = await res.json().catch(() => ({}));
-        out.events = (data.items || []).map((item) => ({ title: item.summary || 'Busy', when: (item.start && (item.start.dateTime || item.start.date)) || '' }));
+        if (res.ok) {
+          source.live = true;
+          out.events = (data.items || []).map((item) => ({ title: item.summary || 'Busy', when: (item.start && (item.start.dateTime || item.start.date)) || '', source: 'google' }));
+        }
       }
-    } else if (outlook) {
+      out.sources.push(source);
+    } else out.sources.push({ id: 'google', name: 'Google Calendar', on: false, live: false });
+    if (!calendar && outlook) {
       const token = await freshToken(outlook);
+      const source = { id: 'outlook', name: 'Outlook', on: true, email: outlook.email || '', live: false };
       if (token) {
-        const res = await fetch('https://graph.microsoft.com/v1.0/me/calendarview?' + new URLSearchParams({ startDateTime: new Date().toISOString(), endDateTime: new Date(Date.now() + 7 * 86400000).toISOString(), $top: '5' }), { headers: { Authorization: 'Bearer ' + token } });
+        const res = await fetch('https://graph.microsoft.com/v1.0/me/calendarview?' + new URLSearchParams({ startDateTime: start.toISOString(), endDateTime: end.toISOString(), $top: wide ? '40' : '5' }), { headers: { Authorization: 'Bearer ' + token } });
         const data = await res.json().catch(() => ({}));
-        out.events = (data.value || []).map((item) => ({ title: item.subject || 'Busy', when: item.start && item.start.dateTime }));
+        if (res.ok) {
+          source.live = true;
+          out.events = (data.value || []).map((item) => ({ title: item.subject || 'Busy', when: item.start && item.start.dateTime, source: 'outlook' }));
+        }
       }
-    }
+      out.sources.push(source);
+    } else out.sources.push({ id: 'outlook', name: 'Outlook', on: !!outlook, email: outlook && outlook.email || '', live: false });
     if (gmail) {
       const token = await freshToken(gmail);
       if (token) {

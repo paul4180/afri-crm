@@ -9249,3 +9249,176 @@ window.openSearchHit = function (kind, id) {
     if (box) box.focus();
   });
 })();
+
+(function () {
+  const css = document.createElement('style');
+  css.textContent = `
+    #view .calx { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; align-items: start; }
+    #view .cal-side, #view .cal-card { background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 12px; }
+    #view .cal-mini { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+    #view .cal-mini button, #view .cal-mini span { height: 26px; border: 0; background: transparent; border-radius: 6px; font-size: 12px; }
+    #view .cal-mini button.on { background: #0d9488; color: #fff; }
+    #view .cal-mini button.has { box-shadow: inset 0 -2px 0 #0d9488; }
+    #view .cal-src { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid #eef2f6; font-size: 13px; }
+    #view .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+    #view .cal-cell { min-height: 92px; text-align: left; background: #fff; border: 1px solid #e5e8eb; border-radius: 8px; padding: 6px; }
+    #view .cal-cell.today { border-color: #0d9488; }
+    #view .cal-cell.on { outline: 2px solid #0d9488; }
+    #view .ev { display: block; width: 100%; text-align: left; border: 0; border-radius: 999px; padding: 2px 8px; margin-top: 4px; font-size: 11px; cursor: pointer; }
+    #view .ev.meet { background: #dbeafe; color: #1d4ed8; }
+    #view .ev.call { background: #dcfce7; color: #15803d; }
+    #view .ev.task { background: #fef3c7; color: #b45309; }
+    #view .ev.seq { background: #f3e8ff; color: #7e22ce; }
+    #view .ev.late { background: #fee2e2; color: #b91c1c; }
+    #view .ev.gcal { background: #e0f2fe; color: #0369a1; }
+    #view .cal-week { display: grid; grid-template-columns: 52px repeat(7, minmax(0, 1fr)); }
+    #view .cal-week div, #view .cal-dayrow { border-top: 1px solid #eef2f6; min-height: 36px; padding: 2px; font-size: 11px; }
+    #view .cal-head { font-size: 12px; font-weight: 700; color: #64748b; padding: 6px; }
+    @media (max-width: 900px) { #view .calx { grid-template-columns: 1fr; } }
+  `;
+  document.head.appendChild(css);
+
+  let calView = 'month';
+  let calNew = false;
+  let calOpen = '';
+  let calKey = '';
+  let calBusy = '';
+  let calExt = { events: [], sources: [] };
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function keyOf(date) { return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()); }
+  function parseKey(key) { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d); }
+  function addDays(date, n) { return new Date(date.getFullYear(), date.getMonth(), date.getDate() + n); }
+  function weekStart(date) { return addDays(date, -((date.getDay() + 6) % 7)); }
+  function todayKey() { return new Date().toISOString().slice(0, 10); }
+  function localItems() { return (bag.activities || []).filter((row) => row.dueAt); }
+  function isSeq(row) { return /Opened by the flow/i.test(row.notes || ''); }
+  function openTask(row) { return row.status === 'PLANNED' || row.status === 'IN_PROGRESS'; }
+  function kindOf(row) {
+    const due = String(row.dueAt).slice(0, 10);
+    if (openTask(row) && due && due < todayKey()) return ['late', 'Overdue'];
+    if (isSeq(row)) return ['seq', 'Sequence'];
+    if (row.type === 'MEETING') return ['meet', 'Meeting'];
+    if (row.type === 'CALL') return ['call', 'Call'];
+    return ['task', 'Task'];
+  }
+  function onDay(key) {
+    const own = localItems().filter((row) => String(row.dueAt).slice(0, 10) === key).map((row) => ({ id: row.id, title: row.subject, when: row.dueAt, kind: kindOf(row), row }));
+    const ext = (calExt.events || []).filter((row) => String(row.when || '').slice(0, 10) === key).map((row, index) => ({ id: 'ext-' + key + '-' + index, title: row.title || 'Busy', when: row.when, kind: ['gcal', row.source === 'outlook' ? 'Outlook' : 'Google'], row: null }));
+    return own.concat(ext);
+  }
+  function range() {
+    if (calView === 'week') { const a = weekStart(calCursor); return [a, addDays(a, 6)]; }
+    if (calView === 'day') { const a = new Date(calCursor.getFullYear(), calCursor.getMonth(), calCursor.getDate()); return [a, a]; }
+    const a = new Date(calCursor.getFullYear(), calCursor.getMonth(), 1);
+    return [a, new Date(calCursor.getFullYear(), calCursor.getMonth() + 1, 0)];
+  }
+  function wantRange() {
+    const [a, b] = range();
+    const key = keyOf(a) + ':' + keyOf(b);
+    if (calKey === key || calBusy === key) return;
+    calBusy = key;
+    api('/crm/api/day?from=' + keyOf(a) + '&to=' + keyOf(b)).then((data) => {
+      calBusy = '';
+      calKey = key;
+      calExt = data || { events: [], sources: [] };
+      if (page === 'calendar') drawCalPage();
+    }).catch(() => { calBusy = ''; });
+  }
+  function title() {
+    if (calView === 'day') return calCursor.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    if (calView === 'week') { const a = weekStart(calCursor); const b = addDays(a, 6); return a.getDate() + '–' + b.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }
+    return calCursor.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  }
+  function pill(item) { return `<button type="button" class="ev ${item.kind[0]}" onclick="openCalEvent('${item.id}', event)">${esc(item.title)}</button>`; }
+
+  window.setCalView = function (view) { calView = view; calOpen = ''; drawCalPage(); };
+  window.moveCal = function (step) {
+    if (calView === 'month' || calView === 'agenda') calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + step, 1);
+    else if (calView === 'week') calCursor = addDays(calCursor, step * 7);
+    else calCursor = addDays(calCursor, step);
+    calOpen = '';
+    drawCalPage();
+  };
+  window.todayCal = function () { calCursor = new Date(); calPick = todayKey(); calOpen = ''; drawCalPage(); };
+  window.pickCalDay = function (key) {
+    calPick = key;
+    calNew = true;
+    calOpen = '';
+    const date = parseKey(key);
+    if (calView !== 'month' && calView !== 'agenda') calCursor = date;
+    drawCalPage();
+  };
+  window.openCalEvent = function (id, event) {
+    if (event) event.stopPropagation();
+    calOpen = id;
+    calNew = false;
+    drawCalPage();
+  };
+  shiftMonth = function (step) { moveCal(step); };
+
+  window.drawCalPage = function () {
+    wantRange();
+    const today = todayKey();
+    const [from, to] = range();
+    const monthStart = new Date(calCursor.getFullYear(), calCursor.getMonth(), 1);
+    const miniPad = (monthStart.getDay() + 6) % 7;
+    const miniCount = new Date(calCursor.getFullYear(), calCursor.getMonth() + 1, 0).getDate();
+    const mini = Array(miniPad).fill('').concat(Array.from({ length: miniCount }, (_, i) => i + 1));
+    const miniHtml = ['M','T','W','T','F','S','S'].map((n) => `<span class="cal-head">${n}</span>`).join('') + mini.map((day) => {
+      if (!day) return '<span></span>';
+      const key = keyOf(new Date(calCursor.getFullYear(), calCursor.getMonth(), day));
+      const has = onDay(key).length ? ' has' : '';
+      return `<button type="button" class="${calPick === key ? 'on' : ''}${has}" onclick="pickCalDay('${key}')">${day}</button>`;
+    }).join('');
+    const sources = (calExt.sources || [{ id: 'afri', name: 'Afri CRM', on: true, live: true }, { id: 'google', name: 'Google Calendar', on: false }, { id: 'outlook', name: 'Outlook', on: false }]);
+    const srcHtml = sources.map((row) => `<div class="cal-src"><span>${esc(row.name)}${row.email ? '<div class="cx-muted">' + esc(row.email) + '</div>' : ''}</span><b>${row.on ? (row.live ? 'Connected' : 'Not answering') : 'Not connected'}</b></div>`).join('');
+    let grid = '';
+    if (calView === 'month') {
+      const padN = (monthStart.getDay() + 6) % 7;
+      const cells = Array(padN).fill('').concat(Array.from({ length: miniCount }, (_, i) => i + 1));
+      while (cells.length % 7) cells.push('');
+      grid = `<div class="cal-grid">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((n) => `<div class="cal-head">${n}</div>`).join('')}${cells.map((day) => {
+        if (!day) return '<div></div>';
+        const key = keyOf(new Date(calCursor.getFullYear(), calCursor.getMonth(), day));
+        const list = onDay(key);
+        return `<button type="button" class="cal-cell ${key === today ? 'today' : ''} ${calPick === key ? 'on' : ''}" onclick="pickCalDay('${key}')"><b>${day}</b>${list.slice(0, 3).map(pill).join('')}${list.length > 3 ? `<div class="cx-muted">+${list.length - 3}</div>` : ''}</button>`;
+      }).join('')}</div>`;
+    } else if (calView === 'agenda') {
+      const days = [];
+      for (let d = new Date(from); d <= to; d = addDays(d, 1)) days.push(keyOf(d));
+      grid = days.map((key) => {
+        const list = onDay(key);
+        if (!list.length) return '';
+        return `<div class="cal-card" style="margin-bottom:8px"><b>${esc(key)}</b>${list.map((item) => `<div>${pill(item)} <span class="cx-muted">${esc(item.kind[1])}</span></div>`).join('')}</div>`;
+      }).join('') || '<div class="cal-card">Nothing scheduled in this month.</div>';
+    } else {
+      const days = calView === 'day' ? [keyOf(new Date(calCursor.getFullYear(), calCursor.getMonth(), calCursor.getDate()))] : Array.from({ length: 7 }, (_, i) => keyOf(addDays(weekStart(calCursor), i)));
+      const hours = Array.from({ length: 11 }, (_, i) => i + 8);
+      const head = `<div class="cal-head"></div>` + days.map((key) => `<div class="cal-head">${esc(key.slice(8))} ${esc(parseKey(key).toLocaleDateString('en-GB', { weekday: 'short' }))}</div>`).join('');
+      const all = `<div class="cal-head">All day</div>` + days.map((key) => `<div>${onDay(key).filter((item) => !String(item.when).includes('T')).map(pill).join('')}</div>`).join('');
+      const rows = hours.map((hour) => `<div class="cal-head">${hour}:00</div>` + days.map((key) => {
+        const list = onDay(key).filter((item) => { const m = String(item.when).match(/T(\d{2})/); return m && Number(m[1]) === hour; });
+        return `<div>${list.map(pill).join('')}</div>`;
+      }).join('')).join('');
+      grid = `<div class="cal-week">${head}${all}${rows}</div>`;
+    }
+    const picked = [];
+    const walk = (date) => onDay(keyOf(date)).forEach((item) => picked.push(item));
+    for (let d = new Date(from); d <= to; d = addDays(d, 1)) walk(d);
+    const open = picked.find((item) => item.id === calOpen);
+    let panel = '';
+    if (open) {
+      const who = open.row ? relatedName(open.row) : '';
+      panel = `<div class="cal-card" style="margin-bottom:12px"><div class="cx-head"><div><b>${esc(open.title)}</b><div class="cx-muted">${esc(open.kind[1])} · ${esc(String(open.when || '').replace('T', ' ').slice(0, 16))}</div></div><button type="button" class="cx-tool" onclick="calOpen='';drawCalPage()">Close</button></div>${who ? `<button type="button" class="cx-link" onclick="openRecord('${open.row.relatedType}','${open.row.relatedId}')">${esc(who)}</button>` : ''}${open.row ? '' : '<p class="cx-muted">This came from the connected calendar. Afri does not change it here.</p>'}</div>`;
+    } else if (calNew && calPick) {
+      panel = `<div class="cal-card" style="margin-bottom:12px"><div class="cx-head"><b>New event · ${esc(calPick)}</b><button type="button" class="cx-tool" onclick="calNew=false;drawCalPage()">Close</button></div><label>What<input id="calWhat"></label><label>Kind<select id="calKind"><option value="MEETING">Meeting</option><option value="CALL">Call</option><option value="TASK">Task</option></select></label><label>Contact<select id="calWho"><option value="">None</option>${(bag.contacts || []).map((row) => `<option value="${row.id}">${esc(person(row))}</option>`).join('')}</select></label><button type="button" class="cx-go" onclick="saveCal()">Put it on this day</button></div>`;
+    }
+    const views = [['month', 'Month'], ['week', 'Week'], ['day', 'Day'], ['agenda', 'Agenda']];
+    document.getElementById('view').innerHTML = `<div class="calx">
+      <aside class="cal-side"><div class="cx-head"><b>${esc(calCursor.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }))}</b></div><div class="cal-mini">${miniHtml}</div><h2 style="font-size:13px;margin:16px 0 4px">My calendars</h2>${srcHtml}<p class="cx-muted">Afri CRM is this workspace. Google or Outlook shows here only after it is connected under Integrations. There is no separate team calendar.</p></aside>
+      <div><div class="cx-head"><h1 style="margin:0">${esc(title())}</h1><div><button type="button" class="cx-tool" onclick="moveCal(-1)">‹</button> <button type="button" class="cx-tool" onclick="todayCal()">Today</button> <button type="button" class="cx-tool" onclick="moveCal(1)">›</button> ${views.map(([id, label]) => `<button type="button" class="cx-tool ${calView===id?'on':''}" onclick="setCalView('${id}')">${label}</button>`).join(' ')}</div></div>${panel}${grid}</div>
+    </div>`;
+  };
+  drawCalendar = function () { drawCalPage(); };
+})();
