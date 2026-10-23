@@ -10004,3 +10004,36 @@ window.openSearchHit = function (kind, id) {
   };
   if (page === 'workspace' || page === 'sales') drawWorkspace();
 })();
+
+(function () {
+  const css = document.createElement('style');
+  css.textContent = `
+    #view table { width: 100%; border-collapse: separate !important; border-spacing: 0 !important; background: #fff !important; }
+    #view table th { text-align: left !important; font-size: 11px !important; font-weight: 600 !important; letter-spacing: .06em !important; text-transform: uppercase !important; color: #64748b !important; background: #f8fafc !important; padding: 8px 10px !important; border-bottom: 1px solid #e5e8eb !important; }
+    #view table td { padding: 10px !important; border-bottom: 1px solid #f1f5f9 !important; font-size: 13px !important; background: #fff !important; vertical-align: middle !important; font-variant-numeric: tabular-nums; }
+    #view table tbody tr:hover td { background: #f8fafc !important; }
+    #view .ws-dot i { width: 8px; height: 8px; border-radius: 99px; display: inline-block; }
+    #view .ws-dot { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #334155 !important; }
+  `;
+  document.head.appendChild(css);
+  const types = {
+    CALL: ['Call', '#16a34a'], EMAIL: ['Email', '#2563eb'], MEETING: ['Meeting', '#7c3aed'],
+    WHATSAPP: ['WhatsApp', '#0f766e'], TASK: ['Task', '#d97706'], NOTE: ['Note', '#64748b'],
+    Call: ['Call', '#16a34a'], Email: ['Email', '#2563eb'], Meeting: ['Meeting', '#7c3aed'],
+    WhatsApp: ['WhatsApp', '#0f766e'], Task: ['Task', '#d97706'], Note: ['Note', '#64748b'],
+  };
+  function dress() {
+    document.querySelectorAll('#view td').forEach((td) => {
+      if (td.dataset.typed || td.children.length) return;
+      const hit = types[td.textContent.trim()];
+      if (!hit) return;
+      td.dataset.typed = '1';
+      td.innerHTML = '<span class="ws-dot"><i style="background:' + hit[1] + '"></i>' + hit[0] + '</span>';
+    });
+  }
+  const view = document.getElementById('view');
+  if (!view) return;
+  let timer;
+  new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(dress, 40); }).observe(view, { childList: true, subtree: true });
+  dress();
+})();
