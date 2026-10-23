@@ -1417,7 +1417,7 @@ function drawDeals() {
       const lastActLabel = relativeTime(lastAct);
       const actions = isClosed ? '' : `<div class="card-actions" onclick="event.stopPropagation()"><button type="button" class="mini" onclick="move('${row.id}','${id}')">→ Next</button><button type="button" class="mini ghost" onclick="lose('${row.id}')">Lost</button></div>`;
       return `<article class="dealcard" draggable="true" ondragstart="handleDealDragStart(event,'${row.id}')" ondragend="handleDealDragEnd(event)" style="--stage-color:${color}; --avatar-bg:${avatarGradient(contact)}" data-stage-tint="1" ${isClosed ? 'data-closed="1"' : ''} onclick="openRecord('deal','${row.id}')"><div class="stage-progress"><div class="stage-progress-fill" style="width:${stageProgress(chance)}%"></div></div><div class="drag-handle" title="Drag to change stage">⋮⋮</div><div class="card-header"><b class="deal-name" onclick="event.stopPropagation();editInline(this,'deals','${row.id}','name','Deal name')">${esc(row.name)}</b>${healthBadge}${stalledWarn}</div><div class="deal-amount">${money(row.amount)}${paidTag}</div><div class="card-meta"><div class="contact-line"><span class="avatar">${esc(initialsStr)}</span><span>${esc(contact)}</span></div><span class="date-chip ${closeClass}">${esc(shortDate(row.closeDate) || 'No close date')}</span></div><div class="card-foot"><span class="last-activity">${lastActLabel ? 'Touched ' + esc(lastActLabel) : 'No activity yet'}</span>${actions}</div></article>`;
-    }).join('') || `<div class="empty-col"><div class="empty-ico">📋</div><p>No deals in ${esc(label)} yet.</p><button type="button" class="addslot" onclick="dealPrefill='${id}';openForm='deal';drawDeals()">+ Add one</button></div>`;
+    }).join('') || `<div class="empty-col"><div class="empty-ico">📋</div><p>No deals yet. Create one from a contact.</p><button type="button" class="addslot" onclick="dealPrefill='${id}';openForm='deal';drawDeals()">+ Add one</button></div>`;
     return `<div class="col" style="--stage-color:${color}" data-stage-tint="1" ${isClosed ? 'data-closed="1"' : ''} ondragover="handleColDragOver(event)" ondragleave="handleColDragLeave(event)" ondrop="handleColDrop(event,'${id}')"><div class="stagepill" style="background:${color}">${esc(label)} <span class="count">${list.length}</span></div><div class="col-total">${money(total)} <span class="muted">${money(weighted)} weighted (${chance}%)</span></div><div class="cards">${cards}</div></div>`;
   }).join('');
   const list = rows.map((row) => `<tr style="cursor:pointer" onclick="openRecord('deal','${row.id}')"><td data-label="Deal">${esc(row.name)}</td><td data-label="Stage">${esc(stageOf(row))}</td><td data-label="Amount">${money(row.amount)}</td><td data-label="Close">${esc(shortDate(row.closeDate))}</td><td data-label="Owner">${esc(ownerName(row.ownerId) || 'Unassigned')}</td><td data-label="Next step">${esc(row.nextStep || '')}</td><td data-label="Status">${row.paidAt ? 'Paid' : stalled(row) ? 'Quiet' : ''}</td></tr>`).join('') || '<tr><td colspan="7">No deal matches.</td></tr>';
@@ -1642,7 +1642,7 @@ function drawContacts() {
         <button type="button" class="action-btn primary" onclick="openRecord('contact','${row.id}')">View</button>
       </div>
     </article>`;
-  }).join('') || `<div class="contact-empty"><div class="empty-ico">👤</div><h2>No contacts yet.</h2><p>Add the first person. A contact can sit under a company, and a deal can attach to either.</p><button type="button" onclick="document.getElementById('form').hidden=false">Add contact</button></div>`;
+  }).join('') || `<div class="contact-empty"><div class="empty-ico">👤</div><h2>No contacts yet.</h2><p>Import a CSV or add your first.</p><button type="button" onclick="document.getElementById('form').hidden=false">Add contact</button></div>`;
   // Table view (preserved for power users)
   const body = rows.map((row) => `<tr><td><input type="checkbox" data-pick="contact" value="${row.id}"></td><td style="cursor:pointer" onclick="openRecord('contact','${row.id}')"><span class="avatar" style="--avatar-bg:${avatarGradient(person(row))}">${esc(initials(person(row)))}</span><span class="linkish">${esc(person(row))}</span></td><td>${row.email ? `<a class="linkish" href="mailto:${esc(row.email)}">${esc(row.email)}</a>` : '—'}</td><td>${esc(row.phone || '—')}</td><td>${esc(companyName(row.companyId) || '—')}</td><td>${esc(shortDate(lastTouch(row.id)) || 'No activity')}</td><td>${esc(ownerName(row.ownerId) || 'Unassigned')}</td></tr>`).join('');
   const empty = `<tr><td colspan="7"><div class="empty"><h2>No contacts match.</h2><p class="hello">Clear a filter, or add the person. A contact can sit under a company.</p><button type="button" onclick="document.getElementById('form').hidden=false">Add contact</button></div></td></tr>`;
@@ -1819,7 +1819,7 @@ function drawTasks() {
   const stageName = (row) => row.status === 'HELD' ? 'Done' : 'Not started';
   const body = rows.map((row) => `<tr><td><input type="checkbox" data-pick="task" value="${row.id}"></td><td style="cursor:pointer" onclick="openTask('${row.relatedType || ''}','${row.relatedId || ''}')"><b>${esc(row.subject)}</b></td><td>${esc(row.type)}</td><td>${esc(due(row) || '—')}</td><td>${stageName(row)}</td><td>${esc(ownerName(row.ownerId) || 'Unassigned')}</td><td>${esc(relatedName(row) || '—')}</td><td>${row.status === 'PLANNED' ? `<button type="button" onclick="hold('${row.id}')">Done</button>` : ''}</td></tr>`).join('');
   const chips = [taskOwner && 'Assigned', taskType, taskStage === 'PLANNED' ? 'Not started' : taskStage === 'HELD' ? 'Done' : '', taskDue && ('Due by ' + taskDue)].filter(Boolean).map((label) => `<span>${esc(label)}</span>`).join('');
-  const empty = `<div class="empty"><h2>No tasks match the current filters.</h2><p class="hello">Clear a filter, or add the work. A task can point at a contact or a deal.</p><button type="button" onclick="document.getElementById('taskForm').hidden=false">Add task</button></div>`;
+  const empty = `<div class="empty"><h2>Keep track of your to-do list.</h2><p class="hello">A task can point at a contact or a deal.</p><button type="button" onclick="document.getElementById('taskForm').hidden=false">Add task</button></div>`;
   const banner = calBanner ? `<div class="banner"><div><b>Want these tasks next to a calendar you already use?</b><div class="meta">Connect Google or Outlook under Tools. Afri CRM reads the next events. It does not write tasks onto that calendar.</div><button type="button" class="ghost" onclick="go('tools')">Go to tools</button></div><button type="button" class="x" onclick="hideCal()">×</button></div>` : '';
   document.getElementById('view').innerHTML = `${banner}<div class="desk"><div class="board-head"><h1>Tasks</h1><span><button type="button" class="ghost" onclick="go('player')">Work the list</button> <button type="button" onclick="document.getElementById('taskForm').hidden=false">Add tasks</button></span></div>
     <div class="tabs">${tab('all', 'All tasks')}${tab('today', 'Due today')}${tab('overdue', 'Overdue')}${tab('upcoming', 'Upcoming')}</div>
@@ -2709,7 +2709,7 @@ async function mergeContact() {
   const otherId = document.getElementById('mergeWho').value;
   if (!otherId) return toast('Choose the other person');
   const other = (bag.contacts || []).find((row) => row.id === otherId);
-  if (!confirm('Merge ' + person(other || {}) + ' into this person? The other record is removed.')) return;
+  if (!await askConfirm({ title: 'Merge these people?', body: 'Merge ' + person(other || {}) + ' into this person. The other record is removed.', danger: true, ok: 'Merge' })) return;
   const result = await api('/crm/api/contacts/' + focus.id + '/merge', { method: 'POST', body: JSON.stringify({ otherId }) });
   if (!result || result.error) return toast((result && result.error) || 'Could not merge');
   toast((result.merged || 'The other person') + ' was merged here');
@@ -2870,7 +2870,7 @@ function drawFeed() {
   const today = zoneToday();
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   const label = (key) => key === today ? 'Today' : key === yesterday ? 'Yesterday' : key;
-  const feed = [...groups.entries()].map(([key, list]) => `<h2>${esc(label(key))}</h2>` + list.map((row) => `<article><div class="board-head"><b>${esc(row.type)} · ${esc(row.subject)}</b><span class="meta">${esc(row.status || '')}</span></div><div class="meta">${esc(relatedName(row) || 'Not tied to a record')} · ${esc(String(row.createdAt || row.dueAt || '').slice(0, 16).replace('T', ' '))}</div>${row.notes ? `<div>${esc(row.notes)}</div>` : ''}</article>`).join('')).join('') || '<div class="empty"><h2>No activity yet.</h2><p class="hello">A call, a task, or a meeting shows up here once it is on a record.</p></div>';
+  const feed = [...groups.entries()].map(([key, list]) => `<h2>${esc(label(key))}</h2>` + list.map((row) => `<article><div class="board-head"><b>${esc(row.type)} · ${esc(row.subject)}</b><span class="meta">${esc(row.status || '')}</span></div><div class="meta">${esc(relatedName(row) || 'Not tied to a record')} · ${esc(String(row.createdAt || row.dueAt || '').slice(0, 16).replace('T', ' '))}</div>${row.notes ? `<div>${esc(row.notes)}</div>` : ''}</article>`).join('')).join('') || '<div class="empty"><h2>No activity yet.</h2><p class="hello">Log a call, email, or note.</p></div>';
   document.getElementById('view').innerHTML = `<div class="board-head"><h1>Activity</h1><button type="button" class="ghost" onclick="go('calls')">Log a call</button></div>
     <div class="filters">${types.map((type) => `<button type="button" class="${feedType === type || (!feedType && type === 'ALL') ? '' : 'ghost'}" onclick="feedType='${type}';drawFeed()">${type === 'ALL' ? 'All types' : type}</button>`).join('')}</div>
     <div class="feed">${feed}</div>`;
@@ -3064,7 +3064,7 @@ document.getElementById('email').value = localStorage.getItem('crmEmail') || '';
   if (token) boot();
 })();
 </script>
-<script src="/crm-studio.js?v=97"></script>
+<script src="/crm-studio.js?v=98"></script>
 </body>
 </html>
 

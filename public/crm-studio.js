@@ -4081,7 +4081,7 @@
     var ack = (document.getElementById('deleteAckCheckbox') || {}).checked;
     if (!name) { if (errEl) errEl.textContent = 'Type your workspace name to confirm.'; return; }
     if (!ack) { if (errEl) errEl.textContent = 'Check the box to acknowledge this cannot be undone.'; return; }
-    if (!confirm('Last chance. Are you absolutely sure? This will permanently delete your workspace and all data.')) return;
+    if (!await askConfirm({ title: 'Delete this workspace?', body: 'This permanently deletes the workspace and all of its data.', danger: true, ok: 'Delete' })) return;
     if (btn) { btn.disabled = true; btn.textContent = 'Deleting…'; }
     var res = await api('/crm/api/account', { method: 'DELETE', body: JSON.stringify({ confirm: name, reason: reason }) });
     if (res && res.ok) {
@@ -5260,7 +5260,7 @@
 
   // Disconnect OAuth provider
   window.__disconnectOAuth = async function (provider, alsoProvider) {
-    if (!confirm('Disconnect ' + provider + '? You can reconnect any time.')) return;
+    if (!await askConfirm({ title: 'Disconnect ' + provider + '?', body: 'You can connect it again later.', danger: true, ok: 'Disconnect' })) return;
     await api('/crm/api/connect/' + provider, { method: 'DELETE' });
     if (alsoProvider) await api('/crm/api/connect/' + alsoProvider, { method: 'DELETE' });
     toast('Disconnected');
@@ -5316,7 +5316,7 @@
     }
   };
   window.__removeOwnCred = async function (provider) {
-    if (!confirm('Remove your ' + provider + ' credentials? Connected accounts will be signed out.')) return;
+    if (!await askConfirm({ title: 'Remove credentials?', body: 'Connected accounts for ' + provider + ' will be signed out.', danger: true, ok: 'Remove' })) return;
     await api('/crm/api/oauth/credentials/' + provider, { method: 'DELETE' });
     toast('Removed');
     window.drawIntegrations();
@@ -5345,7 +5345,7 @@
     }
   };
   window.__revokeKey = async function (id) {
-    if (!confirm('Revoke this API key? Apps using it will lose access.')) return;
+    if (!await askConfirm({ title: 'Revoke this key?', body: 'Apps using it will lose access.', danger: true, ok: 'Revoke' })) return;
     await api('/crm/api/api-keys/' + id, { method: 'DELETE' });
     toast('Key revoked');
     window.__showApiKeys();
@@ -5376,7 +5376,7 @@
     }
   };
   window.__deleteWebhook = async function (id) {
-    if (!confirm('Delete this webhook?')) return;
+    if (!await askConfirm({ title: 'Delete this webhook?', body: 'It will stop receiving events.', danger: true, ok: 'Delete' })) return;
     await api('/crm/api/webhooks/' + id, { method: 'DELETE' });
     toast('Webhook deleted');
     window.__showWebhooks();
@@ -10556,5 +10556,211 @@ window.openSearchHit = function (kind, id) {
       const hookRows2 = (Array.isArray(hooks) ? hooks : []).map((row) => `<tr><td>${esc(row.name)}</td><td>${esc(row.url)}</td><td><button type="button" class="ghost" onclick="setDrop('webhooks','${row.id}')">Remove</button></td></tr>`).join('') || '<tr><td colspan="3">No webhook yet.</td></tr>';
       el.innerHTML = `<div class="ws-card"><b>API keys</b><table class="ws-table"><thead><tr><th>Name</th><th>Prefix</th><th></th></tr></thead><tbody>${keyRows2}</tbody></table><label>Name<input id="keyName" placeholder="Server"></label><p><button type="button" onclick="setKey()">Create a key</button></p><p id="keyOut" class="cx-muted"></p><p class="cx-muted">Send the key as Authorization: Bearer. The routes are under /crm/api, including contacts, deals, leads, and activities.</p></div><div class="ws-card"><b>Webhooks</b><table class="ws-table"><thead><tr><th>Name</th><th>URL</th><th></th></tr></thead><tbody>${hookRows2}</tbody></table><div class="ms-log"><label>Name<input id="hookName"></label><label>https address<input id="hookUrl" placeholder="https://"></label><label>When<select id="hookOn"><option value="*">Any event</option><option value="lead.created">A lead is added</option><option value="deal.won">A deal is won</option></select></label><button type="button" onclick="setHook()">Save webhook</button></div></div>`;
     }
+  };
+})();
+
+(function () {
+  const css = document.createElement('style');
+  css.textContent = `
+    .gc-shade { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 70; display: grid; place-items: start center; padding-top: 12vh; }
+    .gc-cmd { width: min(640px, calc(100vw - 24px)); background: #1a2332; color: #fff; border-radius: 12px; border: 1px solid rgba(255,255,255,.12); box-shadow: 0 20px 60px rgba(0,0,0,.6); overflow: hidden; }
+    .gc-cmd input { width: 100%; border: 0 !important; background: transparent !important; color: #fff !important; font-size: 18px; padding: 16px 18px; box-shadow: none !important; }
+    .gc-cmd input::placeholder { color: rgba(255,255,255,.45); }
+    .gc-list { max-height: 360px; overflow: auto; }
+    .gc-label { padding: 8px 16px 4px; font-size: 11px; letter-spacing: .08em; color: #94a3b8; }
+    .gc-row { display: flex; gap: 10px; align-items: center; width: 100%; text-align: left; background: transparent !important; color: #fff !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; padding: 8px 16px !important; }
+    .gc-row.on, .gc-row:hover { background: rgba(255,255,255,.06) !important; }
+    .gc-row b { display: block; font-size: 14px; }
+    .gc-row span { color: #94a3b8; font-size: 12px; }
+    .gc-foot { display: flex; gap: 14px; padding: 8px 16px; color: #64748b; font-size: 12px; border-top: 1px solid rgba(255,255,255,.08); }
+    .gc-sheet { position: fixed; top: 0; right: 0; height: 100vh; width: min(480px, 100vw); background: #fff; z-index: 72; box-shadow: -12px 0 40px rgba(0,0,0,.25); padding: 18px; overflow: auto; color: #0f172a; }
+    .gc-sheet input, .gc-sheet select, .gc-sheet textarea { background: #fff !important; color: #0f172a !important; border: 1px solid #cbd5e1 !important; width: 100%; }
+    .gc-modal { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 80; display: grid; place-items: center; padding: 16px; }
+    .gc-card { width: min(400px, 100%); background: #fff; color: #0f172a; border-radius: 12px; padding: 18px; }
+    .gc-card .ghost { background: #fff !important; color: #334155 !important; border: 1px solid #cbd5e1 !important; box-shadow: none !important; }
+    .gc-card .danger { background: #dc2626 !important; color: #fff !important; }
+    .gc-toasts { position: fixed; top: 16px; right: 16px; z-index: 90; display: flex; flex-direction: column; gap: 8px; width: min(320px, calc(100vw - 24px)); }
+    .gc-toast { background: #1a2332; color: #fff; border-radius: 8px; padding: 10px 12px; border-left: 4px solid #3b82f6; display: flex; justify-content: space-between; gap: 8px; animation: gc-in .2s ease; }
+    .gc-toast.ok { border-left-color: #22c55e; } .gc-toast.err { border-left-color: #ef4444; } .gc-toast.warn { border-left-color: #f59e0b; }
+    .gc-toast button { background: transparent !important; color: #fff !important; border: 0 !important; box-shadow: none !important; padding: 0 4px !important; }
+    @keyframes gc-in { from { transform: translateX(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+    .gc-skel i { display: block; height: 14px; margin: 10px 0; border-radius: 6px; background: linear-gradient(90deg, #e5e7eb, #f8fafc, #e5e7eb); background-size: 200% 100%; animation: gc-sh 1.1s linear infinite; }
+    @keyframes gc-sh { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+    .gc-load { position: fixed; inset: 0; display: grid; place-items: center; background: #f8fafc; z-index: 60; }
+    .gc-load b { width: 36px; height: 36px; border: 3px solid #99f6e4; border-top-color: #0f766e; border-radius: 50%; animation: gc-spin .7s linear infinite; }
+    @keyframes gc-spin { to { transform: rotate(360deg); } }
+    .gc-tabs { display: none; }
+    html[data-theme="light"] { --bg-base: #f8fafc; --bg-surface: #fff; --bg-card: #f1f5f9; --text-primary: #0f172a; --text-secondary: #475569; --border: rgba(0,0,0,.08); }
+    @media (max-width: 768px) {
+      #nav { display: none !important; }
+      .gc-tabs { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; background: #0d1117; }
+      .gc-tabs button { background: transparent !important; color: #cbd5e1 !important; border: 0 !important; box-shadow: none !important; border-radius: 0 !important; font-size: 11px !important; padding: 10px 4px !important; }
+      #view { padding-bottom: 64px !important; }
+      #view .pulse, #view .kpis { grid-template-columns: 1fr 1fr !important; }
+      #view .sheet, #view .board { overflow-x: auto; }
+      #view .split, #view .cx { display: block !important; }
+    }
+  `;
+  document.head.appendChild(css);
+  const spin = document.createElement('div');
+  spin.className = 'gc-load';
+  spin.innerHTML = '<b></b>';
+  document.body.appendChild(spin);
+  const prevDraw = draw;
+  draw = function () { if (spin.parentNode) spin.remove(); return prevDraw(); };
+
+  function recent() { try { return JSON.parse(localStorage.getItem('crm-recent') || '[]'); } catch (e) { return []; } }
+  function remember(type, id) {
+    const next = [{ type, id, at: Date.now() }].concat(recent().filter((row) => row.id !== id)).slice(0, 5);
+    localStorage.setItem('crm-recent', JSON.stringify(next));
+  }
+  const prevOpen = openRecord;
+  openRecord = function (type, id) { remember(type, id); return prevOpen(type, id); };
+
+  function rank(query, label, sub, id) {
+    const text = (label + ' ' + (sub || '')).toLowerCase();
+    const q = query.toLowerCase().trim();
+    let score = 0;
+    if (!q) score = 10;
+    else if (text.startsWith(q)) score = 80;
+    else if (text.includes(q)) score = 50;
+    else {
+      const parts = q.split(/\s+/).filter(Boolean);
+      const hits = parts.filter((part) => text.includes(part)).length;
+      if (!hits) return 0;
+      score = 20 + hits * 10;
+    }
+    const index = recent().findIndex((row) => row.id === id);
+    if (index >= 0) score += 25 - index * 4;
+    return score;
+  }
+
+  window.askConfirm = function (opts) {
+    const opt = opts || {};
+    return new Promise((resolve) => {
+      const shade = document.createElement('div');
+      shade.className = 'gc-modal';
+      shade.innerHTML = `<div class="gc-card" role="dialog"><b>${esc(opt.title || 'Are you sure?')}</b><p>${esc(opt.body || '')}</p><p><button type="button" class="ghost" data-no>Cancel</button> <button type="button" class="${opt.danger ? 'danger' : ''}" data-yes>${esc(opt.ok || 'Confirm')}</button></p></div>`;
+      function close(value) { shade.remove(); document.removeEventListener('keydown', onKey); resolve(value); }
+      function onKey(e) { if (e.key === 'Escape') close(false); if (e.key === 'Enter') close(true); }
+      shade.addEventListener('click', (e) => { if (e.target === shade || e.target.dataset.no != null) close(false); if (e.target.dataset.yes != null) close(true); });
+      document.addEventListener('keydown', onKey);
+      document.body.appendChild(shade);
+      const yes = shade.querySelector('[data-yes]');
+      if (yes) yes.focus();
+    });
+  };
+
+  const pile = document.createElement('div');
+  pile.className = 'gc-toasts';
+  document.body.appendChild(pile);
+  toast = function (message, kind) {
+    const text = String(message || '');
+    const type = kind || (/could not|fail|error/i.test(text) ? 'err' : 'ok');
+    const row = document.createElement('div');
+    row.className = 'gc-toast ' + type;
+    row.innerHTML = `<span>${esc(text)}</span><button type="button">×</button>`;
+    row.querySelector('button').onclick = () => row.remove();
+    pile.appendChild(row);
+    while (pile.children.length > 5) pile.firstChild.remove();
+    setTimeout(() => row.remove(), 4500);
+  };
+
+  window.quickCreate = function (kind) {
+    document.querySelectorAll('.drop').forEach((el) => el.classList.remove('open'));
+    const old = document.getElementById('gcSheet');
+    if (old) old.remove();
+    const people = (bag.people || []).map((row) => `<option value="${row.id}">${esc(row.fullName || row.email || '')}</option>`).join('');
+    const companies = (bag.companies || []).map((row) => `<option value="${row.id}">${esc(row.name)}</option>`).join('');
+    const contacts = (bag.contacts || []).map((row) => `<option value="${row.id}">${esc(person(row))}</option>`).join('');
+    const stages = (bag.stages || []).map((row) => `<option value="${esc(row.id)}">${esc(row.name)}</option>`).join('') || '<option value="PROSPECTING">Prospecting</option>';
+    const sheet = document.createElement('aside');
+    sheet.id = 'gcSheet';
+    sheet.className = 'gc-sheet';
+    const contact = `<h2>New contact</h2><label>First name<input id="qcFirst"></label><label>Last name<input id="qcLast"></label><label>Email<input id="qcEmail"></label><label>Phone<input id="qcPhone"></label><label>WhatsApp<input id="qcWa"></label><label>Company<select id="qcCompany"><option value="">None</option>${companies}</select></label><label>Owner<select id="qcOwner"><option value="">Me</option>${people}</select></label><label>Source<input id="qcSource" placeholder="WhatsApp, referral"></label><label>Notes<textarea id="qcNotes"></textarea></label><p><button type="button" id="qcSave">Save contact</button> <button type="button" class="ghost" onclick="document.getElementById('gcSheet').remove()">Cancel</button></p>`;
+    const deal = `<h2>New deal</h2><label>Deal name<input id="qcName"></label><label>Stage<select id="qcStage">${stages}</select></label><label>Value<input id="qcAmount" inputmode="decimal"></label><label>Close date<input id="qcClose" type="date"></label><label>Contact<select id="qcContact"><option value="">None</option>${contacts}</select></label><label>Company<select id="qcCompany"><option value="">None</option>${companies}</select></label><label>Owner<select id="qcOwner"><option value="">Me</option>${people}</select></label><label>Description<textarea id="qcNotes"></textarea></label><p><button type="button" id="qcSave">Save deal</button> <button type="button" class="ghost" onclick="document.getElementById('gcSheet').remove()">Cancel</button></p>`;
+    sheet.innerHTML = kind === 'deal' ? deal : contact;
+    document.body.appendChild(sheet);
+    sheet.querySelector('#qcSave').onclick = async function () {
+      this.disabled = true; this.textContent = 'Saving…';
+      const body = kind === 'deal' ? { name: document.getElementById('qcName').value, stage: document.getElementById('qcStage').value, amount: document.getElementById('qcAmount').value, closeDate: document.getElementById('qcClose').value, contactId: document.getElementById('qcContact').value, companyId: document.getElementById('qcCompany').value, ownerId: document.getElementById('qcOwner').value, description: document.getElementById('qcNotes').value } : { firstName: document.getElementById('qcFirst').value, lastName: document.getElementById('qcLast').value, email: document.getElementById('qcEmail').value, phone: document.getElementById('qcPhone').value, mobile: document.getElementById('qcWa').value, companyId: document.getElementById('qcCompany').value, ownerId: document.getElementById('qcOwner').value, source: document.getElementById('qcSource').value, description: document.getElementById('qcNotes').value };
+      const result = await api('/crm/api/' + (kind === 'deal' ? 'deals' : 'contacts'), { method: 'POST', body: JSON.stringify(body) });
+      if (!result || result.error) { this.disabled = false; this.textContent = 'Save'; return toast((result && result.error) || 'Could not save'); }
+      sheet.remove();
+      toast('Saved');
+      refresh();
+    };
+  };
+  const menu = document.getElementById('createMenu');
+  if (menu) menu.innerHTML = '<button type="button" onclick="quickCreate(\'contact\')">Contact</button><button type="button" onclick="quickCreate(\'deal\')">Deal</button><button type="button" onclick="go(\'companies\',\'company\')">Company</button><button type="button" onclick="go(\'tasks\',\'task\')">Task</button><button type="button" onclick="go(\'leads\')">Lead</button>';
+
+  const tabs = document.createElement('nav');
+  tabs.className = 'gc-tabs';
+  tabs.innerHTML = '<button type="button" onclick="go(\'home\')">Home</button><button type="button" onclick="go(\'contacts\')">Contacts</button><button type="button" onclick="go(\'deals\')">Deals</button><button type="button" onclick="go(\'tasks\')">Tasks</button><button type="button" onclick="toggleLauncher()">More</button>';
+  document.body.appendChild(tabs);
+
+  window.openCommandPalette = function () {
+    if (document.getElementById('gcPalette')) return;
+    const shade = document.createElement('div');
+    shade.id = 'gcPalette';
+    shade.className = 'gc-shade';
+    shade.innerHTML = '<div class="gc-cmd" role="dialog"><input id="gcFind" placeholder="Search or type a command..." autocomplete="off"><div class="gc-list" id="gcHits"></div><div class="gc-foot"><span>↑↓ move</span><span>Enter open</span><span>Esc close</span></div></div>';
+    document.body.appendChild(shade);
+    const input = document.getElementById('gcFind');
+    let rows = [];
+    let selected = 0;
+    function build(query) {
+      const actions = [
+        { kind: 'action', label: 'New contact', sub: 'Create', open: () => quickCreate('contact') },
+        { kind: 'action', label: 'New deal', sub: 'Create', open: () => quickCreate('deal') },
+        { kind: 'action', label: 'New company', sub: 'Create', open: () => go('companies', 'company') },
+        { kind: 'action', label: 'New task', sub: 'Create', open: () => go('tasks', 'task') },
+        { kind: 'action', label: 'New lead', sub: 'Create', open: () => go('leads') },
+      ];
+      const pages = [
+        { kind: 'page', label: 'Contacts', sub: 'People', open: () => go('contacts') },
+        { kind: 'page', label: 'Deals', sub: 'Pipeline', open: () => go('deals') },
+        { kind: 'page', label: 'Tasks', sub: 'Work', open: () => go('tasks') },
+        { kind: 'page', label: 'Reports', sub: 'Numbers', open: () => go('reports') },
+        { kind: 'page', label: 'Settings', sub: 'Workspace', open: () => go('settings') },
+      ];
+      const records = []
+        .concat((bag.contacts || []).map((row) => ({ kind: 'contact', id: row.id, label: person(row), sub: row.email || companyName(row.companyId) || '', open: () => openRecord('contact', row.id) })))
+        .concat((bag.companies || []).map((row) => ({ kind: 'company', id: row.id, label: row.name, sub: row.industry || '', open: () => openRecord('company', row.id) })))
+        .concat((bag.deals || []).map((row) => ({ kind: 'deal', id: row.id, label: row.name, sub: money(row.amount), open: () => openRecord('deal', row.id) })));
+      const q = query.trim();
+      if (!q) {
+        const seen = recent().map((row) => records.find((item) => item.id === row.id)).filter(Boolean).map((row) => Object.assign({}, row, { kind: 'recent' }));
+        rows = actions.concat(seen);
+      } else {
+        rows = actions.concat(pages).concat(records).map((row) => Object.assign({ score: rank(q, row.label, row.sub, row.id) }, row)).filter((row) => row.score > 0).sort((a, b) => b.score - a.score).slice(0, 12);
+      }
+      selected = 0;
+      paint();
+    }
+    function paint() {
+      const box = document.getElementById('gcHits');
+      if (!box) return;
+      if (!rows.length) { box.innerHTML = '<div class="gc-label">Nothing matches.</div>'; return; }
+      const order = ['action', 'recent', 'contact', 'company', 'deal', 'page'];
+      box.innerHTML = order.map((kind) => {
+        const list = rows.map((row, index) => Object.assign({ index }, row)).filter((row) => row.kind === kind);
+        if (!list.length) return '';
+        const title = { action: 'Quick actions', recent: 'Recent', contact: 'Contacts', company: 'Companies', deal: 'Deals', page: 'Pages' }[kind];
+        return `<div class="gc-label">${title}</div>` + list.map((row) => `<button type="button" class="gc-row ${row.index === selected ? 'on' : ''}" data-i="${row.index}"><b>${esc(row.label)}</b><span>${esc(row.sub || '')}</span></button>`).join('');
+      }).join('');
+      box.querySelectorAll('.gc-row').forEach((button) => { button.onclick = () => pick(Number(button.dataset.i)); });
+    }
+    function pick(index) { const row = rows[index]; shade.remove(); if (row) row.open(); }
+    input.addEventListener('input', () => build(input.value));
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); selected = Math.min(rows.length - 1, selected + 1); paint(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); selected = Math.max(0, selected - 1); paint(); }
+      else if (e.key === 'Enter') { e.preventDefault(); pick(selected); }
+      else if (e.key === 'Escape') shade.remove();
+    });
+    shade.addEventListener('click', (e) => { if (e.target === shade) shade.remove(); });
+    build('');
+    input.focus();
   };
 })();
