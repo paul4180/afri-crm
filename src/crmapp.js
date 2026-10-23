@@ -1552,6 +1552,13 @@ export function registerCrm(app, prisma) {
   // still exists inside the login handler below — that's enough to
   // stop brute force on a single account without blocking legit users.
   // ============================================================
+  // Raw body parser — stores the raw string on req.rawBody so webhook
+  // signature verification (Paystack x-paystack-signature) has the
+  // exact bytes to hash. This does not change how JSON is parsed.
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+    req.rawBody = body;
+    try { done(null, JSON.parse(body)); } catch (e) { done(e); }
+  });
   app.addHook('onRequest', async (req, reply) => {
     if (process.env.NODE_ENV === 'test') return;
     const url = req.url || '';
@@ -3790,6 +3797,111 @@ export function registerCrm(app, prisma) {
     return reply.code(201).send({ id, fullName, email, role, active: 1 });
   });
 
+  // ============================================================
+  // BILLING — Section 1: Free and one paid plan
+  // Price comes from PLAN_PRICE_NGN env var. If empty, the upgrade
+  // button says "Price not set" and checkout does not open.
+  // Paystack is used when PAYSTACK_SECRET_KEY is set.
+  // Webhook verifies the Paystack signature (HMAC SHA512) before
+  // marking the workspace paid.
+  // When the paid period ends, the workspace goes back to Free.
+  // Free limits are: 3 users, 1 WhatsApp line, 500 records.
+  // Paid limits are: 100 users, 5 WhatsApp lines, 100000 records.
+  // ============================================================
+  const PLAN_LIMITS = {
+    free: { users: 3, whatsapp: 1, records: 500 },
+    paid: { users: 100, whatsapp: 5, records: 100000 },
+  };
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS billing (
+      tenantId TEXT PRIMARY KEY, plan TEXT DEFAULT 'free', status TEXT DEFAULT '',
+      paystackRef TEXT, lastPaidAt TEXT, planExpiresAt TEXT, updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  function billingFor(tenantId) {
+    const row = db.prepare('SELECT * FROM billing WHERE tenantId = ?').get(tenantId);
+    if (!row) return { tenantId, plan: 'free', status: '', paystackRef: null, lastPaidAt: null, planExpiresAt: null };
+    // Downgrade if the paid period has ended
+    if (row.plan === 'paid' && row.planExpiresAt && new Date(row.planExpiresAt) < new Date()) {
+      db.prepare("UPDATE billing SET plan = 'free', planExpiresAt = NULL, updatedAt = ? WHERE tenantId = ?").run(new Date().toISOString(), tenantId);
+      log.info('billing.downgraded', { tenantId, reason: 'plan expired' });
+      return { tenantId, plan: 'free', status: 'expired', paystackRef: row.paystackRef, lastPaidAt: row.lastPaidAt, planExpiresAt: null };
+    }
+    return row;
+  }
+  app.get('/crm/api/billing/plan', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    const priceNgn = process.env.PAYSTACK_SECRET_KEY ? (process.env.PLAN_PRICE_NGN ? Number(process.env.PLAN_PRICE_NGN) : null) : null;
+    const paystackReady = Boolean(process.env.PAYSTACK_SECRET_KEY);
+    const info = billingFor(user.tenantId);
+    return {
+      plan: info.plan,
+      status: info.status || '',
+      lastPaidAt: info.lastPaidAt || null,
+      planExpiresAt: info.planExpiresAt || null,
+      limits: PLAN_LIMITS[info.plan] || PLAN_LIMITS.free,
+      priceNgn,
+      paystackReady,
+      priceNotSet: priceNgn === null,
+      workspaceName: db.prepare('SELECT name FROM crm_workspaces WHERE id = ?').get(user.tenantId)?.name || 'Afri CRM',
+    };
+  });
+  app.post('/crm/api/billing/checkout', async (req, reply) => {
+    const user = await guard(req, reply); if (!user || user.role !== 'OWNER') return reply.code(403).send({ error: 'Only the workspace owner can start a checkout' });
+    if (!process.env.PAYSTACK_SECRET_KEY) return reply.code(424).send({ error: 'Paystack is not connected. Set PAYSTACK_SECRET_KEY on the server.' });
+    const priceNgn = process.env.PAYSTACK_PLAN_PRICE_NGN || process.env.PLAN_PRICE_NGN;
+    if (!priceNgn) return reply.code(424).send({ error: 'Price is not set. Set PLAN_PRICE_NGN on the server to enable checkout.' });
+    const amountKobo = Math.round(Number(priceNgn) * 100);
+    if (!amountKobo || amountKobo <= 0) return reply.code(400).send({ error: 'The price must be a positive number in naira' });
+    const email = String(user.email || '').trim().toLowerCase();
+    if (!email || !email.includes('@')) return reply.code(400).send({ error: 'No valid email on this account' });
+    const origin = originOf(req);
+    const res = await fetch('https://api.paystack.co/transaction/initialize', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + process.env.PAYSTACK_SECRET_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, amount: amountKgn, currency: 'NGN', callback_url: origin + '/crm', metadata: { tenantId: user.tenantId, plan: 'paid' } }),
+    });
+    const data = await res.json().catch(() => ({}));
+    const ref = (data.data && data.data.reference) || '';
+    const authUrl = (data.data && data.data.authorization_url) || '';
+    if (!res.ok || !authUrl) return reply.code(502).send({ error: (data.message) || 'Paystack did not return a checkout link' });
+    db.prepare('INSERT INTO billing (tenantId, plan, status, paystackRef) VALUES (?, ?, ?, ?) ON CONFLICT(tenantId) DO UPDATE SET status = ?, paystackRef = ?, updatedAt = ?')
+      .run(user.tenantId, 'free', 'pending', ref, 'pending', ref, new Date().toISOString());
+    writeAudit(user.tenantId, user.sub, 'billing.checkout', 'billing', user.tenantId, ref);
+    return { ok: true, checkoutUrl: authUrl, reference: ref };
+  });
+  app.post('/crm/api/billing/webhook', async (req, reply) => {
+    // Paystack sends a POST with x-paystack-signature header.
+    // Signature = HMAC SHA512 of the raw body, keyed by the secret key.
+    const signature = String(req.headers['x-paystack-signature'] || '');
+    const rawBody = req.rawBody || JSON.stringify(req.body || {});
+    const hash = crypto.createHmac('sha512', process.env.PAYSTACK_SECRET_KEY || '').update(rawBody).digest('hex');
+    if (!process.env.PAYSTACK_SECRET_KEY) return reply.code(424).send({ error: 'Paystack is not configured on the server' });
+    if (hash !== signature) {
+      log.warn('billing.webhook.bad-signature', {});
+      return reply.code(403).send({ error: 'Signature does not match' });
+    }
+    const event = req.body || {};
+    if (event.event === 'charge.success' && event.data) {
+      const ref = String(event.data.reference || '');
+      const tenantId = (event.data.metadata && event.data.metadata.tenantId) || '';
+      if (!ref || !tenantId) return { ok: true };
+      const planExpiry = new Date(Date.now() + 30 * 86400000).toISOString();
+      db.prepare(`INSERT INTO billing (tenantId, plan, status, paystackRef, lastPaidAt, planExpiresAt, updatedAt)
+        VALUES (?, 'paid', 'paid', ?, ?, ?, ?)
+        ON CONFLICT(tenantId) DO UPDATE SET plan = 'paid', status = 'paid', paystackRef = ?, lastPaidAt = ?, planExpiresAt = ?, updatedAt = ?`)
+        .run(tenantId, ref, planExpiry, new Date().toISOString(), planExpiry, ref, new Date().toISOString(), planExpiry, new Date().toISOString());
+      writeAudit(tenantId, '', 'billing.paid', 'billing', tenantId, 'Paystack reference ' + ref);
+      log.info('billing.paid', { tenantId, ref });
+    } else if (event.event === 'charge.failed' && event.data) {
+      const ref = String(event.data.reference || '');
+      const tenantId = (event.data.metadata && event.data.metadata.tenantId) || '';
+      if (!tenantId) return { ok: true };
+      db.prepare("UPDATE billing SET status = 'failed', paystackRef = ?, updatedAt = ? WHERE tenantId = ?").run(ref, new Date().toISOString(), tenantId);
+      log.info('billing.failed', { tenantId, ref });
+    }
+    return { ok: true };
+  });
   app.get('/crm/api/workflows', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     ensureWorkflows(user.tenantId);
