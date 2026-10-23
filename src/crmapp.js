@@ -969,123 +969,116 @@ function scoreOf(row, hasTouch, weights) {
 // have closed-won/lost data to train on). But it's far richer than
 // the legacy scoreOf() binary-touch approach.
 // ============================================================
-function scoreLeadV2(lead, activities, deals) {
-  const reasons = [];
-  const concerns = [];
-  const signals = {};
-  let score = 50;          // neutral start
-  let confidence = 25;     // low confidence until data arrives
+function sourceFamily(source) {
+  const text = String(source || '').toLowerCase();
+  if (/refer|partner|existing|repeat|word-of-mouth/.test(text)) return 'referral';
+  if (/whatsapp|\bwa\b/.test(text)) return 'whatsapp';
+  if (/web|form|site/.test(text)) return 'website';
+  if (/mail|campaign/.test(text)) return 'email';
+  if (/linkedin/.test(text)) return 'linkedin';
+  if (/event|fair|expo/.test(text)) return 'event';
+  if (/cold|ads|purchased|bought|call/.test(text)) return 'cold';
+  return 'other';
+}
 
-  // === 1. ENGAGEMENT DEPTH (not binary) ===
-  const leadActivities = activities.filter((a) =>
-    a.relatedId === lead.id || a.relatedId === lead.contactId
-  );
-  const touches = leadActivities.length;
-  const completed = leadActivities.filter((a) =>
-    String(a.status).startsWith('DONE') || String(a.status).startsWith('COMPLETED')
-  ).length;
-  const planned = leadActivities.filter((a) => a.status === 'PLANNED').length;
-  signals.touches = touches;
-  signals.completedTouches = completed;
-  signals.plannedTouches = planned;
-  if (touches >= 5) { score += 15; reasons.push(`5+ activities (${touches} total)`); confidence += 12; }
-  else if (touches >= 3) { score += 10; reasons.push(`${touches} activities logged`); confidence += 10; }
-  else if (touches >= 1) { score += 6; reasons.push('Initial contact made'); confidence += 6; }
-  else concerns.push('No activities logged');
-  if (completed >= 2) { score += 8; reasons.push(`${completed} completed follow-ups`); }
-  if (planned > 0) { score += 4; reasons.push(`${planned} planned follow-ups`); }
-
-  // === 2. CONTACT DATA QUALITY ===
-  if (lead.email) { score += 8; confidence += 10; }
-  else concerns.push('Missing email');
-  if (lead.phone || lead.mobile) { score += 6; confidence += 8; }
-  if (lead.companyName) { score += 4; confidence += 5; }
-  else concerns.push('No company name');
-  signals.email = !!lead.email;
-  signals.phone = !!(lead.phone || lead.mobile);
-  signals.company = !!lead.companyName;
-
-  // === 3. ENGAGEMENT RECENCY (time decay) ===
-  const lastActivityAt = leadActivities
-    .map((a) => new Date(a.createdAt).getTime())
-    .sort((a, b) => b - a)[0];
-  signals.lastActivityAt = lastActivityAt ? new Date(lastActivityAt).toISOString() : null;
-  if (lastActivityAt) {
-    const daysSince = Math.floor((Date.now() - lastActivityAt) / 86400000);
-    if (daysSince <= 3) { score += 8; reasons.push(`Active ${daysSince}d ago`); }
-    else if (daysSince <= 7) { score += 4; reasons.push(`Active ${daysSince}d ago`); }
-    else if (daysSince <= 30) { /* neutral */ }
-    else if (daysSince <= 90) { score -= 8; concerns.push(`Inactive ${daysSince}d`); }
-    else { score -= 18; concerns.push(`Cold lead (inactive ${daysSince}d)`); }
-    signals.daysSinceLastTouch = daysSince;
+// Empirical-Bayes source prior. With no wins or losses, the rate is the
+// prior. Each decided lead in this workspace pulls the rate toward what
+// actually happened. Four pseudo-counts keep one lucky win from dominating.
+const SOURCE_PRIOR = { referral: 0.45, whatsapp: 0.28, website: 0.22, email: 0.18, linkedin: 0.2, event: 0.24, cold: 0.1, other: 0.18 };
+function buildLeadCohort(leads, deals) {
+  const sources = {};
+  const bucket = (key) => sources[key] || (sources[key] = { won: 0, lost: 0 });
+  const counted = new Set();
+  for (const lead of leads || []) {
+    const key = sourceFamily(lead.source);
+    if (lead.status === 'CONVERTED') { bucket(key).won += 1; counted.add(lead.id); }
+    else if (lead.status === 'DEAD') { bucket(key).lost += 1; counted.add(lead.id); }
   }
-
-  // === 4. MANUAL RATING (sales rep's gut) ===
-  if (lead.rating === 'HOT') { score += 15; reasons.push('Marked HOT'); confidence += 10; }
-  else if (lead.rating === 'WARM') { score += 7; reasons.push('Marked WARM'); }
-  else if (lead.rating === 'COLD') { score -= 8; concerns.push('Marked COLD'); }
-  signals.rating = lead.rating;
-
-  // === 5. SOURCE QUALITY ===
-  const src = String(lead.source || '').toLowerCase();
-  if (/refer|partner|existing|repeat|word-of-mouth/.test(src)) {
-    score += 12; reasons.push(`Quality source: ${lead.source}`); confidence += 8;
-  } else if (/whatsapp|wa\b/.test(src)) {
-    if (lead.phone || lead.mobile) { score += 8; reasons.push('WhatsApp lead with a phone'); }
-    else { score -= 4; concerns.push('WhatsApp lead with no phone'); }
-  } else if (/web|form|site/.test(src)) {
-    if (lead.email) { score += 8; reasons.push('Website lead with an email'); }
-    else { score -= 4; concerns.push('Website lead with no email'); }
-  } else if (/cold|ads|purchased|bought/.test(src)) {
-    score -= 5; concerns.push(`Cold source: ${lead.source}`);
+  for (const deal of deals || []) {
+    if (!deal.leadId || counted.has(deal.leadId)) continue;
+    const lead = (leads || []).find((row) => row.id === deal.leadId);
+    const key = sourceFamily(lead && lead.source);
+    if (deal.stage === 'CLOSED_WON') { bucket(key).won += 1; counted.add(deal.leadId); }
+    else if (deal.stage === 'CLOSED_LOST') { bucket(key).lost += 1; counted.add(deal.leadId); }
   }
-  signals.source = lead.source;
+  const decided = Object.values(sources).reduce((sum, row) => sum + row.won + row.lost, 0);
+  return { sources, decided };
+}
 
-  // === 6. DEAL CONTEXT (is this lead attached to a deal?) ===
-  const relatedDeal = deals.find((d) => d.leadId === lead.id);
-  if (relatedDeal) {
-    confidence += 15;
-    signals.relatedDealId = relatedDeal.id;
-    signals.dealAmount = relatedDeal.amount;
-    if (relatedDeal.amount >= 1000000) {
-      score += 10; reasons.push(`Big deal: NGN ${(relatedDeal.amount / 1000000).toFixed(1)}M`);
-    } else if (relatedDeal.amount >= 100000) {
-      score += 6; reasons.push(`Deal: NGN ${(relatedDeal.amount / 1000).toFixed(0)}k`);
-    }
-    if (/proposal|negotiation/i.test(relatedDeal.stage || '')) {
-      score += 8; reasons.push(`In ${relatedDeal.stage} stage`);
-    } else if (/closed.?won/i.test(relatedDeal.stage || '')) {
-      score += 5; reasons.push('Tied to a WON deal');
-    }
-  }
-
-  // === 7. STALENESS PENALTY ===
+function scoreLeadV2(lead, activities, deals, cohort) {
+  const model = cohort || { sources: {}, decided: 0 };
+  const family = sourceFamily(lead.source);
+  const mine = (activities || []).filter((row) => row.relatedId === lead.id || (lead.contactId && row.relatedId === lead.contactId));
+  const touches = mine.length;
+  const completed = mine.filter((row) => String(row.status || '').startsWith('DONE') || String(row.status || '').startsWith('COMPLETED')).length;
+  const planned = mine.filter((row) => row.status === 'PLANNED').length;
+  const lastAt = mine.map((row) => new Date(row.createdAt || 0).getTime()).filter((n) => n > 0).sort((a, b) => b - a)[0] || 0;
+  const daysSince = lastAt ? Math.floor((Date.now() - lastAt) / 86400000) : null;
   const ageDays = Math.floor((Date.now() - new Date(lead.createdAt || Date.now()).getTime()) / 86400000);
-  signals.ageDays = ageDays;
-  if (touches === 0 && ageDays > 14) {
-    score -= 12; concerns.push(`No activity in ${ageDays}d since creation`);
+  const deal = (deals || []).find((row) => row.leadId === lead.id) || null;
+  const seen = (model.sources || {})[family] || { won: 0, lost: 0 };
+  const prior = SOURCE_PRIOR[family] || 0.18;
+  const decided = seen.won + seen.lost;
+  const rate = (seen.won + prior * 4) / (decided + 4);
+
+  const points = [];
+  const add = (label, value) => { if (value) points.push({ label, points: value }); };
+  add('Base', 22);
+  if (lead.email) add(family === 'website' || family === 'email' ? 'Email, and this source needs one' : 'Email', family === 'website' || family === 'email' ? 14 : 8);
+  else if (family === 'website' || family === 'email') add('Website or email lead with no email', -6);
+  if (lead.phone || lead.mobile) add(family === 'whatsapp' || family === 'cold' ? 'Phone, and this source needs one' : 'Phone', family === 'whatsapp' || family === 'cold' ? 14 : 8);
+  else if (family === 'whatsapp' || family === 'cold') add('WhatsApp or call lead with no phone', -6);
+  if (lead.companyName) add('Company named', 6);
+  const recency = lastAt ? Math.exp(-(daysSince || 0) / 14) : 0;
+  const depth = 1 - Math.exp(-touches / 3);
+  add('Recent activity', Math.round(16 * recency));
+  add('How often they were touched', Math.round(10 * depth));
+  add('Completed follow-ups', Math.round(4 * Math.min(completed, 4) / 4));
+  if (planned) add('A follow-up is planned', 2);
+  if (lead.rating === 'HOT') add('Marked hot', 8);
+  else if (lead.rating === 'WARM') add('Marked warm', 3);
+  else if (lead.rating === 'COLD') add('Marked cold', -6);
+  const lift = Math.round((rate - 0.18) * 40);
+  add(decided ? `${family} converted ${seen.won} of ${decided} here` : `${family} prior ${Math.round(prior * 100)}%`, lift);
+  if (deal) {
+    add('A deal is open on this lead', String(deal.stage || '').startsWith('CLOSED') ? 0 : 4);
+    if (Number(deal.amount || 0) >= 1000000) add('Deal is at least ₦1,000,000', 4);
+    else if (Number(deal.amount || 0) >= 100000) add('Deal is at least ₦100,000', 2);
+    if (/proposal|negotiation/i.test(deal.stage || '')) add('Deal is in proposal or negotiation', 6);
+    if (deal.stage === 'CLOSED_WON') add('Deal was won', 8);
+    if (deal.stage === 'CLOSED_LOST') add('Deal was lost', -6);
   }
+  if (!touches && ageDays > 7) add(`No activity for ${ageDays} days`, -Math.round(14 * (1 - Math.exp(-(ageDays - 7) / 21))));
 
-  // Clamp
-  score = Math.max(0, Math.min(100, Math.round(score)));
-  confidence = Math.max(0, Math.min(100, Math.round(confidence)));
-
-  // === RECOMMENDED NEXT ACTION ===
-  let nextAction;
-  if (score >= 75 && relatedDeal) nextAction = 'Push deal forward — high intent';
-  else if (score >= 75) nextAction = 'Create deal — high intent';
-  else if (score >= 55) nextAction = 'Schedule follow-up call this week';
-  else if (score >= 35) nextAction = 'Add to nurture sequence';
-  else if (touches === 0) nextAction = 'Make first contact';
-  else nextAction = 'Park — low priority';
-
+  const raw = points.reduce((sum, row) => sum + row.points, 0);
+  const score = Math.max(0, Math.min(100, Math.round(raw)));
+  let confidence = 20;
+  if (lead.email) confidence += 10;
+  if (lead.phone || lead.mobile) confidence += 10;
+  if (lead.companyName) confidence += 5;
+  confidence += Math.min(20, touches * 4);
+  confidence += Math.min(25, decided * 5);
+  confidence = Math.max(0, Math.min(100, confidence));
+  const reasons = points.filter((row) => row.points > 0 && row.label !== 'Base').sort((a, b) => b.points - a.points).slice(0, 5).map((row) => `${row.label} +${row.points}`);
+  const concerns = points.filter((row) => row.points < 0).sort((a, b) => a.points - b.points).slice(0, 5).map((row) => `${row.label} ${row.points}`);
+  let nextAction = 'Park — low priority';
+  if (!touches) nextAction = 'Make first contact';
+  else if (score >= 75 && deal && !String(deal.stage || '').startsWith('CLOSED')) nextAction = 'Push the deal forward';
+  else if (score >= 75) nextAction = 'Convert this lead';
+  else if (score >= 55) nextAction = 'Book a follow-up this week';
+  else if (score >= 35) nextAction = 'Keep them in a slower follow-up';
   return {
     score,
     confidence,
-    reasons: reasons.slice(0, 5),
-    concerns: concerns.slice(0, 5),
+    reasons,
+    concerns,
     nextAction,
-    signals,
+    points,
+    model: 'empirical-bayes-v1',
+    family,
+    sourceRate: Math.round(rate * 100),
+    sourceDecided: decided,
+    signals: { touches, completed, planned, daysSince, ageDays, family, rate, decided },
   };
 }
 
@@ -2959,11 +2952,12 @@ export function registerCrm(app, prisma) {
       const limit = Math.min(Math.max(Number(req.query?.limit || 10), 1), 50);
       const activities = list('activities', user.tenantId);
       const deals = list('deals', user.tenantId);
-      const leads = list('leads', user.tenantId, { limit: 500 })
-        .filter((row) => row.status !== 'CONVERTED' && row.status !== 'DEAD');
+      const everyone = list('leads', user.tenantId);
+      const cohort = buildLeadCohort(everyone, deals);
+      const leads = everyone.filter((row) => row.status !== 'CONVERTED' && row.status !== 'DEAD');
       const ranked = leads
         .map((lead) => {
-          const breakdown = scoreLeadV2(lead, activities, deals);
+          const breakdown = scoreLeadV2(lead, activities, deals, cohort);
           return {
             id: lead.id,
             name: ((lead.firstName || '') + ' ' + (lead.lastName || '')).trim(),
@@ -2978,10 +2972,27 @@ export function registerCrm(app, prisma) {
         })
         .sort((a, b) => b.score - a.score)
         .slice(0, limit);
-      return { ranked, total: leads.length, engine: 'rule-v2' };
+      return { ranked, total: leads.length, engine: 'empirical-bayes-v1', decided: cohort.decided };
     } catch (e) {
       log.error('leads.scoreboard.failed', { err: e.message });
       reply.code(500).send({ error: 'Scoreboard failed: ' + (e.message || 'unknown error') });
+    }
+  });
+
+  app.get('/crm/api/lead-scores', async (req, reply) => {
+    try {
+      const user = await guard(req, reply); if (!user) return;
+      const activities = list('activities', user.tenantId);
+      const deals = list('deals', user.tenantId);
+      const leads = list('leads', user.tenantId);
+      const cohort = buildLeadCohort(leads, deals);
+      const rows = leads.map((lead) => {
+        const breakdown = scoreLeadV2(lead, activities, deals, cohort);
+        return { id: lead.id, score: breakdown.score, confidence: breakdown.confidence, band: breakdown.score >= 90 ? 'HOT' : breakdown.score >= 70 ? 'WARM' : breakdown.score >= 50 ? 'QUALIFIED' : 'COLD', reasons: breakdown.reasons, concerns: breakdown.concerns, nextAction: breakdown.nextAction, points: breakdown.points, family: breakdown.family, sourceRate: breakdown.sourceRate, sourceDecided: breakdown.sourceDecided };
+      });
+      return { model: 'empirical-bayes-v1', decided: cohort.decided, sources: cohort.sources, rows };
+    } catch (e) {
+      reply.code(500).send({ error: 'Score failed: ' + (e.message || 'unknown error') });
     }
   });
 
@@ -2992,7 +3003,7 @@ export function registerCrm(app, prisma) {
       if (!lead) return reply.code(404).send({ error: 'Lead not found' });
       const activities = list('activities', user.tenantId);
       const deals = list('deals', user.tenantId);
-      const breakdown = scoreLeadV2(lead, activities, deals);
+      const breakdown = scoreLeadV2(lead, activities, deals, buildLeadCohort(list('leads', user.tenantId), deals));
       return {
         id: lead.id,
         name: ((lead.firstName || '') + ' ' + (lead.lastName || '')).trim(),
@@ -3022,7 +3033,7 @@ export function registerCrm(app, prisma) {
       if (!lead) return reply.code(404).send({ error: 'Lead not found' });
       const activities = list('activities', user.tenantId);
       const deals = list('deals', user.tenantId);
-      const breakdown = scoreLeadV2(lead, activities, deals);
+      const breakdown = scoreLeadV2(lead, activities, deals, buildLeadCohort(list('leads', user.tenantId), deals));
       let newRating = 'COLD';
       if (breakdown.score >= 65) newRating = 'HOT';
       else if (breakdown.score >= 40) newRating = 'WARM';
@@ -3265,7 +3276,7 @@ export function registerCrm(app, prisma) {
       if (!lead) return reply.code(404).send({ error: 'Lead not found' });
       const activities = list('activities', user.tenantId);
       const deals = list('deals', user.tenantId);
-      const leadScore = scoreLeadV2(lead, activities, deals);
+      const leadScore = scoreLeadV2(lead, activities, deals, buildLeadCohort(list('leads', user.tenantId), deals));
       const workspace = db.prepare('SELECT * FROM workspace WHERE tenantId = ?').get(user.tenantId) || {};
       const suggestions = suggestSequence(lead, activities, deals, workspace, leadScore);
       return suggestions;
@@ -3282,7 +3293,7 @@ export function registerCrm(app, prisma) {
       if (!lead) return reply.code(404).send({ error: 'Lead not found' });
       const activities = list('activities', user.tenantId);
       const deals = list('deals', user.tenantId);
-      const leadScore = scoreLeadV2(lead, activities, deals);
+      const leadScore = scoreLeadV2(lead, activities, deals, buildLeadCohort(list('leads', user.tenantId), deals));
       const workspace = db.prepare('SELECT * FROM workspace WHERE tenantId = ?').get(user.tenantId) || {};
       const { suggestions } = suggestSequence(lead, activities, deals, workspace, leadScore);
       const created = suggestions.map((s) => {
