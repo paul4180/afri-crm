@@ -2950,6 +2950,7 @@ let targetMonth = new Date().toISOString().slice(0, 7);
 async function drawForecast() {
   const open = (bag.deals || []).filter((row) => !String(stageOf(row)).startsWith('CLOSED'));
   const weighted = open.reduce((sum, row) => sum + Number(row.amount || 0) * Number(row.probability || 0) / 100, 0);
+  const range = await api('/crm/api/forecast/range') || {};
   const data = await api('/crm/api/target?month=' + encodeURIComponent(targetMonth)) || {};
   const target = Number(data.target || 0);
   const won = Number(data.won || 0);
@@ -2959,8 +2960,8 @@ async function drawForecast() {
     <div class="card"><label>Month target<input id="targetAmount" inputmode="decimal" value="${target || ''}" placeholder="5000000"></label><button type="button" onclick="saveTarget()">Save the target</button>
     <p class="meta" style="margin-top:12px">Won ${money(won)} of ${target ? money(target) : 'no target'} · ${data.count || 0} deal${data.count === 1 ? '' : 's'} · Paid ${money(data.paid || 0)}</p>
     <div class="bar"><span>This month</span><i style="width:${width}%"></i><span>${width}%</span></div></div>
-    <div class="card"><b>${money(weighted)}</b><div class="meta">${open.length} open deals, weighted. This is not the target.</div></div>
-    <div class="sheet"><table><tr><th>Deal</th><th>Stage</th><th>Amount</th><th>Chance</th><th>Close</th></tr>${open.map((row) => `<tr><td>${esc(row.name)}</td><td>${esc(stageOf(row))}</td><td>${money(row.amount)}</td><td>${esc(row.probability)}%</td><td>${esc(row.closeDate || '')}</td></tr>`).join('') || '<tr><td colspan="5">No open deal.</td></tr>'}</table></div>`;
+    <div class="card"><b>${money(weighted)}</b><div class="meta">${open.length} open deals, weighted by the chance on the deal. This is not the target.</div></div><div class="card"><b>${money(range.p50 || 0)}</b><div class="meta">Middle outcome if each open deal is won at the chance above. Low ${money(range.p10 || 0)} · High ${money(range.p90 || 0)}. ${range.cohort == null ? "Not enough closed deals for a win-rate forecast." : "Win-rate forecast " + money(range.cohort) + "."} ${range.runs || 0} simulated runs.</div></div>
+    <div class="sheet"><table><tr><th>Deal</th><th>Stage</th><th>Amount</th><th>Chance</th><th>Close</th></tr>${open.map((row) => `<tr><td>${esc(row.name)}</td><td>${esc(stageOf(row))}</td><td>${money(row.amount)}</td><td>${(() => { const hit = (range.deals || []).find((item) => item.id === row.id); return hit ? hit.probability + '%' : esc(row.probability) + '%'; })()}</td><td>${esc(row.closeDate || '')}</td></tr>`).join('') || '<tr><td colspan="5">No open deal.</td></tr>'}</table></div>`;
 }
 function shiftTarget(step) {
   const [year, month] = targetMonth.split('-').map(Number);
@@ -3116,7 +3117,7 @@ document.getElementById('email').value = localStorage.getItem('crmEmail') || '';
   if (token) boot();
 })();
 </script>
-<script src="/crm-studio.js?v=112"></script>
+<script src="/crm-studio.js?v=113"></script>
 </body>
 </html>
 

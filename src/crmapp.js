@@ -3,6 +3,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { registerWhatsApp } from './whatsapp.js';
 import { bindFlows, runGraph, sweepFlows, describeSteps } from './flows.js';
+import { grade, lifts, winChance, forecastRange, findDuplicates, bestHour } from './predict.js';
 import { fileURLToPath } from 'url';
 import { DatabaseSync } from 'node:sqlite';
 import { sendMail } from './collect.js';
@@ -358,6 +359,8 @@ for (const [table, col, type] of [
   ['deal_lines', 'discount', 'REAL DEFAULT 0'],
   ['crm_prefs', 'quietStart', 'TEXT'],
   ['crm_prefs', 'quietEnd', 'TEXT'],
+  ['leads', 'assignWhy', 'TEXT'],
+  ['leads', 'scoreOverride', 'REAL'],
   ['contacts', 'lifecycle', 'TEXT'],
   ['contacts', 'language', 'TEXT'],
   ['contacts', 'whatsappOptIn', 'TEXT'],
@@ -427,12 +430,12 @@ function ftsDelete(table, id) {
 const FIELDS = {
   companies: ['name', 'industry', 'type', 'website', 'phone', 'email', 'street', 'city', 'state', 'country', 'description', 'years', 'offering', 'area', 'satisfaction', 'ownerId', 'source'],
   contacts: ['firstName', 'lastName', 'title', 'email', 'phone', 'mobile', 'companyId', 'street', 'city', 'state', 'country', 'description', 'method', 'serviceFrequency', 'serviceType', 'lastService', 'ownerId', 'source', 'status', 'lifecycle', 'language', 'whatsappOptIn', 'consent', 'utmSource', 'utmMedium', 'utmCampaign'],
-  leads: ['firstName', 'lastName', 'title', 'companyName', 'email', 'phone', 'mobile', 'website', 'source', 'status', 'industry', 'rating', 'street', 'city', 'state', 'country', 'description', 'ownerId', 'deadReason'],
+  leads: ['firstName', 'lastName', 'title', 'companyName', 'email', 'phone', 'mobile', 'website', 'source', 'status', 'industry', 'rating', 'street', 'city', 'state', 'country', 'description', 'ownerId', 'deadReason', 'assignWhy', 'scoreOverride'],
   deals: ['name', 'companyId', 'contactId', 'leadId', 'amount', 'probability', 'stage', 'closeDate', 'type', 'source', 'nextStep', 'description', 'lostReason', 'ownerId', 'currency'],
   activities: ['type', 'subject', 'dueAt', 'status', 'relatedType', 'relatedId', 'notes', 'ownerId', 'priority', 'minutes', 'repeat'],
   products: ['name', 'code', 'price', 'description', 'category', 'stock', 'attrs'],
 };
-const NUM = new Set(['amount', 'probability', 'price', 'quantity', 'unitPrice', 'discount', 'stock', 'minutes']);
+const NUM = new Set(['amount', 'probability', 'price', 'quantity', 'unitPrice', 'discount', 'stock', 'minutes', 'scoreOverride']);
 
 function clean(object, body) {
   const out = {};
@@ -1715,7 +1718,7 @@ export function registerCrm(app, prisma) {
         if (people.length) {
           const ranked = people.map((person) => ({ id: person.id, n: db.prepare("SELECT COUNT(*) AS n FROM leads WHERE tenantId = ? AND ownerId = ? AND status NOT IN ('CONVERTED','DEAD')").get(user.tenantId, person.id).n }));
           ranked.sort((a, b) => a.n - b.n || String(a.id).localeCompare(String(b.id)));
-          patch('leads', user.tenantId, created.id, { ownerId: ranked[0].id });
+          patch('leads', user.tenantId, created.id, { ownerId: ranked[0].id, assignWhy: 'Fewest open leads (' + ranked[0].n + ')' });
           created = one('leads', user.tenantId, created.id);
         }
       }
@@ -3274,6 +3277,51 @@ export function registerCrm(app, prisma) {
     }
   });
 
+  app.get('/crm/api/forecast/range', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    const deals = list('deals', user.tenantId);
+    const stages = stagesFor(user.tenantId);
+    const activities = list('activities', user.tenantId);
+    const open = deals.filter((row) => !String(row.stage || '').startsWith('CLOSED'));
+    const won = deals.filter((row) => row.stage === 'CLOSED_WON').length;
+    const lost = deals.filter((row) => row.stage === 'CLOSED_LOST').length;
+    const rows = open.map((deal) => {
+      const stage = stages.find((row) => row.code === deal.stage || row.id === deal.stage);
+      const peers = open.filter((row) => row.stage === deal.stage);
+      const ages = peers.map((row) => Math.max(0, Math.floor((Date.now() - new Date(row.createdAt || Date.now()).getTime()) / 86400000)));
+      const medianAge = ages.sort((a, b) => a - b)[Math.floor(ages.length / 2)] || 0;
+      const touches = activities.filter((row) => row.relatedId === deal.id).map((row) => new Date(row.createdAt || 0).getTime()).filter((n) => n > 0).sort((a, b) => b - a);
+      const daysSinceTouch = touches.length ? Math.floor((Date.now() - touches[0]) / 86400000) : 999;
+      const chance = winChance({ stageProbability: stage && stage.probability, ageDays: Math.floor((Date.now() - new Date(deal.createdAt || Date.now()).getTime()) / 86400000), medianAge, daysSinceTouch, decided: won + lost, won });
+      return { id: deal.id, name: deal.name, amount: Number(deal.amount || 0), probability: chance.probability, reasons: chance.reasons, days: chance.days };
+    });
+    const range = forecastRange(rows);
+    const cohort = (won + lost) >= 5 ? Math.round(open.reduce((sum, row) => sum + Number(row.amount || 0), 0) * won / (won + lost)) : null;
+    return { ...range, cohort, decided: won + lost, deals: rows };
+  });
+  app.get('/crm/api/duplicates', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    const contacts = list('contacts', user.tenantId);
+    const pairs = findDuplicates(contacts).map((pair) => {
+      const a = contacts.find((row) => row.id === pair.a);
+      const b = contacts.find((row) => row.id === pair.b);
+      return { ...pair, aName: a ? ((a.firstName || '') + ' ' + (a.lastName || '')).trim() : '', bName: b ? ((b.firstName || '') + ' ' + (b.lastName || '')).trim() : '' };
+    });
+    return { pairs };
+  });
+  app.post('/crm/api/duplicates/merge', async (req, reply) => {
+    const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+    const keep = one('contacts', user.tenantId, String((req.body && req.body.keep) || ''));
+    const drop = one('contacts', user.tenantId, String((req.body && req.body.drop) || ''));
+    if (!keep || !drop || keep.id === drop.id) return reply.code(400).send({ error: 'Choose two different people' });
+    db.prepare('UPDATE deals SET contactId = ? WHERE tenantId = ? AND contactId = ?').run(keep.id, user.tenantId, drop.id);
+    db.prepare('UPDATE activities SET relatedId = ? WHERE tenantId = ? AND relatedType = ? AND relatedId = ?').run(keep.id, user.tenantId, 'contact', drop.id);
+    db.prepare('UPDATE leads SET contactId = ? WHERE tenantId = ? AND contactId = ?').run(keep.id, user.tenantId, drop.id);
+    try { db.prepare('UPDATE threads SET contactId = ? WHERE tenantId = ? AND contactId = ?').run(keep.id, user.tenantId, drop.id); } catch { /* inbox may not exist yet */ }
+    db.prepare('DELETE FROM contacts WHERE tenantId = ? AND id = ?').run(user.tenantId, drop.id);
+    writeAudit(user.tenantId, user.sub, 'merge', 'contacts', keep.id, 'Kept and removed a duplicate');
+    return { ok: true };
+  });
   app.get('/crm/api/lead-scores', async (req, reply) => {
     try {
       const user = await guard(req, reply); if (!user) return;
@@ -3283,7 +3331,10 @@ export function registerCrm(app, prisma) {
       const cohort = buildLeadCohort(leads, deals);
       const rows = leads.map((lead) => {
         const breakdown = scoreLeadV2(lead, activities, deals, cohort);
-        return { id: lead.id, score: breakdown.score, confidence: breakdown.confidence, band: breakdown.score >= 90 ? 'HOT' : breakdown.score >= 70 ? 'WARM' : breakdown.score >= 50 ? 'QUALIFIED' : 'COLD', reasons: breakdown.reasons, concerns: breakdown.concerns, nextAction: breakdown.nextAction, points: breakdown.points, family: breakdown.family, sourceRate: breakdown.sourceRate, sourceDecided: breakdown.sourceDecided };
+        const score = lead.scoreOverride == null ? breakdown.score : Math.max(0, Math.min(100, Number(lead.scoreOverride)));
+        const times = activities.filter((row) => row.relatedId === lead.id).map((row) => row.createdAt);
+        const when = bestHour(times);
+        return { id: lead.id, score, modelScore: breakdown.score, override: lead.scoreOverride != null, grade: grade(score), confidence: breakdown.confidence, band: score >= 90 ? 'HOT' : score >= 70 ? 'WARM' : score >= 50 ? 'QUALIFIED' : 'COLD', reasons: lead.scoreOverride != null ? ['You set this score'].concat(breakdown.reasons || []).slice(0, 3) : (breakdown.reasons || []).slice(0, 3), concerns: breakdown.concerns, nextAction: breakdown.nextAction, raise: lifts(lead), bestHour: when.hour, bestHourKnown: when.known, assignWhy: lead.assignWhy || '', points: breakdown.points, family: breakdown.family, sourceRate: breakdown.sourceRate, sourceDecided: breakdown.sourceDecided };
       });
       const ws = db.prepare('SELECT scoreNudge FROM workspace WHERE tenantId = ?').get(user.tenantId) || {};
       let nudge = { contact: 0, engagement: 0, deal: 0 };

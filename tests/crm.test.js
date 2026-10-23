@@ -1,3 +1,4 @@
+import { grade, lifts, winChance, forecastRange, findDuplicates } from '../src/predict.js';
 import { test, expect } from 'vitest';
 
 // Basic smoke test — verifies the health endpoint responds
@@ -112,4 +113,19 @@ test('a flow can wait, branch, and record each step', () => {
   expect(src).toContain('wait_reply');
   expect(src).toContain('flow_jobs');
   expect(src.includes('slice(0, 10)')).toBe(true);
+});
+
+test('scores stay explainable with little data', () => {
+  expect(grade(82)).toBe('A');
+  expect(lifts({ email: '', phone: '' })).toContain('Add an email');
+  const chance = winChance({ stageProbability: 40, ageDays: 3, medianAge: 10, daysSinceTouch: 1, decided: 2, won: 1 });
+  expect(chance.reasons[0]).toContain('stage starts');
+  expect(chance.probability).toBeGreaterThan(0);
+  const range = forecastRange([{ amount: 1000, probability: 100 }, { amount: 1000, probability: 0 }], 100);
+  expect(range.p50).toBe(1000);
+  const dupes = findDuplicates([
+    { id: 'a', firstName: 'Ada', email: 'ada@x.ng', phone: '08031234567' },
+    { id: 'b', firstName: 'Ada', email: 'ada@x.ng', phone: '2348031234567' },
+  ]);
+  expect(dupes.length).toBe(1);
 });

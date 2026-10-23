@@ -71,3 +71,11 @@
 - Preview shows the path and does not create a task.
 - A WhatsApp reply continues a flow that was waiting, and marks that deal's sequence paused. The task the sequence already made stays.
 - A new business gets a flow named Speed to lead: call, wait a day, wait for a reply, then book a meeting or chase them.
+
+## Phase 6, the first scores
+
+- A lead score now has a grade from A to D, the top reasons, and what would raise it. If you set a score yourself, that number is the one shown and the reason says you set it.
+- The usual reply hour is taken from this workspace. With fewer than three replies, weekday 10:00 Lagos time is the default.
+- A new lead with no owner stores why they were assigned: the person with the fewest open leads.
+- Forecast shows a low, middle, and high outcome from 4,000 runs of the open deals. With at least five closed deals it also shows a win-rate forecast. The chance on each open deal starts from the stage and drops if the deal is old or untouched.
+- Find duplicates on Contacts matches email, phone, or the same name and company. It does not merge until you type the name to keep. Deals and tasks move to that person. There is no undo.
