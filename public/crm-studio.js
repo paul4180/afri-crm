@@ -9547,6 +9547,14 @@ window.openSearchHit = function (kind, id) {
     #view .rpt-col { width: 14px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
     #view .rpt-spark { display: flex; align-items: flex-end; gap: 2px; height: 28px; }
     #view .rpt-spark i { display: block; width: 6px; background: #0f766e; border-radius: 2px 2px 0 0; }
+    #view .rpt-list { display: flex; flex-direction: column; }
+    #view .rpt-line { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid #eef2f6; cursor: pointer; }
+    #view .rpt-line b { display: block; font-size: 14px; }
+    #view .rpt-line .cx-muted { display: block; }
+    #view .rpt-line .num { font-weight: 700; white-space: nowrap; }
+    #view .rpt-pill { font-size: 12px; background: #f1f5f9; color: #334155 !important; border-radius: 999px; padding: 3px 8px; white-space: nowrap; }
+    #view .rpt-score { width: 72px; height: 8px; background: #eef2f6; border-radius: 99px; overflow: hidden; }
+    #view .rpt-score i { display: block; height: 8px; background: #0f766e; }
     @media (max-width: 900px) { #view .rpt-kpis, #view .rpt-row { grid-template-columns: 1fr; } }
   `;
   document.head.appendChild(css);
@@ -9588,12 +9596,12 @@ window.openSearchHit = function (kind, id) {
     let body = '';
     if (rptTab === 'sales') {
       const s = data.sales;
-      const deals = (data.topDeals || []).map((row) => `<tr style="cursor:pointer" onclick="openRecord('deal','${row.id}')"><td>${esc(row.name)}</td><td>${esc(row.company || '—')}</td><td>${moneyOf(row.value)}</td><td>${esc(row.stage || '')}</td></tr>`).join('') || '<tr><td colspan="4">No open deal.</td></tr>';
-      const people = (data.contacts || []).map((row) => `<tr style="cursor:pointer" onclick="openRecord('contact','${row.id}')"><td>${esc(row.name || 'Unnamed')}</td><td>${row.score}</td><td>${esc(row.company || '—')}</td></tr>`).join('') || '<tr><td colspan="3">No contact has a deal or an activity yet.</td></tr>';
+      const deals = (data.topDeals || []).map((row) => `<div class="rpt-line" onclick="openRecord('deal','${row.id}')"><div><b>${esc(row.name)}</b><span class="cx-muted">${esc(row.company || 'No company')}</span></div><span class="rpt-pill">${esc(row.stage || 'No stage')}</span><span class="num">${moneyOf(row.value)}</span></div>`).join('') || '<p class="cx-muted">No open deal.</p>';
+      const people = (data.contacts || []).map((row) => `<div class="rpt-line" onclick="openRecord('contact','${row.id}')"><div><b>${esc(row.name || 'Unnamed')}</b><span class="cx-muted">${esc(row.company || 'No company')}</span></div><div class="rpt-score"><i style="width:${row.score}%"></i></div><span class="num">${row.score}</span></div>`).join('') || '<p class="cx-muted">No contact has a deal or an activity yet.</p>';
       body = `<div class="rpt-kpis">${kpi('Revenue this month', moneyOf(s.revenue.value), s.revenue)}${kpi('Open pipeline', moneyOf(s.pipeline.value), s.pipeline)}${kpi('Deals won', String(s.won.value), s.won)}${kpi('Win rate', s.winRate.value == null ? '—' : s.winRate.value + '%', s.winRate)}</div>
         <p class="cx-muted">${esc(s.pipeline.note || '')}${data.undated ? ' ' + data.undated + ' won deal' + (data.undated === 1 ? ' has' : 's have') + ' no close date, so ' + (data.undated === 1 ? 'it is' : 'they are') + ' not in a month.' : ''}</p>
         <div class="rpt-row"><article class="rpt-card"><h2>Revenue this year</h2>${area(data.revenue || [])}</article><article class="rpt-card"><h2>Pipeline by stage</h2>${bars(data.stages || [])}</article></div>
-        <div class="rpt-row"><article class="rpt-card"><h2>Top open deals</h2><table><tr><th>Deal</th><th>Company</th><th>Value</th><th>Stage</th></tr>${deals}</table></article><article class="rpt-card"><h2>Contacts by score</h2><table><tr><th>Contact</th><th>Score</th><th>Company</th></tr>${people}</table></article></div>`;
+        <div class="rpt-row"><article class="rpt-card"><h2>Top open deals</h2><div class="rpt-list">${deals}</div></article><article class="rpt-card"><h2>Contacts by score</h2><div class="rpt-list">${people}</div></article></div>`;
     } else if (rptTab === 'activity') {
       const a = data.activity || { calls: 0, emails: 0, meetings: 0, whatsapp: 0, days: [] };
       const reps = (data.byRep || []).map((row) => `<tr><td>${esc(row.name)}</td><td>${row.calls}</td><td>${row.emails}</td><td>${row.meetings}</td><td>${row.whatsapp}</td></tr>`).join('') || '<tr><td colspan="5">No activity in the last 30 days.</td></tr>';

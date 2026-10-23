@@ -3667,9 +3667,16 @@ export function registerCrm(app, prisma) {
     const months = [];
     for (let m = 1; m <= Number(thisMonth.slice(5, 7)); m++) months.push(year + '-' + String(m).padStart(2, '0'));
     const monthName = (key) => new Date(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, 1).toLocaleString('en-GB', { month: 'short' });
-    const wonIn = (month) => deals.filter((row) => row.stage === 'CLOSED_WON' && String(row.closeDate || '').slice(0, 7) === month);
-    const lostIn = (month) => deals.filter((row) => row.stage === 'CLOSED_LOST' && String(row.closeDate || row.createdAt || '').slice(0, 7) === month);
-    const openedIn = (month) => deals.filter((row) => !String(row.stage || '').startsWith('CLOSED') && String(row.createdAt || '').slice(0, 7) === month);
+    const stageBy = new Map();
+    for (const stage of stages) { stageBy.set(stage.id, stage); if (stage.code) stageBy.set(stage.code, stage); }
+    const stageInfo = (value) => stageBy.get(value) || null;
+    const isWon = (row) => { const stage = stageInfo(row.stage); return row.stage === 'CLOSED_WON' || Boolean(stage && (stage.code === 'CLOSED_WON' || (stage.closed && /won/i.test(stage.name || '')))); };
+    const isLost = (row) => { const stage = stageInfo(row.stage); return row.stage === 'CLOSED_LOST' || Boolean(stage && (stage.code === 'CLOSED_LOST' || (stage.closed && /lost/i.test(stage.name || '')))); };
+    const isOpen = (row) => { const stage = stageInfo(row.stage); if (isWon(row) || isLost(row) || (stage && stage.closed) || String(row.stage || '').startsWith('CLOSED')) return false; return true; };
+    const stageName = (row) => { const stage = stageInfo(row.stage); return stage ? (stage.name || stage.code) : 'No stage'; };
+    const wonIn = (month) => deals.filter((row) => isWon(row) && String(row.closeDate || '').slice(0, 7) === month);
+    const lostIn = (month) => deals.filter((row) => isLost(row) && String(row.closeDate || row.createdAt || '').slice(0, 7) === month);
+    const openedIn = (month) => deals.filter((row) => isOpen(row) && String(row.createdAt || '').slice(0, 7) === month);
     const sum = (rows) => rows.reduce((total, row) => total + Number(row.amount || 0), 0);
     const rate = (won, lost) => (won + lost) ? Math.round(won / (won + lost) * 100) : null;
     const trend = (now, then) => {
@@ -3686,18 +3693,18 @@ export function registerCrm(app, prisma) {
     };
     const wonNow = wonIn(thisMonth), wonThen = wonIn(lastMonth);
     const lostNow = lostIn(thisMonth), lostThen = lostIn(lastMonth);
-    const open = deals.filter((row) => !String(row.stage || '').startsWith('CLOSED'));
-    const undated = deals.filter((row) => row.stage === 'CLOSED_WON' && !row.closeDate).length;
-    const stageRows = stages.filter((stage) => !String(stage.code || '').startsWith('CLOSED')).map((stage) => {
+    const open = deals.filter(isOpen);
+    const undated = deals.filter((row) => isWon(row) && !row.closeDate).length;
+    const stageRows = stages.filter((stage) => !stage.closed && !String(stage.code || '').startsWith('CLOSED')).map((stage) => {
       const rows = open.filter((row) => row.stage === stage.code || row.stage === stage.id);
       return { label: stage.name || stage.code, count: rows.length, value: sum(rows) };
     });
     const revenue = months.map((month) => ({ month, label: monthName(month), revenue: sum(wonIn(month)), target: targetOf(month) }));
-    const topDeals = open.slice().sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0)).slice(0, 5).map((row) => ({ id: row.id, name: row.name, company: companyOf(row.companyId), value: Number(row.amount || 0), stage: row.stage }));
+    const topDeals = open.slice().sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0)).slice(0, 5).map((row) => ({ id: row.id, name: row.name, company: companyOf(row.companyId), value: Number(row.amount || 0), stage: stageName(row) }));
     const scored = contacts.map((row) => {
       const mine = deals.filter((deal) => deal.contactId === row.id);
-      const openAmt = sum(mine.filter((deal) => !String(deal.stage || '').startsWith('CLOSED')));
-      const wonAny = mine.some((deal) => deal.stage === 'CLOSED_WON');
+      const openAmt = sum(mine.filter(isOpen));
+      const wonAny = mine.some(isWon);
       const acts = activities.filter((item) => item.relatedId === row.id).length;
       let score = 0;
       if (openAmt) score += Math.min(40, Math.round(Math.log10(openAmt) * 8));
@@ -3736,9 +3743,9 @@ export function registerCrm(app, prisma) {
     deals.forEach((row) => teamIds.add(row.ownerId || ''));
     const team = [...teamIds].map((id) => {
       const mine = deals.filter((row) => (row.ownerId || '') === id);
-      const won = mine.filter((row) => row.stage === 'CLOSED_WON' && String(row.closeDate || '').slice(0, 4) === year);
-      const lost = mine.filter((row) => row.stage === 'CLOSED_LOST' && String(row.closeDate || row.createdAt || '').slice(0, 4) === year);
-      const openRows = mine.filter((row) => !String(row.stage || '').startsWith('CLOSED'));
+      const won = mine.filter((row) => isWon(row) && String(row.closeDate || '').slice(0, 4) === year);
+      const lost = mine.filter((row) => isLost(row) && String(row.closeDate || row.createdAt || '').slice(0, 4) === year);
+      const openRows = mine.filter(isOpen);
       const revenue = sum(won);
       return {
         name: id ? personOf(id) : 'Unassigned',
