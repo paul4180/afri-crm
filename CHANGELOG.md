@@ -20,3 +20,11 @@
 - A teammate counts as a CRM sign-in, not a books user.
 - Sessions lists this account's sign-ins and can close one.
 - Finishing the wizard reloads the home so the sample pipeline is visible.
+
+## Phase 3, first slice — home
+
+- Where to start sits under the numbers, not on top of them. The steps are links, not green bars.
+- One sample banner. The second "Sample workspace" strip is gone.
+- The day heading is white, so it can be read on the dark photo.
+- Home lists are ordered by what needs you, and a contact no longer says Today just because it was added today.
+- Do this next opens the first overdue or due task, or the deal that needs you if there is no task.

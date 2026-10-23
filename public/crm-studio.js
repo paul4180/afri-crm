@@ -4347,7 +4347,7 @@
     host.prepend(bar);
   }
   const demoDraw = draw;
-  draw = function () { const out = demoDraw(); if (page === 'home') showDemoBar(); return out; };
+  draw = function () { return demoDraw(); };
 
   style.textContent += `
   /* ============================================================
@@ -7798,8 +7798,8 @@
         #070b16;
     }
     .dash-top { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
-    .dash-today { margin: 0; font-family: "Space Grotesk", Inter, sans-serif !important; font-size: 40px !important; font-weight: 700 !important; color: #fff !important; letter-spacing: -0.03em; }
-    .dash-sub { margin: 6px 0 0; font-size: 15px !important; color: rgba(255,255,255,0.75) !important; }
+    .dash-today { margin: 0; font-family: "Space Grotesk", Inter, sans-serif !important; font-size: 40px !important; font-weight: 700 !important; color: #fff !important; letter-spacing: -0.03em; text-shadow: 0 1px 10px rgba(0,0,0,.55); }
+    .dash-sub { margin: 6px 0 0; font-size: 15px !important; color: #fff !important; }
     .dash-links { display: flex; gap: 18px; padding-top: 8px; }
     #view .dash button.dash-link { background: transparent !important; color: #fff !important; border: 0 !important; border-radius: 0 !important; padding: 0 !important; font-size: 14px !important; font-weight: 500 !important; box-shadow: none !important; }
     #view .dash button.dash-link:hover { color: #5eead4 !important; }
@@ -7810,7 +7810,11 @@
     .dash-start ol { margin: 10px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .dash-start li { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; background: #f8fafc; }
     .dash-start li.done { background: #f0fdfa; }
-    #view .dash-start button { background: transparent !important; color: #0f766e !important; border: 0 !important; padding: 0 !important; text-align: left; font-weight: 700; }
+    #view .dash .dash-start a { color: #0f766e; font-weight: 700; text-decoration: none; }
+    .dash-next { margin: 12px 28px 0; background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 14px 16px; display: flex; gap: 12px; align-items: center; }
+    .dash-next b { color: #0f172a; }
+    #view .dash .dash-next button { width: auto !important; background: #0d9488 !important; color: #fff !important; border-radius: 8px !important; }
+    .dash-start { margin: 16px 28px 0; }
     .dash-start span { color: #64748b; font-size: 13px; }
     .dash-kpis { display: grid; grid-template-columns: 1fr 1.45fr 1fr 1fr; gap: 12px; margin: -72px 28px 0; position: relative; z-index: 2; }
     .dash-kpi { background: rgba(15,25,42,0.85); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px 24px; min-width: 0; }
@@ -7849,7 +7853,7 @@
     .dash-pill { display: inline-block; font-size: 11px; border-radius: 999px; padding: 2px 8px; background: rgba(255,255,255,0.08); color: #e2e8f0 !important; }
     .dash-pill.late { background: rgba(239,68,68,0.18); color: #fecaca !important; }
     .dash-pill.today { background: rgba(245,158,11,0.18); color: #fde68a !important; }
-    .dash-note { margin: 8px 0 0; color: rgba(255,255,255,0.72) !important; font-size: 13px; max-width: 640px; }
+    .dash-note { margin: 8px 0 0; color: rgba(255,255,255,0.92) !important; font-size: 13px; max-width: 640px; }
     @media (max-width: 1100px) { .dash-kpis, .dash-grid { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 720px) { .dash-top, .dash-kpis, .dash-grid { display: block; } .dash-kpi, .dash-panel { margin-bottom: 12px; } }
   `;
@@ -7912,7 +7916,7 @@
     const n = (count, one, many) => count + ' ' + (count === 1 ? one : many);
     const salesGuide = ((homePack.guide && homePack.guide.guides) || []).find((row) => row.id === 'sales');
     const doneN = salesGuide ? salesGuide.steps.filter((row) => row.done).length : 0;
-    const start = salesGuide ? `<section class="dash-start"><div><b>Where to start</b><span>${doneN} of ${salesGuide.steps.length}</span></div><ol>${salesGuide.steps.map((row) => `<li class="${row.done ? 'done' : ''}"><button type="button" onclick="go('${row.page}')">${row.done ? 'Done' : 'Open'} · ${esc(row.name)}</button><span>${esc(row.detail)}</span></li>`).join('')}</ol></section>` : '';
+    const start = salesGuide ? `<section class="dash-start"><div><b>Where to start</b><span>${doneN} of ${salesGuide.steps.length}</span></div><ol>${salesGuide.steps.map((row) => `<li class="${row.done ? 'done' : ''}"><a href="#" onclick="go('${row.page}');return false">${row.done ? 'Done' : 'Open'} · ${esc(row.name)}</a><span>${esc(row.detail)}</span></li>`).join('')}</ol></section>` : '';
     const show = panels();
     const sw = (key) => `<button type="button" class="dash-switch ${show[key] ? 'on' : ''}" onclick="toggleHomePanel('${key}')" aria-label="Show or hide"><i></i></button>`;
     const empty = '<div class="dash-empty">None yet.</div>';
@@ -7957,7 +7961,7 @@
     const tasks = (bag.activities || []).filter((row) => (row.type === 'TASK' || row.type === 'CALL' || row.type === 'MEETING' || row.type === 'EMAIL') && row.status !== 'HELD' && row.status !== 'DONE')
       .map((row) => ({ row, ...rankTask(row) })).sort((a, b) => b.score - a.score || String(a.row.dueAt || '').localeCompare(String(b.row.dueAt || ''))).slice(0, 4);
     const story = (bag.activities || []).slice().sort((a, b) => String(b.createdAt || b.dueAt || '').localeCompare(String(a.createdAt || a.dueAt || ''))).slice(0, 6);
-    const contactRows = contacts.map(({ row: rowx, why }) => line(`openRecord('contact','${rowx.id}')`, person(rowx), why, rel(rowx.createdAt))).join('') || empty;
+    const contactRows = contacts.map(({ row: rowx, why }) => line(`openRecord('contact','${rowx.id}')`, person(rowx), why, '')).join('') || empty;
     const accountRows = accounts.map(({ row: rowx, why }) => line(`openRecord('company','${rowx.id}')`, rowx.name, why, '')).join('') || empty;
     const dealRows = deals.map(({ row: rowx, why }) => line(`openRecord('deal','${rowx.id}')`, rowx.name, why, money(rowx.amount))).join('') || empty;
     const taskRows = tasks.map(({ row: rowx, tag, cls }) => line(`go('tasks')`, rowx.subject || 'Task', dueWord(rowx), tag, cls)).join('') || empty;
@@ -7967,6 +7971,9 @@
       return line(kind, rowx.subject || rowx.type || 'Activity', chip(rowx) + (rel(rowx.createdAt) ? ' · ' + rel(rowx.createdAt) : ''), '');
     }).join('') || '<div class="dash-empty">No activity yet.</div>';
     const panel = (key, label, body) => `<section class="dash-panel"><header class="dash-ph"><span>${label}</span>${sw(key)}</header>${show[key] ? body : ''}</section>`;
+    const firstTask = tasks.find((row) => row.score >= 70) || tasks[0];
+    const firstDeal = deals[0];
+    const nextDo = firstTask ? `<section class="dash-next"><b>Do this next</b><button type="button" onclick="go('tasks')">${esc(firstTask.row.subject || 'Task')}</button><span>${esc(firstTask.tag || '')}</span></section>` : (firstDeal ? `<section class="dash-next"><b>Do this next</b><button type="button" onclick="openRecord('deal','${firstDeal.row.id}')">${esc(firstDeal.row.name)}</button><span>${esc(firstDeal.why || '')}</span></section>` : '');
     document.getElementById('view').innerHTML = `<div class="dash">
       <section class="dash-hero">
         <div class="dash-top">
@@ -7974,16 +7981,17 @@
           <div class="dash-links"><button type="button" class="dash-link" onclick="go('guide')">↗ Start guide</button><button type="button" class="dash-link" onclick="homeDemo()">◈ Sample data</button><button type="button" class="dash-link" onclick="homePack=null;drawHome()">↻ Refresh</button></div>
         </div>
       </section>
-      ${start}
       <div class="dash-kpis">
         <article class="dash-kpi"><div class="dash-num">${openDeals.length}</div><div class="dash-label">OPEN DEALS</div></article>
         <article class="dash-kpi"><div class="dash-num wide">${money(pipeline)}</div><div class="dash-label">PIPELINE</div></article>
         <article class="dash-kpi"><div class="dash-num">${due.length}</div><div class="dash-label">TASKS DUE</div></article>
         <article class="dash-kpi"><div class="dash-num gold">${hot.length}</div><div class="dash-label">HOT LEADS</div></article>
       </div>
+      ${start}
+      ${nextDo}
       <div class="dash-grid">
-        <div>${panel('contacts', 'Latest contacts', contactRows)}${panel('deals', 'Latest deals', dealRows)}</div>
-        <div>${panel('accounts', 'Latest accounts', accountRows)}${panel('tasks', 'Latest tasks', taskRows)}</div>
+        <div>${panel('contacts', 'Contacts that need you', contactRows)}${panel('deals', 'Deals that need you', dealRows)}</div>
+        <div>${panel('accounts', 'Accounts that need you', accountRows)}${panel('tasks', 'Tasks that need you', taskRows)}</div>
         <aside class="dash-tl"><h2>Activity timeline</h2>${cards}</aside>
       </div>
     </div>`;
