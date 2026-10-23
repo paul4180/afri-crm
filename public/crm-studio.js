@@ -8364,3 +8364,204 @@
   `;
   document.head.appendChild(fix);
 })();
+
+(function () {
+  const css = document.createElement('style');
+  css.textContent = `
+    #view .cx .cr button.cx-tool, #view .cx aside button.cx-tool, #view .cx .cr-feed button.cx-tool {
+      background: #fff !important; color: #334155 !important; border: 1px solid #d5dde6 !important;
+      border-radius: 8px !important; height: 32px !important; min-height: 32px !important; padding: 0 10px !important;
+      font-size: 13px !important; font-weight: 600 !important; box-shadow: none !important;
+    }
+    #view .cx .cr-feed button.cx-tool.on { color: #0f172a !important; box-shadow: inset 0 -2px 0 #0d9488 !important; background: transparent !important; border: 0 !important; border-radius: 0 !important; }
+    #view .cx .cr button.cx-go, #view .cx aside button.cx-go {
+      background: #0d9488 !important; color: #fff !important; border: 0 !important; border-radius: 8px !important;
+      height: 34px !important; padding: 0 12px !important; box-shadow: none !important;
+    }
+  `;
+  document.head.appendChild(css);
+
+  let coMode = 'list';
+  let coSaved = 'all';
+  let coSort = 'name';
+  let coQuery = '';
+  let coOwner = '';
+  let coType = '';
+  let coShowFilters = false;
+  let coShowSort = false;
+  let coShowCols = false;
+  let coMenu = '';
+  const coCols = { industry: 1, contacts: 1, deals: 1, revenue: 1, activity: 1, owner: 1 };
+  let coExtra = [];
+  try { coExtra = JSON.parse(localStorage.getItem('crm-company-views') || '[]'); } catch (e) { coExtra = []; }
+
+  function peopleOf(id) { return (bag.contacts || []).filter((row) => row.companyId === id); }
+  function openDealsOf(id) { return (bag.deals || []).filter((row) => row.companyId === id && !String(stageOf(row)).startsWith('CLOSED')); }
+  function revenueOf(id) { return (bag.deals || []).filter((row) => row.companyId === id && stageOf(row) === 'CLOSED_WON').reduce((sum, row) => sum + Number(row.amount || 0), 0); }
+  function touchOf(id) {
+    const ids = peopleOf(id).map((row) => row.id).concat(id);
+    return (bag.activities || []).filter((row) => ids.includes(row.relatedId)).map((row) => row.createdAt || row.dueAt || '').sort().pop() || '';
+  }
+  function quiet(id) {
+    const t = touchOf(id);
+    return !t || (Date.now() - new Date(t).getTime()) > 30 * 86400000;
+  }
+
+  window.setCo = function (key, value) {
+    if (key === 'mode') coMode = value;
+    if (key === 'saved') coSaved = value;
+    if (key === 'sort') { coSort = value; coShowSort = false; }
+    if (key === 'filters') coShowFilters = !coShowFilters;
+    if (key === 'sortbox') coShowSort = !coShowSort;
+    if (key === 'cols') coShowCols = !coShowCols;
+    if (key === 'col') coCols[value] = coCols[value] ? 0 : 1;
+    if (key === 'menu') coMenu = coMenu === value ? '' : value;
+    if (key === 'query') coQuery = value;
+    drawCompanyList();
+  };
+  window.addCompanyView = function () {
+    const name = window.prompt('Name this view. It keeps companies whose name or industry contains the word.');
+    if (!name) return;
+    coExtra.push(name.trim());
+    localStorage.setItem('crm-company-views', JSON.stringify(coExtra));
+    coSaved = 'word:' + name.trim();
+    drawCompanyList();
+  };
+  window.drawCompanyList = function () {
+    const showForm = openForm === 'company';
+    if (showForm) openForm = '';
+    const mine = me.sub || me.id;
+    let rows = (bag.companies || []).slice();
+    if (coSaved === 'mine') rows = rows.filter((row) => row.ownerId === mine);
+    if (coSaved === 'open') rows = rows.filter((row) => openDealsOf(row.id).length);
+    if (coSaved === 'quiet') rows = rows.filter((row) => quiet(row.id));
+    if (coSaved.indexOf('word:') === 0) {
+      const word = coSaved.slice(5).toLowerCase();
+      rows = rows.filter((row) => ((row.name || '') + ' ' + (row.industry || '')).toLowerCase().includes(word));
+    }
+    const q = coQuery.trim().toLowerCase();
+    rows = rows.filter((row) => hit((row.name || '') + (row.industry || '') + (row.city || '')) && (!q || ((row.name || '') + ' ' + (row.industry || '') + ' ' + (row.city || '')).toLowerCase().includes(q)));
+    if (coOwner) rows = rows.filter((row) => row.ownerId === coOwner);
+    if (coType) rows = rows.filter((row) => (row.type || 'PROSPECT') === coType);
+    rows.sort((a, b) => {
+      if (coSort === 'new') return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+      if (coSort === 'touch') return String(touchOf(b.id)).localeCompare(String(touchOf(a.id)));
+      if (coSort === 'revenue') return revenueOf(b.id) - revenueOf(a.id);
+      if (coSort === 'people') return peopleOf(b.id).length - peopleOf(a.id).length;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+    const filtersOn = [coOwner, coType].filter(Boolean).length;
+    const views = [['all', 'All companies'], ['mine', 'My companies'], ['open', 'Open deals'], ['quiet', 'No activity 30d+']].concat(coExtra.map((name) => ['word:' + name, name]));
+    const owners = (bag.people || []).map((row) => `<option value="${row.id}" ${coOwner === row.id ? 'selected' : ''}>${esc(row.fullName || row.email)}</option>`).join('');
+    let body = '';
+    if (coMode === 'board') {
+      const types = [['PROSPECT', 'Prospect'], ['CUSTOMER', 'Customer'], ['PARTNER', 'Partner']];
+      body = `<div class="cx-board">${types.map(([code, label]) => {
+        const list = rows.filter((row) => (row.type || 'PROSPECT') === code);
+        return `<div class="cx-col"><b>${label} · ${list.length}</b>${list.map((row) => `<button type="button" class="cx-card" onclick="openRecord('company','${row.id}')"><b>${esc(row.name)}</b><div class="cx-muted">${esc(row.industry || 'No industry')}</div><div class="cx-muted">${peopleOf(row.id).length} contacts · ${openDealsOf(row.id).length} open</div><div class="cx-muted">${money(revenueOf(row.id))} won</div></button>`).join('') || '<div class="cx-muted">None</div>'}</div>`;
+      }).join('')}</div>`;
+    } else if (coMode === 'map') {
+      const groups = {};
+      rows.forEach((row) => { const key = row.city || row.country || 'No city'; (groups[key] = groups[key] || []).push(row); });
+      body = `<p class="cx-muted">Grouped by city. There is no map pin until an address has coordinates.</p>` + Object.keys(groups).sort().map((city) => `<section class="cx-panel"><b>${esc(city)}</b>${groups[city].map((row) => `<div class="cr-prop"><button type="button" class="cx-link" onclick="openRecord('company','${row.id}')">${esc(row.name)}</button><span class="cx-muted">${esc(row.industry || '')}</span></div>`).join('')}</section>`).join('');
+    } else if (coMode === 'calendar') {
+      const now = new Date();
+      const y = now.getFullYear(); const m = now.getMonth();
+      const days = new Date(y, m + 1, 0).getDate();
+      const cells = [];
+      for (let day = 1; day <= days; day++) {
+        const key = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        const born = rows.filter((row) => String(row.createdAt || '').slice(0, 10) === key);
+        cells.push(`<div class="cx-card"><b>${day}</b>${born.map((row) => `<div><button type="button" class="cx-link" onclick="openRecord('company','${row.id}')">${esc(row.name)}</button></div>`).join('') || '<div class="cx-muted">—</div>'}</div>`);
+      }
+      body = `<p class="cx-muted">Companies created in ${now.toLocaleString('en-US', { month: 'long', year: 'numeric' })}.</p><div class="cx-board" style="flex-wrap:wrap">${cells.join('')}</div>`;
+    } else {
+      const th = (key, label) => coCols[key] ? `<th>${label}</th>` : '';
+      const td = (key, html) => coCols[key] ? `<td>${html}</td>` : '';
+      const lines = rows.map((row) => {
+        const owner = ownerName(row.ownerId);
+        const n = peopleOf(row.id).length;
+        const open = openDealsOf(row.id).length;
+        return `<tr class="cx-row"><td><input type="checkbox" onclick="event.stopPropagation()"></td><td><div class="cx-who" style="cursor:pointer" onclick="openRecord('company','${row.id}')"><span class="cx-av" style="background:${avatarGradient(row.name)}">${esc(initials(row.name))}</span><span><b class="cx-name">${esc(row.name)}</b><div class="cx-mail">${esc(row.city || row.website || '')}</div></span></div></td>${td('industry', esc(row.industry || '—'))}${td('contacts', String(n))}${td('deals', String(open))}${td('revenue', money(revenueOf(row.id)))}${td('activity', esc(relativeTime(touchOf(row.id)) || 'No activity'))}${td('owner', `<span class="cx-av" style="width:22px;height:22px;font-size:10px;background:${avatarGradient(owner || '?')}">${esc(initials(owner || '?'))}</span> ${esc(owner || 'Unassigned')}`)}<td class="cx-menu"><button type="button" class="cx-tool cx-more" onclick="event.stopPropagation();setCo('menu','${row.id}')">⋮</button>${coMenu === row.id ? `<div class="cx-pop"><button type="button" onclick="openRecord('company','${row.id}')">Open</button><button type="button" onclick="go('deals','deal')">Create deal</button></div>` : ''}</td></tr>`;
+      }).join('');
+      body = `<table class="cx-table"><tr><th></th><th>Company</th>${th('industry','Industry')}${th('contacts','Contacts')}${th('deals','Open deals')}${th('revenue','Total revenue')}${th('activity','Last activity')}${th('owner','Owner')}<th></th></tr>${lines || '<tr><td colspan="9"><div class="cx-muted" style="padding:16px">No company in this view.</div></td></tr>'}</table>`;
+    }
+    const form = `<div class="drawer dealbox" id="form" ${showForm ? '' : 'hidden'} onclick="if(event.target.id==='form')this.hidden=true"><aside><div class="sheethead"><h2>Create company</h2><button type="button" class="ghost" onclick="document.getElementById('form').hidden=true">Close</button></div><div class="dealform"><label>Name<input id="coName"></label><label>Industry<input id="coIndustry"></label><label>Type<select id="coType"><option>PROSPECT</option><option>CUSTOMER</option><option>PARTNER</option></select></label><label>Phone<input id="coPhone"></label><label>Email<input id="coEmail"></label><label>Website<input id="coWeb"></label><label>City<input id="coCity"></label><label>Country<input id="coCountry" value="Nigeria"></label><label>Source<input id="coSource"></label><label>What they buy<textarea id="coAbout" rows="3"></textarea></label><label>Owner<select id="coOwner"><option value="">Me</option>${ownerOptions()}</select></label></div><div class="dealactions"><button type="button" onclick="saveCompany()">Create</button></div></aside></div>`;
+    document.getElementById('view').innerHTML = `<div class="cx">
+      <div class="cx-head"><h1>Companies</h1><div><button type="button" class="cx-go" onclick="document.getElementById('form').hidden=false">+ Create company</button></div></div>
+      <div class="cx-bar"><div class="cx-left"><input class="cx-search" placeholder="Search companies..." value="${esc(coQuery)}" oninput="setCo('query', this.value)"><button type="button" class="cx-tool" onclick="setCo('filters')">Filters${filtersOn ? `<span class="cx-badge">${filtersOn}</span>` : ''}</button><button type="button" class="cx-tool" onclick="setCo('sortbox')">Sort</button></div><div class="cx-right"><button type="button" class="cx-tool ${coMode==='list'?'on':''}" onclick="setCo('mode','list')">List</button><button type="button" class="cx-tool ${coMode==='board'?'on':''}" onclick="setCo('mode','board')">Board</button><button type="button" class="cx-tool ${coMode==='map'?'on':''}" onclick="setCo('mode','map')">Map</button><button type="button" class="cx-tool ${coMode==='calendar'?'on':''}" onclick="setCo('mode','calendar')">Calendar</button><button type="button" class="cx-tool" onclick="setCo('cols')">Columns</button></div></div>
+      ${coShowFilters ? `<div class="cx-panel"><label>Owner<select onchange="coOwner=this.value;drawCompanyList()"><option value="">Anyone</option>${owners}</select></label> <label>Type<select onchange="coType=this.value;drawCompanyList()"><option value="">Any</option><option ${coType==='PROSPECT'?'selected':''} value="PROSPECT">Prospect</option><option ${coType==='CUSTOMER'?'selected':''} value="CUSTOMER">Customer</option><option ${coType==='PARTNER'?'selected':''} value="PARTNER">Partner</option></select></label> <button type="button" class="cx-tool" onclick="coOwner='';coType='';drawCompanyList()">Clear</button></div>` : ''}
+      ${coShowSort ? `<div class="cx-panel"><button type="button" class="cx-tool" onclick="setCo('sort','name')">Name</button><button type="button" class="cx-tool" onclick="setCo('sort','people')">Contacts</button><button type="button" class="cx-tool" onclick="setCo('sort','revenue')">Revenue</button><button type="button" class="cx-tool" onclick="setCo('sort','touch')">Last activity</button><button type="button" class="cx-tool" onclick="setCo('sort','new')">Newest</button></div>` : ''}
+      ${coShowCols ? `<div class="cx-panel">${['industry','contacts','deals','revenue','activity','owner'].map((key) => `<label style="margin-right:10px"><input type="checkbox" ${coCols[key]?'checked':''} onchange="setCo('col','${key}')"> ${key}</label>`).join('')}</div>` : ''}
+      <div class="cx-views">${views.map(([id, label]) => `<button type="button" class="cx-tab ${coSaved===id?'on':''}" onclick="setCo('saved','${String(id).replace(/'/g, '')}')">${esc(label)}</button>`).join('')}<button type="button" class="cx-tab" onclick="addCompanyView()">+ Add view</button></div>
+      ${body}<div class="cx-muted" style="margin-top:8px">${rows.length} compan${rows.length===1?'y':'ies'}</div>${form}</div>`;
+  };
+
+  const priorPeople = drawPeople;
+  drawPeople = function (kind) {
+    if (kind === 'companies') return drawCompanyList();
+    return priorPeople(kind);
+  };
+
+  let coFilter = 'all';
+  window.setCoFilter = function (value) { coFilter = value; drawRecord(); };
+  window.logOnCompany = async function (type) {
+    if (!focus) return;
+    const subject = window.prompt(type === 'note' ? 'Note' : 'Subject');
+    if (!subject) return;
+    if (type === 'note') {
+      const result = await api('/crm/api/notes', { method: 'POST', body: JSON.stringify({ body: subject, relatedType: 'company', relatedId: focus.id }) });
+      if (!result || result.error) return toast((result && result.error) || 'Could not save');
+      toast('Note saved'); return drawRecord();
+    }
+    const result = await api('/crm/api/activities', { method: 'POST', body: JSON.stringify({ type: type.toUpperCase(), subject, status: type === 'task' || type === 'meeting' ? 'PLANNED' : 'DONE', relatedType: 'company', relatedId: focus.id }) });
+    if (!result || result.error) return toast((result && result.error) || 'Could not save');
+    toast('Saved'); refresh();
+  };
+
+  const priorCompanyRecord = drawRecord;
+  drawRecord = async function () {
+    if (!focus || focus.type !== 'company') return priorCompanyRecord();
+    const data = await api('/crm/api/record/company/' + focus.id);
+    if (!data || data.error) { toast((data && data.error) || 'Could not open it'); return go('companies'); }
+    const rec = data.record;
+    const people = data.contacts || [];
+    const deals = data.deals || [];
+    const open = deals.filter((row) => !String(stageOf(row)).startsWith('CLOSED'));
+    const won = deals.filter((row) => stageOf(row) === 'CLOSED_WON').reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const files = (bag.objects || []).filter((row) => row.kind === 'document' && (row.companyId === rec.id || (metaOf(row).companyId === rec.id)));
+    const bits = []
+      .concat((data.notes || []).map((row) => ({ kind: 'note', at: row.createdAt, title: 'Note', detail: row.body })))
+      .concat((data.activities || []).map((row) => ({ kind: String(row.type || 'task').toLowerCase(), at: row.createdAt || row.dueAt, title: row.subject || row.type, detail: row.notes || (row.status === 'PLANNED' ? 'Open' : 'Done'), done: row.status !== 'PLANNED' })))
+      .concat(deals.map((row) => ({ kind: 'deal', at: row.createdAt, title: row.name, detail: money(row.amount) + ' · ' + (row.stage || '') })))
+      .concat((data.history || []).map((row) => ({ kind: 'task', at: row.createdAt, title: row.action, detail: row.detail || '' })));
+    bits.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    const shown = bits.filter((row) => coFilter === 'all' || row.kind === coFilter);
+    const filters = ['all','note','email','call','meeting','task','deal'].map((id) => `<button type="button" class="cx-tool ${coFilter===id?'on':''}" onclick="setCoFilter('${id}')">${id === 'all' ? 'All activity' : id[0].toUpperCase()+id.slice(1)}</button>`).join('');
+    const entries = shown.map((row) => `<article class="cr-entry ${row.kind} ${row.done ? 'done' : ''}"><b>${esc(row.title || row.kind)}</b><div class="cx-muted">${esc(row.detail || '')}</div><div class="cx-muted">${esc(relativeTime(row.at) || '')}</div></article>`).join('') || '<div class="cx-muted">Nothing in this filter.</div>';
+    const contactList = people.map((row) => `<button type="button" class="cx-link" onclick="openRecord('contact','${row.id}')">${esc(person(row))}</button>`).join('<br>') || '<div class="cx-muted">No contact at this company yet.</div>';
+    const dealCards = deals.map((row) => `<button type="button" class="cr-assoc" style="width:100%;text-align:left" onclick="openRecord('deal','${row.id}')"><b>${esc(row.name)}</b><div class="cx-muted">${esc(row.stage || '')} · ${money(row.amount)}${row.closeDate ? ' · ' + esc(String(row.closeDate).slice(0,10)) : ''}</div></button>`).join('') || '<div class="cx-muted">No deal yet.</div>';
+    const fileList = files.map((row) => `<div class="cr-prop"><b>${esc(row.name)}</b></div>`).join('') || '<div class="cx-muted">No file is stored on this company.</div>';
+    document.getElementById('view').innerHTML = `<div class="cx"><div class="cx-head"><div class="cx-muted">Companies › ${esc(rec.name)}</div><button type="button" class="cx-go" onclick="saveProfile()">Save</button></div>
+      <div class="cr">
+        <aside class="cr-side">
+          <div class="cx-who"><span class="cx-av lg" style="background:#0d9488">${esc(initials(rec.name))}</span><div><h1 style="font-size:22px;margin:0">${esc(rec.name)}</h1><div class="cx-muted">${esc(rec.industry || 'No industry')} · ${esc(rec.type || 'PROSPECT')}</div><div class="cx-muted">${people.length} contacts · ${open.length} open · ${money(won)} won</div></div></div>
+          <h2 style="font-size:13px;margin:16px 0 6px">Properties</h2>
+          ${fieldBox('name','Name', rec.name)}${fieldBox('industry','Industry', rec.industry)}${fieldBox('type','Type', rec.type)}${fieldBox('website','Website', rec.website)}${fieldBox('email','Email', rec.email)}${fieldBox('phone','Phone', rec.phone)}${fieldBox('city','City', rec.city)}${fieldBox('country','Country', rec.country)}${fieldBox('source','Source', rec.source)}${fieldBox('description','About', rec.description)}
+          <label>Owner<select data-key="ownerId"><option value="">Unassigned</option>${(bag.people||[]).map((row)=>`<option value="${row.id}" ${row.id===rec.ownerId?'selected':''}>${esc(row.fullName||row.email)}</option>`).join('')}</select></label>
+          <h2 style="font-size:13px;margin:16px 0 6px">Contacts</h2>
+          ${contactList}
+        </aside>
+        <section class="cr-main">
+          <div class="cr-feed">${filters}<button type="button" class="cx-go" onclick="document.getElementById('coAdd').hidden=!document.getElementById('coAdd').hidden">+ Add activity</button></div>
+          <div id="coAdd" hidden class="cx-panel"><button type="button" class="cx-tool" onclick="logOnCompany('note')">Add note</button> <button type="button" class="cx-tool" onclick="logOnCompany('call')">Log call</button> <button type="button" class="cx-tool" onclick="logOnCompany('email')">Log email</button> <button type="button" class="cx-tool" onclick="logOnCompany('meeting')">Schedule meeting</button> <button type="button" class="cx-tool" onclick="logOnCompany('task')">Create task</button></div>
+          ${entries}
+          <label>Note<textarea id="noteBody" style="height:70px"></textarea></label><button type="button" class="cx-go" onclick="saveRecordNote()">Save note</button>
+        </section>
+        <aside class="cr-side">
+          <h2 style="font-size:14px">Deals</h2>${dealCards}<button type="button" class="cx-tool" onclick="go('deals','deal')">+ Create deal</button>
+          <h2 style="font-size:14px;margin-top:16px">Attachments</h2>${fileList}
+        </aside>
+      </div></div>`;
+  };
+})();
