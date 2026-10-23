@@ -4176,12 +4176,39 @@ function agentBrain(tenantId) {
     const leads = list('leads', tenantId);
     const deals = list('deals', tenantId);
     const stages = stagesFor(tenantId);
-    const people = await prisma.user.findMany({ where: { tenantId }, select: { id: true, fullName: true, email: true } });
+    // FIX: CRM people live in crm_accounts (SQLite), not prisma.user (ERP DB).
+    // Using prisma.user caused every CRM owner to show as 'Unassigned'.
+    const people = db.prepare('SELECT id, fullName, email FROM crm_accounts WHERE workspaceId = ?').all(tenantId);
     const nameOf = (id) => { const row = people.find((person) => person.id === id); return row ? (row.fullName || row.email) : 'Unassigned'; };
+    // FIX: Use winChance (from predict.js) for the weighted pipeline + forecast,
+    // matching what /crm/api/forecast/range already does. Before, the reports
+    // endpoint used the raw stage percent — so a stale deal in PROSPECTING
+    // looked just as likely to close as a fresh one. winChance drops the
+    // probability when a deal is older than 1.5x its stage's median age, or
+    // when no activity has been logged for 14+ days, and blends in the
+    // workspace's actual win rate when there are >=5 closed deals.
+    const activities = list('activities', tenantId);
+    const won = deals.filter((row) => row.stage === 'CLOSED_WON').length;
+    const lost = deals.filter((row) => row.stage === 'CLOSED_LOST').length;
+    const open = deals.filter((row) => !String(row.stage || '').startsWith('CLOSED'));
+    // Pre-compute winChance per open deal (same pattern as forecast/range)
+    const chanceOf = {};
+    for (const deal of open) {
+      const stage = stages.find((row) => row.code === deal.stage || row.id === deal.stage);
+      const peers = open.filter((row) => row.stage === deal.stage);
+      const ages = peers.map((row) => Math.max(0, Math.floor((Date.now() - new Date(row.createdAt || Date.now()).getTime()) / 86400000)));
+      const medianAge = ages.sort((a, b) => a - b)[Math.floor(ages.length / 2)] || 0;
+      const touches = activities.filter((row) => row.relatedId === deal.id).map((row) => new Date(row.createdAt || 0).getTime()).filter((n) => n > 0).sort((a, b) => b - a);
+      const daysSinceTouch = touches.length ? Math.floor((Date.now() - touches[0]) / 86400000) : 999;
+      const chance = winChance({ stageProbability: stage && stage.probability, ageDays: Math.floor((Date.now() - new Date(deal.createdAt || Date.now()).getTime()) / 86400000), medianAge, daysSinceTouch, decided: won + lost, won });
+      chanceOf[deal.id] = chance.probability;
+    }
     const pipeline = stages.map((stage) => {
       const rows = deals.filter((row) => row.stage === stage.code);
       const amount = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-      return { stage: stage.name, count: rows.length, amount, weighted: Math.round(amount * Number(stage.probability || 0) / 100) };
+      // Weighted uses winChance per deal (was stage.probability)
+      const weighted = rows.reduce((sum, row) => sum + Number(row.amount || 0) * (chanceOf[row.id] || Number(stage.probability || 0)) / 100, 0);
+      return { stage: stage.name, count: rows.length, amount, weighted: Math.round(weighted) };
     });
     const owners = {};
     for (const row of deals.filter((item) => item.stage === 'CLOSED_WON' || item.stage === 'CLOSED_LOST')) {
@@ -4193,7 +4220,8 @@ function agentBrain(tenantId) {
     const months = {};
     for (const row of deals.filter((item) => !String(item.stage).startsWith('CLOSED') && item.closeDate)) {
       const month = String(row.closeDate).slice(0, 7);
-      months[month] = (months[month] || 0) + Number(row.amount || 0) * Number(row.probability || 0) / 100;
+      // Forecast uses winChance per deal (was row.probability)
+      months[month] = (months[month] || 0) + Number(row.amount || 0) * (chanceOf[row.id] || Number(row.probability || 0)) / 100;
     }
     const forecast = Object.keys(months).sort().map((month) => ({ month, amount: Math.round(months[month]) }));
     const sources = {};
@@ -4204,7 +4232,7 @@ function agentBrain(tenantId) {
       if (row.status === 'CONVERTED') sources[key].converted += 1;
     }
     const bySource = Object.values(sources).map((row) => ({ ...row, rate: row.leads ? Math.round(row.converted / row.leads * 100) : 0 }));
-    const activities = list('activities', tenantId);
+    // (activities was already declared above for winChance — reuse it here)
     const today = new Date().toISOString().slice(0, 10);
     const month = today.slice(0, 7);
     const stalled = deals.filter((row) => !String(row.stage).startsWith('CLOSED')).filter((row) => {
