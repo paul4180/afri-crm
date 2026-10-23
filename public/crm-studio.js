@@ -7274,3 +7274,189 @@
 
 // deployment trigger 1792579054
 // direct push 1792579593
+
+
+(function () {
+  const skin = document.createElement('style');
+  skin.textContent = `
+    .app {
+      display: grid !important;
+      grid-template-columns: 248px minmax(0, 1fr) !important;
+      grid-template-rows: 56px minmax(0, 1fr) !important;
+      height: 100vh !important;
+      background: #f5f8fa !important;
+    }
+    .app.rail { grid-template-columns: 76px minmax(0, 1fr) !important; }
+    .app > header {
+      grid-column: 1 / -1 !important;
+      grid-row: 1 !important;
+      height: 56px !important;
+      background: #1b1e22 !important;
+      color: #fff !important;
+      border: 0 !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 10px !important;
+      padding: 0 14px !important;
+      position: relative !important;
+      z-index: 5 !important;
+    }
+    .app > header .search { flex: 0 1 360px !important; }
+    .app > header .search input {
+      background: #2c3238 !important;
+      color: #fff !important;
+      border: 0 !important;
+      border-radius: 999px !important;
+      height: 36px !important;
+      padding: 0 36px 0 16px !important;
+    }
+    .app > header .search input::placeholder { color: #9aa6b2 !important; }
+    .app > header .iconbtn, .app > header .acct { color: #fff !important; background: transparent !important; }
+    .app > header .acct { border-radius: 999px !important; padding: 4px 10px 4px 4px !important; }
+    #nav {
+      grid-row: 2 !important;
+      background: #2d333b !important;
+      color: #f5f8fa !important;
+      border-right: 0 !important;
+      width: auto !important;
+      max-width: none !important;
+      min-width: 0 !important;
+    }
+    #nav .brand b, #nav .brand .meta { color: #fff !important; }
+    #nav [data-page], #nav button:not(.fold),
+    #nav [data-page]:hover, #nav [data-page][class*="on"] {
+      color: #f5f8fa !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      border: 0 !important;
+      border-radius: 8px !important;
+      font-weight: 500 !important;
+      font-size: 14px !important;
+    }
+    #nav [data-page].on, #nav [data-page]:hover { background: rgba(255,255,255,0.08) !important; }
+    #nav .ico, #nav [data-page] .ico {
+      width: 18px !important; height: 18px !important;
+      background: transparent !important;
+      color: #d5dde5 !important;
+      border-radius: 0 !important;
+    }
+    .nav-section-header { color: #8fa4b8 !important; letter-spacing: 0.08em !important; }
+    .app.rail .nav-section-header { display: none !important; }
+    .work { grid-row: 2 !important; background: #f5f8fa !important; min-width: 0 !important; display: block !important; overflow: auto !important; }
+    #view {
+      background: #fff !important;
+      color: #33475b !important;
+      margin: 12px !important;
+      min-height: calc(100vh - 80px) !important;
+      border-radius: 16px !important;
+      border: 1px solid #e5e8eb !important;
+      padding: 22px 24px 32px !important;
+      box-shadow: none !important;
+    }
+    #view, #view .meta, #view .hello, #view h1, #view h2, #view b, #view p, #view td, #view th, #view label, #view span {
+      color: #33475b !important;
+      text-shadow: none !important;
+    }
+    #view .meta, #view .hello { color: #516f90 !important; }
+    #view .kpi, #view .card, #view .actcard, #view .desk, #view .sheet, #view .guide, #view .pulse article, #view .guides nav {
+      background: #fff !important;
+      color: #33475b !important;
+      border: 1px solid #eaf0f6 !important;
+      box-shadow: none !important;
+    }
+    #view .desk { border: 0 !important; padding: 0 !important; }
+    #view table { background: #fff !important; color: #33475b !important; }
+    #view .tabs { border-bottom: 1px solid #e5e8eb !important; gap: 4px !important; }
+    #view .tabs button, #view .guides nav button, #view .filters button, #view button.ghost {
+      background: transparent !important;
+      color: #33475b !important;
+      border: 0 !important;
+      border-radius: 8px !important;
+      box-shadow: none !important;
+    }
+    #view .tabs button.on { background: #eaf0f6 !important; color: #33475b !important; box-shadow: inset 0 -2px 0 #33475b !important; border-radius: 8px 8px 0 0 !important; }
+    #view .banner { background: #e5f8fb !important; border: 1px solid #99d6e4 !important; border-radius: 12px !important; color: #33475b !important; padding: 14px 16px !important; }
+    #view button:not(.ghost):not(.x):not(.iconbtn) { background: #0b6b4f !important; color: #fff !important; border-radius: 20px !important; }
+    #view .empty h2 { font-size: 28px !important; font-weight: 650 !important; letter-spacing: -0.02em !important; }
+    .hs-hello { font-size: 16px; color: #33475b; margin: 0; }
+    .hs-title { font-family: Georgia, "Times New Roman", serif; font-size: 42px; font-weight: 500; letter-spacing: -0.03em; margin: 8px 0 18px; color: #2d3e50; }
+    .hs-home { display: grid; grid-template-columns: minmax(0, 1.4fr) 280px; gap: 18px; align-items: start; }
+    .hs-card { border: 1px solid #cbd6e2; border-radius: 12px; padding: 16px 18px; display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 12px; background: #f7fbfd; }
+    .hs-card b { display: block; font-size: 16px; margin-bottom: 4px; }
+    .hs-card p { margin: 0; color: #516f90; font-size: 14px; }
+    .hs-side { border-left: 1px solid #e5e8eb; padding-left: 18px; }
+    .hs-side h2 { margin: 0 0 4px; font-size: 16px; }
+    .hs-metric { font-size: 42px; font-weight: 500; margin: 18px 0 0; letter-spacing: -0.03em; }
+    .hs-metric span { display: block; font-size: 14px; color: #516f90; font-weight: 400; margin-top: 2px; }
+    @media (max-width: 980px) { .hs-home { grid-template-columns: 1fr; } .hs-side { border: 0; padding: 0; } }
+  `;
+  document.head.appendChild(skin);
+
+  const earlier = paintNav;
+  paintNav = function () {
+    earlier();
+    const scroll = document.querySelector('#nav .navscroll');
+    if (!scroll) return;
+    const item = (id, label, icon) => navItem(id, label, icon);
+    scroll.innerHTML =
+      item('home', 'Home', svg('<path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/>')) +
+      item('contacts', 'Contacts', svg('<path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="3"/>')) +
+      item('companies', 'Companies', svg('<path d="M4 21V5h9v16M13 9h7v12"/><path d="M7 9h2M7 13h2M16 13h2"/>')) +
+      item('deals', 'Deals', svg('<path d="M4 7h16v10H4z"/><path d="M4 12h16"/>')) +
+      item('tasks', 'Tasks', svg('<path d="M8 7h12M8 12h12M8 17h12"/><path d="M4 7h.01M4 12h.01M4 17h.01"/>')) +
+      '<div class="nav-section-header">Sales</div>' +
+      item('automation', 'Automation', svg('<path d="M13 2 3 14h8l-1 8 10-12h-8z"/>')) +
+      item('agent', 'Agent', svg('<path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/>')) +
+      item('marketing', 'Marketing', svg('<path d="M4 10v4l10 4V6z"/><path d="M14 8.5a4 4 0 0 1 0 7"/>')) +
+      item('feed', 'Activity', svg('<path d="M5 6h14M5 12h14M5 18h10"/>')) +
+      item('forecast', 'Forecast', svg('<path d="M4 16l5-5 3 3 7-7"/><path d="M14 7h5v5"/>')) +
+      '<div class="nav-section-header">Platform</div>' +
+      item('integrations', 'Integrations', svg('<circle cx="7" cy="12" r="3"/><circle cx="17" cy="7" r="3"/><circle cx="17" cy="17" r="3"/><path d="M10 12h4M14.5 9.5 12 12l2.5 2.5"/>')) +
+      item('dashboard', 'Reporting', svg('<path d="M4 19V5M4 19h16"/><path d="M8 16v-5M12 16V8M16 16v-3"/>')) +
+      item('guide', 'Start guide', svg('<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2 2"/>'));
+    document.querySelectorAll('#nav button').forEach((el) => el.classList.toggle('on', el.dataset.page === page));
+  };
+
+  drawHome = async function () {
+    const first = (me.fullName || 'there').split(' ')[0];
+    if (!homePack) {
+      const [brain, day, guide] = await Promise.all([api('/crm/api/brain'), api('/crm/api/day'), api('/crm/api/guide')]);
+      homePack = { brain: brain || {}, day: day || {}, guide: guide || null };
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const due = (row) => String(row.dueAt || '').slice(0, 10);
+    const tasks = (bag.activities || []).filter((row) => row.type === 'TASK' || row.type === 'CALL' || row.type === 'MEETING');
+    const dueToday = tasks.filter((row) => row.status === 'PLANNED' && due(row) === today);
+    const meetings = tasks.filter((row) => row.type === 'MEETING' && row.status === 'PLANNED' && (!due(row) || due(row) === today));
+    const openDeals = (bag.deals || []).filter((row) => !String(stageOf(row)).startsWith('CLOSED'));
+    const when = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    const hour = new Date().getHours();
+    const hello = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    document.getElementById('view').innerHTML = `
+      <div class="hs-home">
+        <div>
+          <p class="hs-hello">${hello}, ${esc(first)}</p>
+          <h1 class="hs-title">Here's where to start today</h1>
+          <article class="hs-card">
+            <div><b>Create a new contact</b><p>See their details and the conversations you have had in one place.</p></div>
+            <button type="button" onclick="go('contacts','contact')">Create contact</button>
+          </article>
+          <article class="hs-card">
+            <div><b>Create a deal</b><p>Track the naira moving through your pipeline, from first talk to closed won.</p></div>
+            <button type="button" class="ghost" onclick="go('deals','deal')">Create deal</button>
+          </article>
+          <article class="hs-card">
+            <div><b>Work today's tasks</b><p>${dueToday.length} due today. ${tasks.filter((row) => row.status === 'PLANNED' && due(row) && due(row) < today).length} overdue.</p></div>
+            <button type="button" class="ghost" onclick="go('tasks')">Open tasks</button>
+          </article>
+        </div>
+        <aside class="hs-side">
+          <h2>Your day at a glance</h2>
+          <p class="hello">${esc(when)}</p>
+          <div class="hs-metric">${meetings.length}<span>Meetings</span></div>
+          <div class="hs-metric">${dueToday.length}<span>Tasks due today</span></div>
+          <div class="hs-metric">${openDeals.length}<span>Open deals</span></div>
+        </aside>
+      </div>`;
+  };
+})();
