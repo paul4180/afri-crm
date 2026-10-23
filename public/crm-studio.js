@@ -10408,13 +10408,14 @@ window.openSearchHit = function (kind, id) {
   }
   window.drawSettings = async function () {
     const tab = window.__settingsTab || 'account';
-    const tabs = [['account', 'Account'], ['users', 'Users and teams'], ['pipeline', 'Pipeline'], ['scoring', 'Lead scoring'], ['integrations', 'Integrations'], ['notifications', 'Notifications'], ['import', 'Import and export'], ['api', 'API and webhooks']];
+    const tabs = [['account', 'Account'], ['plan', 'Plan & billing'], ['users', 'Users and teams'], ['pipeline', 'Pipeline'], ['scoring', 'Lead scoring'], ['integrations', 'Integrations'], ['notifications', 'Notifications'], ['import', 'Import and export'], ['api', 'API and webhooks']];
     document.getElementById('view').innerHTML = `<div class="set"><div class="set-score" id="setScore">Checking the workspace…</div><div class="set-grid"><nav class="setnav">${tabs.map(([id, label]) => `<button type="button" class="set-tab ${tab === id ? 'on' : ''}" onclick="setTab('${id}')">${label}</button>`).join('')}</nav><div id="settingsContent"><p class="cx-muted">Loading…</p></div></div></div>`;
     const mark = await readiness();
     const box = document.getElementById('setScore');
     if (box) box.innerHTML = `<b>Setup ${mark.score} / 100</b><div class="cx-muted">${esc(mark.gaps[0] || 'The checked pieces are filled in.')}</div><div class="set-bar"><i style="width:${mark.score}%"></i></div>`;
     const el = document.getElementById('settingsContent');
     if (!el) return;
+    if (tab === 'plan' && window.__settingsPlan) return window.__settingsPlan();
     if (tab === 'users' && window.__settingsTeam) return window.__settingsTeam();
     if (tab === 'pipeline') {
       const data = await api('/crm/api/pipeline');
@@ -11089,13 +11090,6 @@ window.findDuplicates = async function () {
 // otherwise the button explains what is missing.
 // ============================================================
 (function () {
-  var planTab = { id: 'plan', label: 'Plan & billing' };
-  var baseTabs = [
-    { id: 'workspace', label: 'Workspace' }, { id: 'team', label: 'Team' },
-    { id: 'pipeline', label: 'Pipeline' }, { id: 'permissions', label: 'Permissions' },
-    { id: 'sessions', label: 'Sessions' }, { id: 'webhooks', label: 'Webhooks' },
-    { id: 'integrations', label: 'Integrations' }, { id: 'preferences', label: 'Preferences' },
-  ];
   function fmtDate(v) {
     if (!v) return '—';
     try { return new Date(v).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) { return String(v).slice(0, 10); }
@@ -11149,15 +11143,9 @@ window.findDuplicates = async function () {
     if (!res || res.error) return toast((res && res.error) || 'Could not start checkout');
     if (res.checkoutUrl) { toast('Opening Paystack…'); window.location.href = res.checkoutUrl; }
   };
-  var prev = window.drawSettings;
-  if (!prev) return;
-  window.drawSettings = function () {
-    const tab = window.__settingsTab || 'workspace';
-    if (tab !== 'plan') return prev();
-    const navHtml = baseTabs.slice(0, 2).concat([planTab], baseTabs.slice(2)).map(function (t) {
-      return '<button class="' + (tab === t.id ? 'on' : '') + '" onclick="window.__settingsTab=\'' + t.id + '\';drawSettings()">' + t.label + '</button>';
-    }).join('');
-    document.getElementById('view').innerHTML = '<div class="board-head"><h1>Settings</h1></div><div class="settings-layout"><nav class="settings-nav">' + navHtml + '</nav><div class="settings-content" id="settingsContent">Loading...</div></div>';
-    window.__settingsPlan();
-  };
+  // NOTE: the tab button and dispatch live in the main drawSettings
+  // (search "['account', 'Account']") which routes 'plan' here. No
+  // drawSettings wrapper in this IIFE — the earlier wrapper version
+  // hijacked the tab and hid it behind its own nav, which is why the
+  // tab never appeared for real users.
 })();

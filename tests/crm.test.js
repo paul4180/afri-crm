@@ -163,5 +163,5 @@ test('settings shows a Plan tab with price-not-set and paystack states', () => {
   expect(studio).toContain('/crm/api/billing/plan');
   expect(studio).toContain('/crm/api/billing/checkout');
   const html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'crm.html'), 'utf8');
-  expect(html).toContain('crm-studio.js?v=114');
+  expect(html).toContain('crm-studio.js?v=115');
 });
