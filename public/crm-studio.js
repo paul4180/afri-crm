@@ -9261,7 +9261,7 @@ window.openSearchHit = function (kind, id) {
     #view .cal-mini button.has { box-shadow: inset 0 -2px 0 #0d9488; }
     #view .cal-src { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid #eef2f6; font-size: 13px; }
     #view .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
-    #view .cal-cell { min-height: 92px; text-align: left; background: #fff; border: 1px solid #e5e8eb; border-radius: 8px; padding: 6px; }
+    #view .cal-cell { min-height: 92px; text-align: left; background: #fff; border: 1px solid #e5e8eb; border-radius: 8px; padding: 6px; cursor: pointer; }
     #view .cal-cell.today { border-color: #0d9488; }
     #view .cal-cell.on { outline: 2px solid #0d9488; }
     #view .ev { display: block; width: 100%; text-align: left; border: 0; border-radius: 999px; padding: 2px 8px; margin-top: 4px; font-size: 11px; cursor: pointer; }
@@ -9382,7 +9382,7 @@ window.openSearchHit = function (kind, id) {
         if (!day) return '<div></div>';
         const key = keyOf(new Date(calCursor.getFullYear(), calCursor.getMonth(), day));
         const list = onDay(key);
-        return `<button type="button" class="cal-cell ${key === today ? 'today' : ''} ${calPick === key ? 'on' : ''}" onclick="pickCalDay('${key}')"><b>${day}</b>${list.slice(0, 3).map(pill).join('')}${list.length > 3 ? `<div class="cx-muted">+${list.length - 3}</div>` : ''}</button>`;
+        return `<div class="cal-cell ${key === today ? 'today' : ''} ${calPick === key ? 'on' : ''}" onclick="pickCalDay('${key}')"><b>${day}</b>${list.slice(0, 3).map(pill).join('')}${list.length > 3 ? `<div class="cx-muted">+${list.length - 3}</div>` : ''}</div>`;
       }).join('')}</div>`;
     } else if (calView === 'agenda') {
       const days = [];
