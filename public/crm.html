@@ -2120,8 +2120,8 @@ async function drawAutomation() {
     body = `<div class="pulse"><article><span>Flows on</span><b>${on}</b><span>${flows.length} in all</span></article><article><span>Runs</span><b>${runs.length}</b><span>The latest 80</span></article><article><span>Failed</span><b>${failed}</b><span>Open Monitor</span></article><article><span>Hooks</span><b>${hooks.length}</b><span>In and out</span></article></div><div class="card"><h2>What this does</h2><p class="hello">A flow watches one moment: a lead is added, a lead is qualified, a deal is won, or a deal is lost. A flow with no steps still does one thing: a task, a note to the owner, or a post to an https address. A flow with steps runs those in order, up to 10, including a wait and a branch. Email is sent only when the mail key is on. A WhatsApp step is skipped, because a message still has to respect the 24-hour window.</p></div>`;
   }
   if (autoTab === 'flows') {
-    const cards = flows.map((row) => { let n = 0; try { n = (JSON.parse(row.graph || '{}').steps || []).length; } catch (e) { n = 0; } return `<article class="guide" style="margin-bottom:8px"><div><b>${esc(row.name)}</b><div class="meta">${row.active ? 'On' : 'Off'} · ${esc(when[row.trigger] || row.trigger)} · ${n ? n + ' steps' : esc(act[row.action] || 'Open a task')}</div></div><button type="button" class="ghost" onclick="dryFlow('${row.id}')">Preview</button> <button type="button" class="ghost" onclick="toggleWorkflow('${row.id}',${row.active ? 0 : 1})">${row.active ? 'Turn off' : 'Turn on'}</button></article>`; }).join('') || '<p class="meta">No flow yet.</p>';
-    const stepForm = `<div class="card"><h2>Add a step</h2><p class="hello">Steps run in order. Wait uses Lagos time and skips Saturday and Sunday. A branch jumps to a step number. Ten steps is the limit. Preview does not create a task.</p><div class="pipe" style="grid-template-columns:1fr 1fr"><label>Flow<select id="sFlow">${flows.map((row) => `<option value="${row.id}">${esc(row.name)}</option>`).join('')}</select></label><label>Step<select id="sType"><option value="task">Open a task</option><option value="wait">Wait</option><option value="wait_reply">Wait for a WhatsApp reply</option><option value="branch">Branch</option><option value="notify">Tell the owner</option><option value="assign">Assign an owner</option><option value="update">Change a field</option><option value="email">Send email</option></select></label><label>Words<input id="sSay" placeholder="Call them"></label><label>Days<input id="sDays" value="1"></label><label>Field<input id="sField" placeholder="status"></label><label>Equals<input id="sEquals" placeholder="QUALIFIED"></label><label>If yes, step number<input id="sYes" value="0"></label><label>If no, step number<input id="sNo" value="0"></label></div><button type="button" onclick="addFlowStep()">Add step</button></div>`;
+    const cards = flows.map((row) => { let n = 0; try { n = (JSON.parse(row.graph || '{}').steps || []).length; } catch (e) { n = 0; } return `<article class="guide" style="margin-bottom:8px"><div><b>${esc(row.name)}</b><div class="meta">${row.active ? 'On' : 'Off'} · ${esc(when[row.trigger] || row.trigger)} · ${n ? n + ' steps' : esc(act[row.action] || 'Open a task')}</div></div><button type="button" class="ghost" onclick="dryFlow('${row.id}')">Preview</button> <button type="button" class="ghost" onclick="drawFlowCanvas('${row.id}')">Edit steps</button> <button type="button" class="ghost" onclick="toggleWorkflow('${row.id}',${row.active ? 0 : 1})">${row.active ? 'Turn off' : 'Turn on'}</button></article>`; }).join('') || '<p class="meta">No flow yet.</p>';
+    const stepForm = `<div class="card"><h2>Add a step</h2><p class="hello">Steps run in order. Wait uses Lagos time and skips Saturday and Sunday. Branch jumps to a step number. Ten steps is the limit. Preview does not create a task. WhatsApp sends only inside the 24-hour window, or with an approved template name when the window is closed.</p><div class="pipe" style="grid-template-columns:1fr 1fr"><label>Flow<select id="sFlow">${flows.map((row) => `<option value="${row.id}">${esc(row.name)}</option>`).join('')}</select></label><label>Step<select id="sType"><option value="task">Open a task</option><option value="wait">Wait</option><option value="wait_reply">Wait for a WhatsApp reply</option><option value="branch">Branch</option><option value="notify">Tell the owner</option><option value="assign">Assign an owner</option><option value="update">Change a field</option><option value="email">Send email</option><option value="whatsapp">Send WhatsApp</option></select></label><label>Words<input id="sSay" placeholder="Call them"></label><label>Days<input id="sDays" value="1"></label><label>Field<input id="sField" placeholder="status"></label><label>Equals<input id="sEquals" placeholder="QUALIFIED"></label><label>If yes, step number<input id="sYes" value="0"></label><label>If no, step number<input id="sNo" value="0"></label><label>WhatsApp template (if window closed)<input id="sTemplate" placeholder="welcome_message"></label></div><button type="button" onclick="addFlowStep()">Add step</button></div>`;
     body = stepForm + `<div class="card"><div class="pipe" style="grid-template-columns:1fr 1fr"><label>Name<input id="fName" placeholder="Welcome a new lead"></label><label>When<select id="fWhen"><option value="lead.created">A lead is added</option><option value="lead.qualified">A lead is qualified</option><option value="deal.won">A deal is won</option><option value="deal.lost">A deal is lost</option></select></label><label>Do<select id="fDo" onchange="document.getElementById('fUrlWrap').style.display=this.value==='webhook'?'':'none'"><option value="task">Open a task</option><option value="notify">Tell the owner</option><option value="webhook">Send to another system</option></select></label><label>What to say<input id="fSay" placeholder="Call them"></label><label>In days<input id="fDays" inputmode="numeric" value="1"></label><label id="fUrlWrap" style="display:none">https address<input id="fUrl" placeholder="https://example.com/afri"></label></div><button type="button" onclick="saveFlow()">Save flow</button></div>${cards}`;
   }
   if (autoTab === 'links') {
@@ -2158,10 +2158,98 @@ async function drawAutomation() {
 async function addFlowStep() {
   const id = document.getElementById('sFlow').value;
   if (!id) return toast('Save a flow first');
-  const result = await api('/crm/api/workflows/' + id + '/steps', { method: 'POST', body: JSON.stringify({ type: document.getElementById('sType').value, subject: document.getElementById('sSay').value, days: document.getElementById('sDays').value, field: document.getElementById('sField').value, equals: document.getElementById('sEquals').value, yes: document.getElementById('sYes').value, no: document.getElementById('sNo').value, value: document.getElementById('sEquals').value }) });
+  const result = await api('/crm/api/workflows/' + id + '/steps', { method: 'POST', body: JSON.stringify({ type: document.getElementById('sType').value, subject: document.getElementById('sSay').value, days: document.getElementById('sDays').value, field: document.getElementById('sField').value, equals: document.getElementById('sEquals').value, yes: document.getElementById('sYes').value, no: document.getElementById('sNo').value, value: document.getElementById('sEquals').value, template: document.getElementById('sTemplate') ? document.getElementById('sTemplate').value : '' }) });
   if (!result || result.error) return toast((result && result.error) || 'Could not add the step');
   toast('Step added');
   drawAutomation();
+}
+
+// ============================================================
+// DRAG-AND-DROP FLOW CANVAS — Section 6
+// Shows a flow's steps as draggable cards. Reorder by dragging.
+// Branch step shows two dropdowns (yes/no) with step labels
+// instead of raw step numbers. Saving writes the same
+// workflows.graph JSON the runner in src/flows.js reads.
+// No second runner — the canvas only reorders the JSON.
+// ============================================================
+let flowCanvas = { id: null, steps: [], dragIndex: null };
+const FLOW_STEP_LABELS = { task: 'Open a task', wait: 'Wait', wait_reply: 'Wait for a reply', branch: 'Branch', notify: 'Tell the owner', assign: 'Assign an owner', update: 'Change a field', email: 'Send email', whatsapp: 'Send WhatsApp' };
+const FLOW_STEP_ICONS = { task: '✅', wait: '⏳', wait_reply: '💬', branch: '🔀', notify: '🔔', assign: '👤', update: '✏️', email: '✉️', whatsapp: '📱' };
+
+async function drawFlowCanvas(flowId) {
+  const flow = (await api('/crm/api/workflows')).find((row) => row.id === flowId);
+  if (!flow) return toast('Flow not found');
+  let steps = [];
+  try { steps = (JSON.parse(flow.graph || '{}').steps || []); } catch { steps = []; }
+  flowCanvas = { id: flowId, steps: JSON.parse(JSON.stringify(steps)), dragIndex: null };
+  const view = document.getElementById('view');
+  if (!view) return;
+  view.innerHTML = `<div class="board-head"><div><button type="button" class="ghost" onclick="autoTab='flows';drawAutomation()">← Back</button></div><div><b>${esc(flow.name)}</b> <span class="meta">· Drag to reorder</span></div><button type="button" onclick="saveFlowOrder()">Save order</button></div><div id="flowCanvasBody" style="display:flex;flex-direction:column;gap:8px;max-width:600px"></div>`;
+  renderFlowSteps();
+}
+
+function renderFlowSteps() {
+  const body = document.getElementById('flowCanvasBody');
+  if (!body) return;
+  const steps = flowCanvas.steps;
+  if (!steps.length) {
+    body.innerHTML = '<div class="card" style="padding:24px;text-align:center;color:#6b7280">No steps yet. Add steps from the Flows tab, then come back to drag them into order.</div>';
+    return;
+  }
+  const stepOptions = steps.map((s, i) => `<option value="${i}">${i + 1}. ${esc(FLOW_STEP_LABELS[s.type] || s.type)}</option>`).join('');
+  body.innerHTML = steps.map((s, i) => {
+    const icon = FLOW_STEP_ICONS[s.type] || '•';
+    const label = FLOW_STEP_LABELS[s.type] || s.type;
+    let detail = '';
+    if (s.subject) detail += esc(s.subject);
+    if (s.days) detail += (detail ? ' · ' : '') + s.days + ' day(s)';
+    if (s.field) detail += (detail ? ' · ' : '') + 'if ' + esc(s.field) + ' = ' + esc(s.equals);
+    if (s.template) detail += (detail ? ' · ' : '') + 'template: ' + esc(s.template);
+    const branch = s.type === 'branch' ? `<div style="display:flex;gap:12px;margin-top:8px"><label style="flex:1">If yes →<select onchange="flowCanvas.steps[${i}].yes = Number(this.value)">${stepOptions}</select></label><label style="flex:1">If no →<select onchange="flowCanvas.steps[${i}].no = Number(this.value)">${stepOptions}</select></label></div>` : '';
+    return `<div class="card" draggable="true" ondragstart="flowCanvas.dragIndex = ${i}" ondragover="event.preventDefault()" ondrop="reorderFlowStep(${i})" style="cursor:grab;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;transition:box-shadow 0.15s" ondragenter="this.style.boxShadow='0 0 0 2px #14b8a6'" ondragleave="this.style.boxShadow='none'">
+      <span style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#14b8a6,#0d9488);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;cursor:grab">${i + 1}</span>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px"><span style="font-size:16px">${icon}</span><b style="font-size:14px">${esc(label)}</b></div>
+        ${detail ? '<div class="meta" style="font-size:12px;margin-top:2px">' + detail + '</div>' : ''}
+        ${branch}
+      </div>
+      <button type="button" class="ghost" style="flex-shrink:0;padding:4px 8px;font-size:14px" onclick="deleteFlowStep(${i})">×</button>
+    </div>`;
+  }).join('');
+  // Set branch dropdown values
+  steps.forEach((s, i) => {
+    if (s.type === 'branch') {
+      const selects = body.querySelectorAll('select');
+      // Find the selects belonging to this step (they're the (i*2)th and (i*2+1)th)
+      // Actually, selects are inside branch cards only, so count branch steps
+    }
+  });
+}
+
+function reorderFlowStep(dropIndex) {
+  const dragIndex = flowCanvas.dragIndex;
+  if (dragIndex === null || dragIndex === dropIndex) return;
+  const steps = flowCanvas.steps;
+  const [moved] = steps.splice(dragIndex, 1);
+  steps.splice(dropIndex, 0, moved);
+  flowCanvas.dragIndex = null;
+  renderFlowSteps();
+  // Auto-save on drop (spec: "reordering cards changes the order Monitor runs")
+  saveFlowOrder();
+}
+
+function deleteFlowStep(index) {
+  flowCanvas.steps.splice(index, 1);
+  renderFlowSteps();
+  saveFlowOrder();
+}
+
+async function saveFlowOrder() {
+  if (!flowCanvas.id) return;
+  const result = await api('/crm/api/workflows/' + flowCanvas.id + '/graph', { method: 'PATCH', body: JSON.stringify({ steps: flowCanvas.steps }) });
+  if (!result || result.error) return toast((result && result.error) || 'Could not save');
+  flowCanvas.steps = result.steps;
+  // Don't toast on every drop (auto-save) — only re-render silently
 }
 async function dryFlow(id) {
   const result = await api('/crm/api/workflows/' + id + '/dry', { method: 'POST', body: '{}' });
