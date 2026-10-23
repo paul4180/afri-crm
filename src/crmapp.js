@@ -4101,7 +4101,7 @@ export function registerCrm(app, prisma) {
     return one('activities', user.tenantId, id);
   });
 
-  const KINDS = new Set(['order', 'segment', 'form', 'article', 'survey', 'document', 'event', 'brand', 'response', 'page', 'post', 'subscription', 'contract', 'paylink', 'portal', 'ad', 'hook']);
+  const KINDS = new Set(['order', 'segment', 'form', 'article', 'survey', 'document', 'event', 'brand', 'response', 'page', 'post', 'subscription', 'contract', 'paylink', 'portal', 'ad', 'hook', 'agent']);
   app.get('/crm/api/objects', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     return db.prepare('SELECT * FROM objects WHERE tenantId = ? ORDER BY createdAt DESC').all(user.tenantId);

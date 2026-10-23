@@ -10037,3 +10037,175 @@ window.openSearchHit = function (kind, id) {
   new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(dress, 40); }).observe(view, { childList: true, subtree: true });
   dress();
 })();
+
+(function () {
+  const css = document.createElement('style');
+  css.textContent = `
+    #view .ah { background: #f4f6f8 !important; color: #0f172a !important; border-radius: 16px; padding: 16px; min-height: 72vh; }
+    #view .ah h1, #view .ah h2, #view .ah b { color: #0f172a !important; }
+    #view .ah h1 { margin: 0; font-size: 24px; }
+    #view .ah .cx-muted { color: #64748b !important; }
+    #view .ah-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+    #view .ah-card { background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-height: 180px; }
+    #view .ah-top { display: flex; gap: 10px; align-items: center; }
+    #view .ah-mark { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 13px; flex: none; }
+    #view .ah-status { font-size: 12px; color: #64748b !important; }
+    #view .ah-status i { display: inline-block; width: 8px; height: 8px; border-radius: 99px; margin-right: 4px; background: #94a3b8; }
+    #view .ah-status.on i { background: #16a34a; }
+    #view .ah button.ah-btn:not(.ghost):not(.x):not(.iconbtn) { background: #fff !important; color: #334155 !important; border: 1px solid #d0d7e2 !important; border-radius: 8px !important; padding: 6px 12px !important; box-shadow: none !important; width: auto !important; }
+    #view .ah button.ah-btn.go:not(.ghost):not(.x):not(.iconbtn) { background: #0f766e !important; color: #fff !important; border-color: #0f766e !important; }
+    #view .ah-metric { font-size: 13px; color: #334155 !important; }
+    #view .ah input, #view .ah select, #view .ah textarea { width: 100%; margin-top: 4px; border: 1px solid #d0d7e2; border-radius: 8px; padding: 8px; background: #fff; color: #0f172a; }
+    #view .ah-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 14px; margin-top: 12px; }
+    .ah-shade { position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 80; display: grid; place-items: center; padding: 16px; }
+    .ah-modal { width: min(800px, 100%); background: #1a2332; color: #fff; border-radius: 16px; padding: 28px; }
+    .ah-modal h2 { margin: 0 0 8px; font-size: 32px; color: #fff !important; }
+    .ah-modal p { color: rgba(255,255,255,.75) !important; }
+    .ah-preview { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 18px 0; }
+    .ah-preview article { background: #111827; border-radius: 12px; padding: 14px; }
+    .ah-modal button.ah-btn { background: transparent !important; color: #fff !important; border: 1px solid rgba(255,255,255,.3) !important; border-radius: 8px !important; }
+    .ah-modal button.ah-btn.go { background: #0f766e !important; border-color: #0f766e !important; }
+    @media (max-width: 900px) { #view .ah-grid, #view .ah-form, .ah-preview { grid-template-columns: 1fr; } }
+  `;
+  document.head.appendChild(css);
+  let hubMode = 'grid';
+  let focusId = '';
+  const flags = () => { try { return JSON.parse(localStorage.getItem('crm-agent-on') || '{}'); } catch (e) { return {}; } };
+  const setFlag = (id, on) => { const all = flags(); all[id] = on ? 1 : 0; localStorage.setItem('crm-agent-on', JSON.stringify(all)); };
+  const on = (id) => Boolean(flags()[id]);
+  const stageHit = (row) => (bag.stages || []).find((item) => item.id === row.stage || item.code === row.stage) || null;
+  const isOpen = (row) => { const stage = stageHit(row); if (stage && (stage.closed || String(stage.code || '').startsWith('CLOSED'))) return false; return !String(row.stage || '').startsWith('CLOSED'); };
+  const latest = (id) => (bag.activities || []).filter((row) => row.relatedId === id).map((row) => row.createdAt || '').sort().pop() || '';
+  const quiet = (id, days) => { const stamp = latest(id); return !stamp || Date.now() - new Date(stamp).getTime() > days * 86400000; };
+  const openDeals = () => (bag.deals || []).filter(isOpen);
+  const churn = () => (bag.contacts || []).filter((row) => quiet(row.id, 30) && openDeals().some((deal) => deal.contactId === row.id));
+  const unanswered = () => {
+    const rows = [];
+    (bag.contacts || []).forEach((row) => {
+      const acts = (bag.activities || []).filter((item) => item.relatedId === row.id).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+      const last = acts[0];
+      if (!last || (last.type !== 'EMAIL' && last.type !== 'WHATSAPP')) return;
+      if (Date.now() - new Date(last.createdAt || 0).getTime() < 2 * 86400000) return;
+      rows.push(row);
+    });
+    return rows;
+  };
+  const prospects = () => {
+    const won = (bag.deals || []).filter((row) => { const stage = stageHit(row); return row.stage === 'CLOSED_WON' || (stage && (stage.code === 'CLOSED_WON' || (stage.closed && /won/i.test(stage.name || '')))); });
+    const counts = {};
+    won.forEach((deal) => { const company = (bag.companies || []).find((row) => row.id === deal.companyId); if (company && company.industry) counts[company.industry] = (counts[company.industry] || 0) + 1; });
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    if (!top) return [];
+    return (bag.leads || []).filter((row) => row.status !== 'CONVERTED' && row.status !== 'DEAD' && String(row.industry || row.companyName || '').toLowerCase().includes(String(top[0]).toLowerCase()) || false);
+  };
+  const weighted = () => openDeals().reduce((sum, row) => {
+    const stage = stageHit(row);
+    const chance = Number(row.probability || (stage && stage.probability) || 0) / 100;
+    return sum + Number(row.amount || 0) * chance;
+  }, 0);
+  const noStep = () => openDeals().filter((row) => !String(row.nextStep || '').trim());
+  function ruleRows(rule) {
+    let rows = [];
+    if (rule.trigger === 'lead.new') rows = (bag.leads || []).filter((row) => row.status === 'NEW' || row.status === 'WORKING');
+    else if (rule.trigger === 'contact.quiet') rows = (bag.contacts || []).filter((row) => quiet(row.id, 30));
+    else if (rule.trigger === 'deal.quiet') rows = openDeals().filter((row) => quiet(row.id, 14));
+    else rows = openDeals();
+    if (rule.condition === 'email') rows = rows.filter((row) => row.email || row.phone || row.mobile);
+    if (rule.condition === 'amount') rows = rows.filter((row) => Number(row.amount || 0) > 0);
+    if (rule.condition === 'quiet14') rows = rows.filter((row) => quiet(row.id, 14));
+    return rows;
+  }
+  window.ahMode = function (mode, id) { hubMode = mode; focusId = id || ''; drawAgent(); };
+  window.ahToggle = function (id) { setFlag(id, !on(id)); drawAgent(); };
+  window.ahDismiss = function () { localStorage.setItem('crm-agent-welcome', '1'); const el = document.getElementById('ahWelcome'); if (el) el.remove(); };
+  window.ahRun = async function (id) {
+    if (id === 'cr') {
+      const result = await api('/crm/api/quiet-check', { method: 'POST', body: '{}' });
+      toast((result && result.opened) ? result.opened + ' check-in tasks opened' : 'Nobody new to check in');
+      setFlag(id, 1); refresh(); return;
+    }
+    if (id === 'ls') {
+      const rows = await api('/crm/api/lead-scores');
+      const list = Array.isArray(rows) ? rows : (rows && (rows.rows || rows.scores)) || [];
+      toast(list.length ? list.length + ' leads scored' : 'No lead to score');
+      setFlag(id, 1); return;
+    }
+    if (id === 'fu') {
+      let made = 0;
+      for (const row of unanswered().slice(0, 20)) {
+        const subject = 'Follow up: ' + person(row);
+        if ((bag.activities || []).some((item) => item.relatedId === row.id && item.status === 'PLANNED' && String(item.subject || '').startsWith('Follow up:'))) continue;
+        const result = await api('/crm/api/activities', { method: 'POST', body: JSON.stringify({ type: 'TASK', subject, status: 'PLANNED', dueAt: new Date().toISOString().slice(0, 10), relatedType: 'contact', relatedId: row.id }) });
+        if (result && !result.error) made += 1;
+      }
+      toast(made ? made + ' follow-up tasks opened' : 'No unanswered email or WhatsApp older than 2 days');
+      setFlag(id, 1); refresh(); return;
+    }
+    setFlag(id, 1);
+    focusId = id;
+    drawAgent();
+  };
+  window.ahTest = function () {
+    const rule = { trigger: document.getElementById('agWhen').value, condition: document.getElementById('agIf').value };
+    const rows = ruleRows(rule);
+    document.getElementById('agTest').textContent = rows.length + ' records match. Nothing was written.';
+  };
+  window.ahSave = async function () {
+    const name = document.getElementById('agName').value.trim();
+    if (!name) return toast('Name the agent');
+    const meta = { trigger: document.getElementById('agWhen').value, condition: document.getElementById('agIf').value, action: document.getElementById('agDo').value };
+    const result = await api('/crm/api/objects', { method: 'POST', body: JSON.stringify({ kind: 'agent', name, status: 'PUBLISHED', body: meta.action, meta }) });
+    if (!result || result.error) return toast((result && result.error) || 'Could not save');
+    toast('Agent published');
+    hubMode = 'grid';
+    refresh();
+  };
+  window.ahCustom = async function (id) {
+    const row = (bag.objects || []).find((item) => item.id === id);
+    if (!row) return;
+    let meta = {};
+    try { meta = JSON.parse(row.meta || '{}'); } catch (e) { meta = {}; }
+    const rows = ruleRows(meta).slice(0, 20);
+    if (meta.action !== 'task') { toast(rows.length + ' match. This agent only reports, it does not write.'); return; }
+    let made = 0;
+    for (const item of rows) {
+      const kind = item.amount != null && item.stage ? 'deal' : item.companyName != null && item.status ? 'lead' : 'contact';
+      const subject = row.name + ': ' + (item.name || person(item));
+      const result = await api('/crm/api/activities', { method: 'POST', body: JSON.stringify({ type: 'TASK', subject, status: 'PLANNED', dueAt: new Date().toISOString().slice(0, 10), relatedType: kind, relatedId: item.id }) });
+      if (result && !result.error) made += 1;
+    }
+    toast(made + ' tasks opened');
+    refresh();
+  };
+  drawAgent = function () {
+    const agents = [
+      ['cr', 'CR', '#db2777', 'Churn Risk', 'Contacts on an open deal with no activity for 30 days.', churn().length + ' quiet'],
+      ['ls', 'LS', '#d97706', 'Lead Scorer', 'Scores leads from fit, intent, and how similar leads turned out.', ((bag.leads || []).length) + ' leads'],
+      ['fu', 'FU', '#0f766e', 'Follow-up', 'A task when the last touch was an email or WhatsApp more than 2 days ago.', unanswered().length + ' waiting'],
+      ['pr', 'PR', '#2563eb', 'Prospect Finder', 'Leads in the industry of companies you have already won.', prospects().length + ' matches'],
+      ['sa', 'SA', '#7c3aed', 'Sales Assistant', 'Drafts only when you ask. It does not send.', noStep().length + ' deals with no next step'],
+      ['ro', 'RO', '#15803d', 'Revenue Oracle', 'Open amount times the chance already on the deal or the stage.', money(weighted()) + ' weighted'],
+    ];
+    const cards = agents.map(([id, mark, color, name, about, metric]) => `<article class="ah-card"><div class="ah-top"><span class="ah-mark" style="background:${color}">${mark}</span><div><b>${name}</b><div class="ah-status ${on(id) ? 'on' : ''}"><i></i>${on(id) ? 'Published' : 'Draft'}</div></div></div><p class="cx-muted">${about}</p><div class="ah-metric">${esc(metric)}</div><div><button type="button" class="ah-btn ${on(id) ? '' : 'go'}" onclick="${on(id) ? `ahMode('view','${id}')` : `ahRun('${id}')`}">${on(id) ? 'View' : 'Activate'}</button></div></article>`).join('');
+    const custom = (bag.objects || []).filter((row) => row.kind === 'agent').map((row) => `<article class="ah-card"><div class="ah-top"><span class="ah-mark" style="background:#334155">AG</span><div><b>${esc(row.name)}</b><div class="ah-status on"><i></i>${esc(row.status || 'PUBLISHED')}</div></div></div><p class="cx-muted">Your rule. Test counted records. Run writes a task only if you chose that.</p><div><button type="button" class="ah-btn" onclick="ahCustom('${row.id}')">Run</button></div></article>`).join('');
+    let extra = '';
+    if (hubMode === 'build') {
+      extra = `<div class="ah-form"><label>Name<input id="agName" placeholder="Quiet deals"></label><label>When<select id="agWhen"><option value="deal.quiet">A deal has been quiet 14 days</option><option value="contact.quiet">A contact has been quiet 30 days</option><option value="lead.new">A lead is still new</option><option value="deal.open">A deal is open</option></select></label><label>And<select id="agIf"><option value="any">No extra condition</option><option value="email">They can be reached</option><option value="amount">The deal has an amount</option><option value="quiet14">No activity for 14 days</option></select></label><label>Do<select id="agDo"><option value="task">Open a task</option><option value="count">Only count them</option></select></label><div style="grid-column:1/-1"><button type="button" class="ah-btn" onclick="ahTest()">Test</button> <button type="button" class="ah-btn go" onclick="ahSave()">Publish</button> <span id="agTest" class="cx-muted"></span></div></div>`;
+    } else if (hubMode === 'view') {
+      const lists = { cr: churn(), fu: unanswered(), pr: prospects(), sa: noStep(), ro: openDeals(), ls: bag.leads || [] };
+      const rows = (lists[focusId] || []).slice(0, 8).map((row) => `<div class="ah-metric">${esc(row.name || person(row) || 'Record')}</div>`).join('') || '<p class="cx-muted">None right now.</p>';
+      extra = `<div class="ah-card" style="margin-top:12px"><b>What this agent sees</b>${rows}<p class="cx-muted">These are records already in the workspace.</p></div>`;
+      if (focusId === 'sa') extra += `<div class="ah-card" style="margin-top:12px"><b>Ask</b><textarea id="ask" style="height:70px" placeholder="Draft a follow-up for the first open deal. Do not invent a price."></textarea><p><button type="button" class="ah-btn go" onclick="askAgent()">Ask</button></p><p id="answer" class="cx-muted"></p></div>`;
+    }
+    document.getElementById('view').innerHTML = `<div class="ah"><div class="cal-toolbar"><h1>Agent Hub</h1><button type="button" class="ah-btn go" onclick="ahMode('build')">New agent</button></div><p class="cx-muted">A number is a count of your records. Activate writes a task only for churn risk and follow-up. The others show what they found.</p><div class="ah-grid">${cards}${custom}</div>${extra}</div>`;
+    if (!localStorage.getItem('crm-agent-welcome') && !document.getElementById('ahWelcome')) {
+      const shade = document.createElement('div');
+      shade.id = 'ahWelcome';
+      shade.className = 'ah-shade';
+      shade.innerHTML = `<div class="ah-modal"><h2>Welcome to Agent Hub</h2><p>Build, activate, and monitor agents that read this workspace. They do not invent a customer or a percentage.</p><div class="ah-preview"><article><b>CR · Churn Risk</b><div>${churn().length} contacts on an open deal have been quiet for 30 days.</div></article><article><b>Weighted pipeline</b><div>${money(weighted())}</div><div>Open amount times the chance on the deal. Not a target, and not a change from last month.</div></article></div><button type="button" class="ah-btn go" onclick="ahDismiss();ahMode('build')">Build agent</button> <button type="button" class="ah-btn" onclick="ahDismiss()">Dismiss</button></div>`;
+      document.body.appendChild(shade);
+    }
+  };
+  const prev = draw;
+  draw = function () { if (page === 'agents') page = 'agent'; return prev(); };
+})();
