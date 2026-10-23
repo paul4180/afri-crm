@@ -10992,3 +10992,75 @@ window.quietHours = async function () {
   if (!res || res.error) return toast((res && res.error) || 'Could not save');
   toast(quietStart === '' ? 'Quiet hours off' : 'Quiet from ' + quietStart + ':00 to ' + quietEnd + ':00, Lagos time. Due tasks still notify.');
 };
+
+window.drawWhatsApp = async function () {
+  const view = document.getElementById('view');
+  const line = await api('/crm/api/whatsapp/line');
+  const threads = await api('/crm/api/threads');
+  const replies = await api('/crm/api/replies');
+  const list = Array.isArray(threads) ? threads : [];
+  const saved = Array.isArray(replies) ? replies : [];
+  const openId = window.__waThread || (list[0] && list[0].id) || '';
+  window.__waThread = openId;
+  let detail = null;
+  if (openId) detail = await api('/crm/api/threads/' + openId);
+  const rows = list.map((row) => `<button type="button" class="cx-tool" style="display:block;width:100%;text-align:left;margin-bottom:6px" onclick="openThread('${row.id}')"><b>${esc(row.name || row.phone || 'Unknown')}</b><div class="cx-muted">${row.windowOpen ? 'Window open' : 'Window closed'} · ${esc((row.last && row.last.body) || '')}</div></button>`).join('') || '<div class="cx-muted">No WhatsApp thread yet. An inbound message to the connected number creates one.</div>';
+  const messages = detail && Array.isArray(detail.messages) ? detail.messages.map((row) => `<div class="cr-prop"><b>${row.direction === 'in' ? 'Them' : row.direction === 'note' ? 'Note' : 'You'}</b><span>${esc(row.body || '')}</span></div><div class="cx-muted">${esc(row.status || '')} · ${esc(String(row.createdAt || '').slice(0, 16).replace('T', ' '))}</div>`).join('') : '<div class="cx-muted">Open a thread.</div>';
+  const people = (bag.people || []).map((row) => `<option value="${row.id}">${esc(row.fullName || row.email)}</option>`).join('');
+  const replyBox = saved.map((row) => `<button type="button" class="cx-tool" onclick="useReply(${JSON.stringify(row.body)})">${esc(row.name)}</button>`).join(' ');
+  const warn = detail && detail.collision ? '<p class="cx-muted">Someone else opened this thread in the last two minutes.</p>' : '';
+  const status = line && line.connected ? 'Connected' + (line.displayNumber ? ' · ' + line.displayNumber : '') : 'Not connected';
+  view.innerHTML = `<div class="cx"><div class="cx-head"><div><h1>WhatsApp</h1><div class="cx-muted">${esc(status)}. ${esc((line && line.note) || '')}</div></div><button type="button" class="cx-tool" onclick="document.getElementById('waSetup').hidden=!document.getElementById('waSetup').hidden">Connection</button></div>
+    <div id="waSetup" hidden class="cx-panel"><label>Phone number id<input id="waPhoneId" value="${esc((line && line.phoneNumberId) || '')}"></label> <label>Display number<input id="waDisplay" value="${esc((line && line.displayNumber) || '')}"></label> <label>Token<input id="waToken" type="password" placeholder="${line && line.hasToken ? 'Saved. Leave blank to keep it' : 'Paste the token'}"></label> <label>Verify token<input id="waVerify" placeholder="${line && line.verifySet ? 'Saved' : 'Same token you give Meta'}"></label> <button type="button" class="cx-go" onclick="saveWaLine()">Save line</button></div>
+    <div class="cr" style="grid-template-columns:280px 1fr">
+      <aside class="cr-side">${rows}</aside>
+      <section class="cr-main">${warn}${messages}
+        <label>Reply<textarea id="waBody" style="height:70px"></textarea></label>
+        <div>${replyBox}</div>
+        <button type="button" class="cx-go" onclick="sendWa()">Send</button>
+        <button type="button" class="cx-tool" onclick="noteWa()">Internal note</button>
+        <label>Assign<select id="waOwner"><option value="">Choose</option>${people}</select></label><button type="button" class="cx-tool" onclick="assignWa()">Assign</button>
+        <div class="cx-panel"><label>Quote amount (NGN)<input id="waAmount"></label> <label>What it is for<input id="waWhat" placeholder="Installation"></label> <button type="button" class="cx-tool" onclick="quoteWa()">Create quote</button><div class="cx-muted">${line && line.paystack ? 'Paystack is connected. A link is sent only while the 24-hour window is open.' : 'Paystack is not connected. A quote can still be created, without a pay link.'}</div></div>
+        <div class="cx-panel"><label>Saved reply name<input id="replyName"></label> <label>Text<input id="replyBody"></label> <button type="button" class="cx-tool" onclick="saveReply()">Save reply</button></div>
+      </section>
+    </div></div>`;
+};
+window.openThread = function (id) { window.__waThread = id; drawWhatsApp(); };
+window.saveWaLine = async function () {
+  const res = await api('/crm/api/whatsapp/line', { method: 'POST', body: JSON.stringify({ phoneNumberId: document.getElementById('waPhoneId').value, displayNumber: document.getElementById('waDisplay').value, token: document.getElementById('waToken').value, verifyToken: document.getElementById('waVerify').value }) });
+  if (!res || res.error) return toast((res && res.error) || 'Could not save');
+  toast('WhatsApp line saved');
+  drawWhatsApp();
+};
+window.sendWa = async function () {
+  if (!window.__waThread) return toast('Open a thread');
+  const res = await api('/crm/api/threads/' + window.__waThread + '/send', { method: 'POST', body: JSON.stringify({ body: document.getElementById('waBody').value }) });
+  if (!res || res.error) return toast((res && res.error) || 'Not sent');
+  toast('Sent');
+  drawWhatsApp();
+};
+window.noteWa = async function () {
+  if (!window.__waThread) return;
+  const res = await api('/crm/api/threads/' + window.__waThread + '/note', { method: 'POST', body: JSON.stringify({ body: document.getElementById('waBody').value }) });
+  if (!res || res.error) return toast((res && res.error) || 'Could not save the note');
+  drawWhatsApp();
+};
+window.assignWa = async function () {
+  if (!window.__waThread) return;
+  const res = await api('/crm/api/threads/' + window.__waThread + '/assign', { method: 'POST', body: JSON.stringify({ ownerId: document.getElementById('waOwner').value }) });
+  if (!res || res.error) return toast((res && res.error) || 'Could not assign');
+  toast('Assigned');
+};
+window.quoteWa = async function () {
+  if (!window.__waThread) return;
+  const res = await api('/crm/api/threads/' + window.__waThread + '/quote', { method: 'POST', body: JSON.stringify({ amount: document.getElementById('waAmount').value, description: document.getElementById('waWhat').value }) });
+  if (!res || res.error) return toast((res && res.error) || 'Could not create the quote');
+  toast(res.payUrl ? 'Quote created and the pay link is on the thread' : (res.error || 'Quote created'));
+  drawWhatsApp();
+};
+window.saveReply = async function () {
+  const res = await api('/crm/api/replies', { method: 'POST', body: JSON.stringify({ name: document.getElementById('replyName').value, body: document.getElementById('replyBody').value }) });
+  if (!res || res.error) return toast((res && res.error) || 'Could not save the reply');
+  drawWhatsApp();
+};
+window.useReply = function (body) { const box = document.getElementById('waBody'); if (box) box.value = body; };

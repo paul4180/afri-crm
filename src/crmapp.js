@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { registerWhatsApp } from './whatsapp.js';
 import { fileURLToPath } from 'url';
 import { DatabaseSync } from 'node:sqlite';
 import { sendMail } from './collect.js';
@@ -5458,5 +5459,5 @@ function agentBrain(tenantId) {
     return { ok: true };
   });
 
-
+  registerWhatsApp(app, { db, guard, canWrite, one, insert, patch, writeAudit, notifyUser });
 }

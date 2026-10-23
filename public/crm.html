@@ -722,6 +722,7 @@ function paintNav() {
       ${navItem('tasks', 'Tasks', task)}
       <div class="navlabel">Sales</div>
       ${navItem('inbox', 'Inbox', svg('<path d="M4 6h16v12H4z"/><path d="M4 6l8 7 8-7"/>'))}
+      ${navItem('whatsapp', 'WhatsApp', svg('<path d="M5 19l1.5-4A7 7 0 1 1 12 19H5z"/>'))}
       ${navItem('feed', 'Activity', feed)}
       ${navItem('calendar', 'Calendar', cal)}
       ${navItem('forecast', 'Forecast', chart)}
@@ -1097,6 +1098,7 @@ function draw() {
     tasks: drawTasks, player: drawPlayer, dial: drawDial, revenue: drawRevenue, service: drawService, marketing: drawMarketing, dashboard: drawDash, agent: drawAgent,
     tools: drawTools, quotes: drawQuotes, leads: drawLeads, products: drawProducts,
     inbox: drawInbox,
+    whatsapp: () => window.drawWhatsApp && window.drawWhatsApp(),
     orders: drawOrders, forms: () => drawKind('form', 'Forms'), events: () => drawKind('event', 'Events'),
     articles: () => drawKind('article', 'Knowledge'), surveys: () => drawKind('survey', 'Surveys'),
     pages: () => drawSite('page', 'Pages', false), landing: () => drawSite('page', 'Landing pages', true), blog: () => drawSite('post', 'Blog', false),
@@ -3100,7 +3102,7 @@ document.getElementById('email').value = localStorage.getItem('crmEmail') || '';
   if (token) boot();
 })();
 </script>
-<script src="/crm-studio.js?v=110"></script>
+<script src="/crm-studio.js?v=111"></script>
 </body>
 </html>
 

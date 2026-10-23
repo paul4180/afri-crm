@@ -52,3 +52,12 @@
 - Save a file name stores a document on the deal.
 - Export downloads the contacts, companies, deals, leads, and tasks as JSON.
 - Quiet hours, in Lagos time, hold notifications except a task that is due.
+
+## Phase 4, WhatsApp inbox
+
+- A business can save its own WhatsApp phone number id, token, and verify token.
+- Meta's webhook creates or updates a contact from the phone number, opens a thread, and assigns it to the person with the fewest open threads.
+- STOP sets WhatsApp permission to no. A later message sets it back to yes.
+- A reply is sent only inside 24 hours of their last message, and only if the line is connected. Otherwise it stays on the thread as not sent.
+- The thread can be assigned, noted, and given a saved reply. Two people opening it within two minutes are told.
+- Create quote makes a quote. A Paystack link is added only when Paystack is connected and the contact has an email, and it is sent only while the window is open.

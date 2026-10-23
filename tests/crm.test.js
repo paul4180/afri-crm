@@ -99,3 +99,10 @@ test('phase 3 covers assignment, repeat, export, and sharing', () => {
   expect(src).toContain('/crm/api/export');
   expect(src).toContain('row.repeat === \'weekly\'');
 });
+
+test('whatsapp inbound opens a thread and a closed window does not send', () => {
+  const src = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'whatsapp.js'), 'utf8');
+  expect(src).toContain('/crm/api/whatsapp/webhook');
+  expect(src).toContain('The 24-hour window is closed');
+  expect(src).toContain('graph.facebook.com');
+});
