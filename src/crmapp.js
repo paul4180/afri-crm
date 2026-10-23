@@ -305,6 +305,8 @@ for (const [table, col, type] of [
   ['activities', 'priority', "TEXT DEFAULT 'NORMAL'"],
   ['activities', 'externalId', 'TEXT'],
   ['activities', 'minutes', 'INTEGER DEFAULT 30'],
+  ['sequences', 'steps', 'TEXT'],
+  ['sequences', 'status', "TEXT DEFAULT 'ACTIVE'"],
   ['companies', 'updatedAt', 'TEXT'], ['contacts', 'updatedAt', 'TEXT'],
   ['leads', 'updatedAt', 'TEXT'], ['deals', 'updatedAt', 'TEXT'], ['activities', 'updatedAt', 'TEXT'],
   ['leads', 'deadReason', 'TEXT'],
@@ -863,16 +865,43 @@ function ensureSequences(tenantId) {
   for (const [name, stage, task, days] of DEFAULT_SEQUENCES) put.run(crypto.randomUUID(), tenantId, name, stage, task, days);
 }
 
+function sequenceSteps(seq) {
+  try {
+    const parsed = JSON.parse(seq.steps || '[]');
+    if (Array.isArray(parsed) && parsed.length) return parsed.slice(0, 12);
+  } catch { /* keep the single task */ }
+  return [{ type: 'wait', days: Number(seq.days || 1) }, { type: 'todo', subject: seq.taskSubject }];
+}
+function stageSame(tenantId, left, right) {
+  if (!left || !right) return false;
+  if (left === right) return true;
+  const stages = stagesFor(tenantId);
+  const a = stages.find((row) => row.id === left || row.code === left);
+  const b = stages.find((row) => row.id === right || row.code === right);
+  return Boolean(a && b && a.id === b.id);
+}
+function firstStep(seq) {
+  const steps = sequenceSteps(seq);
+  let wait = 0;
+  for (const step of steps) {
+    if (step.type === 'wait') wait += Math.min(30, Math.max(0, Number(step.days || 0)));
+    else if (step.type !== 'branch') return { wait, step };
+  }
+  return { wait: Number(seq.days || 1), step: { type: 'todo', subject: seq.taskSubject } };
+}
 function applySequences(tenantId, deal) {
   ensureSequences(tenantId);
-  const rows = db.prepare('SELECT * FROM sequences WHERE tenantId = ? AND stage = ? AND active = 1').all(tenantId, deal.stage);
+  const rows = db.prepare('SELECT * FROM sequences WHERE tenantId = ? AND active = 1').all(tenantId).filter((seq) => stageSame(tenantId, seq.stage, deal.stage));
   for (const seq of rows) {
     const ran = db.prepare('SELECT id FROM sequence_runs WHERE tenantId = ? AND sequenceId = ? AND dealId = ?').get(tenantId, seq.id, deal.id);
     if (ran) continue;
-    const due = new Date(Date.now() + Number(seq.days || 1) * 86400000).toISOString().slice(0, 10);
-    insert('activities', tenantId, { type: 'TASK', subject: seq.taskSubject + ': ' + deal.name, dueAt: due, status: 'PLANNED', relatedType: 'deal', relatedId: deal.id, notes: 'Opened by the sequence "' + seq.name + '".' });
+    const first = firstStep(seq);
+    const kind = { email: 'EMAIL', call: 'CALL', whatsapp: 'WHATSAPP', todo: 'TASK' }[first.step.type] || 'TASK';
+    const subject = String(first.step.subject || seq.taskSubject || seq.name).slice(0, 160);
+    const due = new Date(Date.now() + first.wait * 86400000).toISOString().slice(0, 10);
+    insert('activities', tenantId, { type: kind, subject: subject + ': ' + deal.name, dueAt: due, status: 'PLANNED', relatedType: 'deal', relatedId: deal.id, notes: 'Opened by the sequence "' + seq.name + '".' });
     db.prepare('INSERT INTO sequence_runs (id, tenantId, sequenceId, dealId) VALUES (?,?,?,?)').run(crypto.randomUUID(), tenantId, seq.id, deal.id);
-    if (deal.ownerId) notifyUser(tenantId, deal.ownerId, { kind: 'task', title: seq.taskSubject, body: deal.name, recordType: 'deal', recordId: deal.id });
+    if (deal.ownerId) notifyUser(tenantId, deal.ownerId, { kind: 'task', title: subject, body: deal.name, recordType: 'deal', recordId: deal.id });
   }
 }
 
@@ -896,6 +925,7 @@ async function applyWorkflow(tenantId, trigger, record) {
   ensureWorkflows(tenantId);
   const rows = db.prepare('SELECT * FROM workflows WHERE tenantId = ? AND trigger = ? AND active = 1').all(tenantId, trigger);
   for (const rule of rows) {
+    if (rule.trigger === 'deal.moved' && rule.target && !stageSame(tenantId, rule.target, record.stage)) continue;
     const ran = db.prepare('SELECT status FROM workflow_runs WHERE tenantId = ? AND workflowId = ? AND recordId = ? ORDER BY ranAt DESC').get(tenantId, rule.id, record.id);
     if (ran && ran.status !== 'FAILED') continue;
     const due = new Date(Date.now() + Number(rule.days || 1) * 86400000).toISOString().slice(0, 10);
@@ -1647,6 +1677,7 @@ export function registerCrm(app, prisma) {
         applySequences(user.tenantId, row);
         if (row.stage === 'CLOSED_WON') applyWorkflow(user.tenantId, 'deal.won', row);
         if (row.stage === 'CLOSED_LOST') applyWorkflow(user.tenantId, 'deal.lost', row);
+        applyWorkflow(user.tenantId, 'deal.moved', row);
       }
       if (before && name === 'leads' && row.status === 'QUALIFIED' && before.status !== 'QUALIFIED') applyWorkflow(user.tenantId, 'lead.qualified', row);
       if (data.ownerId && data.ownerId !== before.ownerId && data.ownerId !== user.sub) {
@@ -3584,12 +3615,13 @@ export function registerCrm(app, prisma) {
   app.post('/crm/api/workflows', async (req, reply) => {
     const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
     const name = String(req.body?.name || '').trim().slice(0, 80);
-    const trigger = ['lead.created', 'lead.qualified', 'deal.won', 'deal.lost'].includes(req.body?.trigger) ? req.body.trigger : '';
+    const trigger = ['lead.created', 'lead.qualified', 'deal.won', 'deal.lost', 'deal.moved'].includes(req.body?.trigger) ? req.body.trigger : '';
     const action = ['task', 'notify', 'webhook'].includes(req.body?.action) ? req.body.action : 'task';
     const taskSubject = String(req.body?.taskSubject || '').trim().slice(0, 160);
     const target = String(req.body?.target || '').trim().slice(0, 300);
     if (!name || !trigger) return reply.code(400).send({ error: 'Name the flow and when it runs' });
     if (action !== 'webhook' && !taskSubject) return reply.code(400).send({ error: 'Say what the task or the note says' });
+    if (trigger === 'deal.moved' && !target) return reply.code(400).send({ error: 'Pick the stage this flow watches' });
     if (action === 'webhook' && !/^https:\/\//.test(target)) return reply.code(400).send({ error: 'The other system needs an https address' });
     const id = crypto.randomUUID();
     db.prepare('INSERT INTO workflows (id, tenantId, name, trigger, taskSubject, days, active, action, target) VALUES (?,?,?,?,?,?,?,?,?)')
@@ -3625,7 +3657,11 @@ export function registerCrm(app, prisma) {
   app.get('/crm/api/sequences', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     ensureSequences(user.tenantId);
-    return db.prepare('SELECT * FROM sequences WHERE tenantId = ? ORDER BY name').all(user.tenantId);
+    const rows = db.prepare('SELECT * FROM sequences WHERE tenantId = ? ORDER BY name').all(user.tenantId);
+    return rows.map((row) => {
+      const plan = sequencePlan(user, row);
+      return { ...row, status: row.status || (row.active ? 'ACTIVE' : 'PAUSED'), enrolled: plan.enrolled, followRate: plan.followRate, waiting: plan.suggested.length };
+    });
   });
   app.post('/crm/api/sequences', async (req, reply) => {
     const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
@@ -3643,8 +3679,82 @@ export function registerCrm(app, prisma) {
     const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
     const row = db.prepare('SELECT * FROM sequences WHERE tenantId = ? AND id = ?').get(user.tenantId, req.params.id);
     if (!row) return reply.code(404).send({ error: 'Not found' });
-    db.prepare('UPDATE sequences SET active = ? WHERE id = ?').run(req.body?.active ? 1 : 0, row.id);
+    const status = ['ACTIVE', 'PAUSED', 'DRAFT'].includes(req.body?.status) ? req.body.status : (req.body?.active ? 'ACTIVE' : req.body?.active === 0 || req.body?.active === false ? 'PAUSED' : (row.status || 'ACTIVE'));
+    const name = req.body?.name != null ? String(req.body.name).trim().slice(0, 80) : row.name;
+    const steps = Array.isArray(req.body?.steps) ? JSON.stringify(req.body.steps.slice(0, 12)).slice(0, 8000) : row.steps;
+    const taskSubject = req.body?.taskSubject != null ? String(req.body.taskSubject).trim().slice(0, 160) : row.taskSubject;
+    const days = req.body?.days != null ? Math.min(30, Math.max(0, Number(req.body.days || 0))) : row.days;
+    db.prepare('UPDATE sequences SET active = ?, status = ?, name = ?, steps = ?, taskSubject = ?, days = ? WHERE id = ?')
+      .run(status === 'ACTIVE' ? 1 : 0, status, name || row.name, steps || null, taskSubject || row.taskSubject, days, row.id);
     return db.prepare('SELECT * FROM sequences WHERE id = ?').get(row.id);
+  });
+  function sequencePlan(user, seq) {
+    const deals = visibleRows(list('deals', user.tenantId), user, 'deals');
+    const contacts = list('contacts', user.tenantId);
+    const activities = list('activities', user.tenantId);
+    const runs = db.prepare('SELECT dealId FROM sequence_runs WHERE tenantId = ? AND sequenceId = ?').all(user.tenantId, seq.id);
+    const ran = new Set(runs.map((row) => row.dealId));
+    const inStage = deals.filter((row) => stageSame(user.tenantId, row.stage, seq.stage) && !String(row.stage || '').startsWith('CLOSED'));
+    const enrolled = deals.filter((row) => ran.has(row.id)).map((row) => ({ id: row.id, name: row.name, contactId: row.contactId }));
+    const followed = enrolled.filter((row) => activities.some((item) => item.relatedId === row.id && ['CALL', 'EMAIL', 'WHATSAPP'].includes(item.type) && !String(item.notes || '').includes('Opened by the sequence'))).length;
+    const suggested = [];
+    for (const deal of inStage) {
+      if (ran.has(deal.id) || !deal.contactId) continue;
+      const contact = contacts.find((row) => row.id === deal.contactId);
+      if (!contact) continue;
+      const latest = activities.filter((item) => item.relatedId === deal.id || item.relatedId === contact.id).map((item) => item.createdAt || '').sort().pop();
+      const quiet = !latest || Date.now() - new Date(latest).getTime() > 14 * 86400000;
+      let score = 0;
+      const why = [];
+      if (contact.email || contact.phone || contact.mobile) { score += 20; why.push('Can be reached'); }
+      if (quiet) { score += 40; why.push('Quiet for 14 days'); }
+      if (Number(deal.amount || 0) > 0) { score += Math.min(30, Math.round(Math.log10(Number(deal.amount)) * 8)); why.push('Has an amount'); }
+      if (score >= 40) suggested.push({ dealId: deal.id, contactId: contact.id, name: ((contact.firstName || '') + ' ' + (contact.lastName || '')).trim(), deal: deal.name, score, why });
+    }
+    suggested.sort((a, b) => b.score - a.score);
+    return { enrolled: enrolled.length, followed, followRate: enrolled.length ? Math.round(followed / enrolled.length * 100) : null, suggested: suggested.slice(0, 12) };
+  }
+  app.get('/crm/api/sequences/:id/plan', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    const seq = db.prepare('SELECT * FROM sequences WHERE tenantId = ? AND id = ?').get(user.tenantId, req.params.id);
+    if (!seq) return reply.code(404).send({ error: 'Not found' });
+    return { ...sequencePlan(user, seq), steps: sequenceSteps(seq) };
+  });
+  app.post('/crm/api/sequences/:id/enroll', async (req, reply) => {
+    const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+    const seq = db.prepare('SELECT * FROM sequences WHERE tenantId = ? AND id = ?').get(user.tenantId, req.params.id);
+    if (!seq) return reply.code(404).send({ error: 'Not found' });
+    if ((seq.status || 'ACTIVE') === 'DRAFT' || !seq.active) return reply.code(400).send({ error: 'Turn the sequence on before enrolling' });
+    const want = new Set(Array.isArray(req.body?.dealIds) ? req.body.dealIds : []);
+    const plan = sequencePlan(user, seq);
+    const picks = plan.suggested.filter((row) => !want.size || want.has(row.dealId)).slice(0, 25);
+    let enrolled = 0;
+    for (const pick of picks) {
+      const deal = one('deals', user.tenantId, pick.dealId);
+      if (!deal) continue;
+      applySequences(user.tenantId, { ...deal, stage: seq.stage });
+      enrolled += 1;
+    }
+    return { enrolled, looked: plan.suggested.length };
+  });
+  app.post('/crm/api/quiet-check', async (req, reply) => {
+    const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+    const contacts = visibleRows(list('contacts', user.tenantId), user, 'contacts');
+    const activities = list('activities', user.tenantId);
+    const today = new Date().toISOString().slice(0, 10);
+    let opened = 0;
+    for (const contact of contacts) {
+      if (opened >= 20) break;
+      const latest = activities.filter((item) => item.relatedId === contact.id).map((item) => item.createdAt || '').sort().pop();
+      if (latest && Date.now() - new Date(latest).getTime() < 30 * 86400000) continue;
+      const open = activities.some((item) => item.relatedId === contact.id && item.status === 'PLANNED' && /quiet for 30 days/i.test(item.subject || ''));
+      if (open) continue;
+      const name = ((contact.firstName || '') + ' ' + (contact.lastName || '')).trim() || 'Contact';
+      insert('activities', user.tenantId, { type: 'TASK', subject: 'Check in, quiet for 30 days: ' + name, dueAt: today, status: 'PLANNED', relatedType: 'contact', relatedId: contact.id, ownerId: contact.ownerId || user.sub, notes: 'Opened because this contact has no activity in 30 days.' });
+      if (contact.ownerId) notifyUser(user.tenantId, contact.ownerId, { kind: 'task', title: 'Quiet for 30 days', body: name, recordType: 'contact', recordId: contact.id });
+      opened += 1;
+    }
+    return { opened };
   });
 
   app.get('/crm/api/analytics', async (req, reply) => {

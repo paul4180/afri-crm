@@ -9666,3 +9666,129 @@ window.openSearchHit = function (kind, id) {
   drawSalesAnalytics = function () { rptTab = 'sales'; drawReports(); };
   if (page === 'reports' || page === 'analytics') drawReports();
 })();
+
+(function () {
+  const css = document.createElement('style');
+  css.textContent = `
+    #view .seq { background: #f4f6f8 !important; color: #0f172a !important; border-radius: 16px; padding: 16px; min-height: 72vh; }
+    #view .seq h1, #view .seq h2, #view .seq b { color: #0f172a !important; }
+    #view .seq h1 { margin: 0; font-size: 22px; }
+    #view .seq .cx-muted { color: #64748b !important; }
+    #view .seq button.seq-btn:not(.ghost):not(.x):not(.iconbtn) { background: #fff !important; color: #334155 !important; border: 1px solid #d0d7e2 !important; border-radius: 8px !important; padding: 6px 12px !important; box-shadow: none !important; width: auto !important; }
+    #view .seq button.seq-btn.on:not(.ghost):not(.x):not(.iconbtn), #view .seq button.seq-btn.go:not(.ghost):not(.x):not(.iconbtn) { background: #0f766e !important; color: #fff !important; border-color: #0f766e !important; }
+    #view .seq-tabs { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+    #view .seq table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; }
+    #view .seq td, #view .seq th { text-align: left; padding: 10px 12px; border-bottom: 1px solid #eef2f6; color: #0f172a; font-size: 13px; }
+    #view .seq tr.seq-row { cursor: pointer; }
+    #view .seq-flow { display: flex; flex-direction: column; align-items: center; gap: 0; }
+    #view .seq-step { width: min(420px, 100%); background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 12px; }
+    #view .seq-step.on { border-color: #0f766e; }
+    #view .seq-arrow { width: 2px; height: 18px; background: #cbd5e1; }
+    #view .seq-side { background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 12px; }
+    #view .seq-build { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; align-items: start; }
+    #view .seq input, #view .seq select { width: 100%; margin-top: 4px; border: 1px solid #d0d7e2; border-radius: 8px; padding: 8px; background: #fff; color: #0f172a; }
+    @media (max-width: 900px) { #view .seq-build { grid-template-columns: 1fr; } }
+  `;
+  document.head.appendChild(css);
+  let seqTab = 'all';
+  let seqMode = 'sequences';
+  let seqOpen = '';
+  let seqSteps = [];
+  let seqPick = 0;
+  const kinds = { email: 'Send email', wait: 'Wait', call: 'Call', whatsapp: 'WhatsApp', todo: 'To-do', branch: 'If they reply' };
+  function stageName(code) {
+    const hit = (bag.stages || []).find((row) => row.code === code || row.id === code);
+    return hit ? hit.name : (code || 'Any stage');
+  }
+  window.setSeq = function (key, value) { if (key === 'tab') seqTab = value; if (key === 'mode') { seqMode = value; seqOpen = ''; } drawSequences(); };
+  window.closeSeq = function () { seqOpen = ''; drawSequences(); };
+  window.openSeq = async function (id) {
+    seqOpen = id;
+    const plan = await api('/crm/api/sequences/' + id + '/plan');
+    seqSteps = (plan && plan.steps) || [];
+    seqPick = 0;
+    drawSequences();
+  };
+  window.pickStep = function (index) { seqPick = index; drawSequences(); };
+  window.addSeqStep = function (type) {
+    const step = { type };
+    if (type === 'wait') step.days = 2;
+    else if (type === 'branch') { step.yes = 'Stop, they replied'; step.no = 'Send a reminder'; }
+    else step.subject = kinds[type] || 'Step';
+    seqSteps.push(step);
+    seqPick = seqSteps.length - 1;
+    drawSequences();
+  };
+  window.dropStep = function (index) { seqSteps.splice(index, 1); seqPick = 0; drawSequences(); };
+  window.saveSeqSteps = async function () {
+    const name = (document.getElementById('seqName') || {}).value || '';
+    const step = seqSteps[seqPick];
+    if (step && step.type === 'wait') step.days = Number((document.getElementById('stepDays') || {}).value || step.days || 0);
+    else if (step && step.type === 'branch') { step.yes = (document.getElementById('stepYes') || {}).value || step.yes; step.no = (document.getElementById('stepNo') || {}).value || step.no; }
+    else if (step) step.subject = (document.getElementById('stepWhat') || {}).value || step.subject;
+    const first = seqSteps.find((row) => row.type !== 'wait' && row.type !== 'branch');
+    const wait = seqSteps.filter((row) => row.type === 'wait').reduce((sum, row) => sum + Number(row.days || 0), 0);
+    const result = await api('/crm/api/sequences/' + seqOpen, { method: 'PATCH', body: JSON.stringify({ name, steps: seqSteps, taskSubject: (first && first.subject) || 'Follow up', days: wait }) });
+    if (!result || result.error) return toast((result && result.error) || 'Could not save');
+    toast('Sequence saved');
+    drawSequences();
+  };
+  window.enrollSeq = async function (id) {
+    const result = await api('/crm/api/sequences/' + id + '/enroll', { method: 'POST', body: '{}' });
+    if (!result || result.error) return toast((result && result.error) || 'Could not enroll');
+    toast(result.enrolled ? result.enrolled + ' enrolled' : 'Nobody matched. A match is quiet for 14 days, or reachable with an amount.');
+    drawSequences();
+  };
+  window.quietCheck = async function () {
+    const result = await api('/crm/api/quiet-check', { method: 'POST', body: '{}' });
+    if (!result || result.error) return toast((result && result.error) || 'Could not open the tasks');
+    toast(result.opened ? result.opened + ' check-in tasks opened' : 'Nobody has been quiet for 30 days without a task already');
+  };
+  window.saveMovedFlow = async function () {
+    const stage = (document.getElementById('movedStage') || {}).value;
+    const say = (document.getElementById('movedSay') || {}).value.trim();
+    if (!stage || !say) return toast('Pick a stage and say the task');
+    const result = await api('/crm/api/workflows', { method: 'POST', body: JSON.stringify({ name: 'Stage: ' + stageName(stage), trigger: 'deal.moved', action: 'task', taskSubject: say, days: 0, target: stage }) });
+    if (!result || result.error) return toast((result && result.error) || 'Could not save');
+    toast('Flow saved');
+    drawSequences();
+  };
+  drawSequences = async function () {
+    const box = document.getElementById('view');
+    box.innerHTML = '<div class="seq"><h1>Sequences</h1><p class="cx-muted">Loading…</p></div>';
+    const rows = await api('/crm/api/sequences');
+    const flows = await api('/crm/api/workflows');
+    const list = Array.isArray(rows) ? rows : [];
+    const all = list.filter((row) => seqTab === 'all' || String(row.status || '').toLowerCase() === seqTab);
+    const tabs = [['all', 'All'], ['active', 'Active'], ['paused', 'Paused'], ['draft', 'Draft']].map(([id, label]) => `<button type="button" class="seq-btn ${seqTab === id ? 'on' : ''}" onclick="setSeq('tab','${id}')">${label}</button>`).join('');
+    const modes = `<button type="button" class="seq-btn ${seqMode === 'sequences' ? 'on' : ''}" onclick="setSeq('mode','sequences')">Sequences</button> <button type="button" class="seq-btn ${seqMode === 'automation' ? 'on' : ''}" onclick="setSeq('mode','automation')">Automation</button>`;
+    if (seqMode === 'automation') {
+      const when = { 'lead.created': 'When a lead arrives', 'lead.qualified': 'When a lead is qualified', 'deal.won': 'When a deal is won', 'deal.lost': 'When a deal is lost', 'deal.moved': 'When a deal enters a stage' };
+      const cards = (Array.isArray(flows) ? flows : []).map((row) => `<div class="seq-step" style="margin-bottom:8px"><b>${esc(row.name)}</b><div class="cx-muted">${esc(when[row.trigger] || row.trigger)} → ${esc(row.action || 'task')}${row.target ? ' · ' + esc(stageName(row.target)) : ''}</div><div class="cx-muted">${esc(row.taskSubject || '')}</div></div>`).join('') || '<p class="cx-muted">No flow yet.</p>';
+      const stages = stageList().map(([id, label]) => `<option value="${id}">${esc(label)}</option>`).join('');
+      box.innerHTML = `<div class="seq"><div class="cal-toolbar"><h1>Automation</h1><div>${modes}</div></div>
+        <p class="cx-muted">A flow runs once per record. Email opens are not tracked. A WhatsApp message from outside does not arrive here yet.</p>
+        <div class="seq-build"><div>${cards}</div><aside class="seq-side"><h2>When a deal enters a stage</h2><label>Stage<select id="movedStage">${stages}</select></label><label>Task<input id="movedSay" placeholder="Call them"></label><p><button type="button" class="seq-btn go" onclick="saveMovedFlow()">Save this flow</button></p><h2>Quiet for 30 days</h2><p class="cx-muted">Opens a check-in task for up to 20 contacts with no activity in 30 days, and skips anyone who already has that task.</p><button type="button" class="seq-btn" onclick="quietCheck()">Open those tasks</button></aside></div></div>`;
+      return;
+    }
+    if (seqOpen) {
+      const row = list.find((item) => item.id === seqOpen) || { name: 'Sequence', id: seqOpen };
+      const step = seqSteps[seqPick] || null;
+      const flow = seqSteps.map((item, index) => `<div class="seq-step ${index === seqPick ? 'on' : ''}" onclick="pickStep(${index})"><b>${esc(kinds[item.type] || item.type)}</b><div class="cx-muted">${esc(item.subject || item.yes || (item.days != null ? item.days + ' days' : ''))}</div><button type="button" class="seq-btn" onclick="event.stopPropagation();dropStep(${index})">Remove</button></div>${index < seqSteps.length - 1 ? '<div class="seq-arrow"></div>' : ''}`).join('');
+      const settings = !step ? '<p class="cx-muted">Add a step.</p>' : step.type === 'wait' ? `<label>Days<input id="stepDays" type="number" value="${Number(step.days || 0)}"></label>` : step.type === 'branch' ? `<label>If they reply<input id="stepYes" value="${esc(step.yes || '')}"></label><label>If they do not<input id="stepNo" value="${esc(step.no || '')}"></label><p class="cx-muted">A reply here means a call, email, or WhatsApp was logged on the deal after enrollment. Afri does not see an email open.</p>` : `<label>What<input id="stepWhat" value="${esc(step.subject || '')}"></label>`;
+      const add = ['email', 'wait', 'call', 'whatsapp', 'todo', 'branch'].map((type) => `<button type="button" class="seq-btn" onclick="addSeqStep('${type}')">${kinds[type]}</button>`).join(' ');
+      box.innerHTML = `<div class="seq"><div class="cal-toolbar"><h1><input id="seqName" value="${esc(row.name)}"></h1><div><button type="button" class="seq-btn" onclick="closeSeq()">Back</button> <button type="button" class="seq-btn go" onclick="saveSeqSteps()">Save</button> <button type="button" class="seq-btn" onclick="enrollSeq('${row.id}')">Enroll matches</button></div></div>
+        <p class="cx-muted">${row.enrolled || 0} already enrolled · ${row.waiting || 0} match the rule · follow-up ${row.followRate == null ? '—' : row.followRate + '%'} · email open rate is not tracked</p>
+        <div class="seq-build"><div class="seq-flow">${flow || '<p class="cx-muted">No steps yet.</p>'}<div style="margin-top:12px">${add}</div></div><aside class="seq-side"><h2>This step</h2>${settings}</aside></div></div>`;
+      return;
+    }
+    const stages = stageList().map(([id, label]) => `<option value="${id}">${esc(label)}</option>`).join('');
+    const table = all.map((row) => `<tr class="seq-row" onclick="openSeq('${row.id}')"><td>${esc(row.name)}</td><td>${row.enrolled || 0}</td><td>—</td><td>${row.followRate == null ? '—' : row.followRate + '%'}</td><td>${esc(row.status || '')}</td><td>Workspace</td></tr>`).join('') || '<tr><td colspan="6">No sequence in this tab.</td></tr>';
+    box.innerHTML = `<div class="seq"><div class="cal-toolbar"><h1>Sequences</h1><div>${modes}</div></div>
+      <p class="cx-muted">Enrollment prefers a contact on a deal in this stage who has been quiet for 14 days, or who can be reached and has an amount. Open rate stays blank because Afri does not track email opens.</p>
+      <div class="seq-tabs">${tabs}</div>
+      <table><tr><th>Sequence</th><th>Enrolled</th><th>Open rate</th><th>Follow-up</th><th>Status</th><th>Owner</th></tr>${table}</table>
+      <div class="seq-side" style="margin-top:12px"><h2>New sequence</h2><label>Name<input id="sName"></label><label>Stage<select id="sStage">${stages}</select></label><label>First task<input id="sTask"></label><label>Wait days<input id="sDays" value="1"></label><p><button type="button" class="seq-btn go" onclick="saveSequence()">Add sequence</button></p></div></div>`;
+  };
+  if (page === 'sequences') drawSequences();
+})();
