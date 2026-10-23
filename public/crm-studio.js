@@ -8876,3 +8876,166 @@ window.openSearchHit = function (kind, id) {
       </div></div>`;
   };
 })();
+
+(function () {
+  const css = document.createElement('style');
+  css.textContent = `
+    #view .cx.ld .ld-split { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+    #view .cx.ld .ld-split.solo { grid-template-columns: 1fr; }
+    #view .cx.ld .ld-panel { background: #fff; border: 1px solid #e5e8eb; border-radius: 12px; padding: 16px; position: sticky; top: 12px; }
+    #view .cx.ld .ld-num { font-family: "Space Grotesk", Inter, sans-serif; font-size: 42px; font-weight: 700; margin: 0; }
+    #view .cx.ld .ld-pill { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; }
+    #view .cx.ld .ld-pill.hot { background: #fee2e2; color: #b91c1c; }
+    #view .cx.ld .ld-pill.warm { background: #fef3c7; color: #b45309; }
+    #view .cx.ld .ld-pill.qual { background: #dbeafe; color: #1d4ed8; }
+    #view .cx.ld .ld-pill.cold { background: #f1f5f9; color: #64748b; }
+    @media (max-width: 960px) { #view .cx.ld .ld-split { grid-template-columns: 1fr; } }
+  `;
+  document.head.appendChild(css);
+
+  const SOURCES = ['Website Form', 'WhatsApp', 'Email Campaign', 'Referral', 'Cold Call', 'LinkedIn', 'Event'];
+  let ldQuery = '';
+  let ldOwner = '';
+  let ldStatus = '';
+  let ldSource = '';
+  let ldSaved = 'open';
+  let ldPick = '';
+  let ldPanel = false;
+  let ldMenu = '';
+  let ldScore = null;
+
+  function sourceMark(value) {
+    const s = String(value || '').toLowerCase();
+    if (/web|form|site/.test(s)) return 'Web';
+    if (/whatsapp|wa\b/.test(s)) return 'WhatsApp';
+    if (/mail|campaign/.test(s)) return 'Email';
+    if (/refer|partner/.test(s)) return 'Referral';
+    if (/cold|call/.test(s)) return 'Call';
+    if (/linkedin/.test(s)) return 'LinkedIn';
+    if (/event|fair|expo/.test(s)) return 'Event';
+    return '';
+  }
+  function leadPoints(row) {
+    const activities = (bag.activities || []).filter((item) => item.relatedId === row.id || (row.contactId && item.relatedId === row.contactId));
+    let score = 50;
+    const touches = activities.length;
+    if (touches >= 5) score += 15;
+    else if (touches >= 3) score += 10;
+    else if (touches >= 1) score += 6;
+    if (activities.filter((item) => String(item.status).startsWith('DONE') || String(item.status).startsWith('COMPLETED')).length >= 2) score += 8;
+    if (activities.some((item) => item.status === 'PLANNED')) score += 4;
+    if (row.email) score += 8;
+    if (row.phone || row.mobile) score += 6;
+    if (row.companyName) score += 4;
+    const last = activities.map((item) => new Date(item.createdAt || 0).getTime()).sort((a, b) => b - a)[0];
+    if (last) {
+      const days = Math.floor((Date.now() - last) / 86400000);
+      if (days <= 3) score += 8;
+      else if (days <= 7) score += 4;
+      else if (days > 90) score -= 18;
+      else if (days > 30) score -= 8;
+    }
+    if (row.rating === 'HOT') score += 15;
+    else if (row.rating === 'WARM') score += 7;
+    else if (row.rating === 'COLD') score -= 8;
+    const src = String(row.source || '').toLowerCase();
+    if (/refer|partner|existing|repeat|word-of-mouth/.test(src)) score += 12;
+    else if (/whatsapp|wa\b/.test(src)) score += (row.phone || row.mobile) ? 8 : -4;
+    else if (/web|form|site/.test(src)) score += row.email ? 8 : -4;
+    else if (/cold|ads|purchased|bought/.test(src)) score -= 5;
+    const deal = (bag.deals || []).find((item) => item.leadId === row.id);
+    if (deal) {
+      if (Number(deal.amount || 0) >= 1000000) score += 10;
+      else if (Number(deal.amount || 0) >= 100000) score += 6;
+      if (/proposal|negotiation/i.test(deal.stage || '')) score += 8;
+    }
+    const age = Math.floor((Date.now() - new Date(row.createdAt || Date.now()).getTime()) / 86400000);
+    if (!touches && age > 14) score -= 12;
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
+  function pill(score) {
+    const band = score >= 90 ? ['hot', 'HOT'] : score >= 70 ? ['warm', 'WARM'] : score >= 50 ? ['qual', 'QUALIFIED'] : ['cold', 'COLD'];
+    return `<span class="ld-pill ${band[0]}">${score} ${band[1]}</span>`;
+  }
+  function leadHay(row) {
+    return [person(row), row.email, row.phone, row.mobile, row.companyName, row.source, row.city].join(' ');
+  }
+
+  window.setLd = function (key, value) {
+    if (key === 'saved') ldSaved = value;
+    if (key === 'menu') ldMenu = ldMenu === value ? '' : value;
+    if (key === 'pick') { ldPick = value; ldPanel = true; ldScore = null; }
+    if (key === 'panel') ldPanel = !ldPanel;
+    if (key === 'query') {
+      ldQuery = value;
+      const box = document.querySelector('#view .cx-search');
+      window.__ldCaret = box ? box.selectionStart : String(value).length;
+    }
+    drawLeadTable();
+    if (key === 'query') {
+      const box = document.querySelector('#view .cx-search');
+      if (box) { box.focus(); const n = Math.min(window.__ldCaret || 0, box.value.length); box.setSelectionRange(n, n); }
+    }
+  };
+  window.saveLeadField = async function (id, key, value) {
+    const result = await api('/crm/api/leads/' + id, { method: 'PATCH', body: JSON.stringify({ [key]: value }) });
+    if (!result || result.error) return toast((result && result.error) || 'Could not save');
+    ldScore = null;
+    refresh();
+  };
+  window.markLeadDead = async function (id) {
+    const deadReason = window.prompt('Why is this lead dead?');
+    if (!deadReason) return;
+    const result = await api('/crm/api/leads/' + id, { method: 'PATCH', body: JSON.stringify({ status: 'DEAD', deadReason }) });
+    if (!result || result.error) return toast((result && result.error) || 'Could not update it');
+    toast('Marked dead');
+    refresh();
+  };
+
+  window.drawLeadTable = async function () {
+    const showForm = openForm === 'lead';
+    if (showForm) openForm = '';
+    const mine = me.sub || me.id;
+    const q = ldQuery.trim();
+    const headerQ = (document.getElementById('q') || {}).value || '';
+    let rows = (bag.leads || []).filter((row) => smartMatch(headerQ, leadHay(row)) && smartMatch(q, leadHay(row)));
+    if (ldSaved === 'mine') rows = rows.filter((row) => row.ownerId === mine);
+    if (ldSaved === 'hot') rows = rows.filter((row) => leadPoints(row) >= 70);
+    if (ldSaved === 'open') rows = rows.filter((row) => row.status !== 'CONVERTED' && row.status !== 'DEAD');
+    if (ldOwner) rows = rows.filter((row) => row.ownerId === ldOwner);
+    if (ldStatus) rows = rows.filter((row) => (row.status || 'NEW') === ldStatus);
+    if (ldSource) rows = rows.filter((row) => sourceMark(row.source) === ldSource || row.source === ldSource);
+    rows.sort((a, b) => q ? leadPoints(b) - leadPoints(a) : String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    const owners = (bag.people || []).map((row) => `<option value="${row.id}" ${ldOwner === row.id ? 'selected' : ''}>${esc(row.fullName || row.email)}</option>`).join('');
+    const lines = rows.map((row) => {
+      const score = leadPoints(row);
+      const mark = sourceMark(row.source);
+      const done = row.status === 'CONVERTED' || row.status === 'DEAD';
+      return `<tr class="cx-row"><td><div class="cx-who" style="cursor:pointer" onclick="openRecord('lead','${row.id}')"><span class="cx-av" style="background:${avatarGradient(person(row))}">${esc(initials(person(row)))}</span><span><b class="cx-name">${esc(person(row))}</b><div class="cx-mail">${esc(row.companyName || row.status || '')}</div></span></div></td><td>${esc(row.email || '—')}</td><td>${esc(row.phone || row.mobile || '—')}</td><td>${mark ? `<span class="ld-pill cold">${esc(mark)}</span> ` : ''}${esc(row.source || '—')}</td><td><button type="button" class="cx-tool" onclick="setLd('pick','${row.id}')">${pill(score)}</button></td><td>${esc(ownerName(row.ownerId) || 'Unassigned')}</td><td>${esc(relativeTime(row.createdAt) || String(row.createdAt || '').slice(0, 10))}</td><td>${done ? esc(row.status) : `<button type="button" class="cx-go" onclick="convert('${row.id}')">Convert</button>`}</td><td class="cx-menu"><button type="button" class="cx-tool" onclick="setLd('menu','${row.id}')">⋮</button>${ldMenu === row.id ? `<div class="cx-pop"><button type="button" class="cx-tool" onclick="openRecord('lead','${row.id}')">Open</button><button type="button" class="cx-tool" onclick="setLd('pick','${row.id}')">Score</button>${done ? '' : `<button type="button" class="cx-tool" onclick="markLeadDead('${row.id}')">Mark dead</button>`}</div>` : ''}</td></tr>`;
+    }).join('');
+    const picked = (bag.leads || []).find((row) => row.id === ldPick);
+    let panel = '';
+    if (ldPanel && picked) {
+      if (!ldScore) {
+        ldScore = { loading: true };
+        api('/crm/api/leads/' + picked.id + '/score').then((data) => { ldScore = data || { error: 'No score' }; if (page === 'leads') drawLeadTable(); });
+      }
+      const official = ldScore && !ldScore.loading && !ldScore.error ? ldScore : null;
+      const shown = official ? official.score : leadPoints(picked);
+      const reasons = official ? (official.reasons || []).map((line) => `<li>${esc(line)}</li>`).join('') : '<li>Loading the score from the record…</li>';
+      const concerns = official ? (official.concerns || []).map((line) => `<li>${esc(line)}</li>`).join('') : '';
+      const sourceOptions = SOURCES.map((name) => `<option ${picked.source === name ? 'selected' : ''}>${name}</option>`).join('');
+      const custom = picked.source && !SOURCES.includes(picked.source) ? `<option selected>${esc(picked.source)}</option>` : '';
+      panel = `<aside class="ld-panel"><div class="cx-head"><h2 style="margin:0;font-size:16px">Score</h2><button type="button" class="cx-tool" onclick="setLd('panel')">Close</button></div><p class="ld-num">${shown}</p>${pill(shown)}<p class="cx-muted">${esc(person(picked))}${picked.companyName ? ' · ' + esc(picked.companyName) : ''}</p>${official ? `<p>${esc(official.nextAction || '')}</p><p class="cx-muted">Confidence ${official.confidence || 0}</p>` : ''}<h3 style="font-size:13px">Why</h3><ul>${reasons || '<li>No positive signal yet.</li>'}</ul>${concerns ? `<h3 style="font-size:13px">Concerns</h3><ul>${concerns}</ul>` : ''}<p class="cx-muted">A WhatsApp lead is scored on whether it has a phone. A website lead is scored on whether it has an email. A referral is scored higher than a cold call.</p><label>Rating<select onchange="saveLeadField('${picked.id}','rating',this.value)"><option ${picked.rating==='HOT'?'selected':''}>HOT</option><option ${picked.rating==='WARM'?'selected':''}>WARM</option><option ${picked.rating==='COLD'?'selected':''}>COLD</option></select></label><label>Source<select onchange="saveLeadField('${picked.id}','source',this.value)">${custom}${sourceOptions}</select></label></aside>`;
+    }
+    const views = [['open', 'Open leads'], ['all', 'All leads'], ['mine', 'My leads'], ['hot', 'Hot']];
+    const form = `<div class="drawer dealbox" id="leadForm" ${showForm ? '' : 'hidden'} onclick="if(event.target.id==='leadForm')this.hidden=true"><aside><div class="sheethead"><h2>Create lead</h2><button type="button" class="ghost" onclick="document.getElementById('leadForm').hidden=true">Close</button></div><div class="dealform"><label>First name<input id="lFirst"></label><label>Last name<input id="lLast"></label><label>Company<input id="lCompany"></label><label>Phone<input id="lPhone"></label><label>Email<input id="lEmail"></label><label>Source<select id="lSource">${SOURCES.map((name) => `<option>${name}</option>`).join('')}</select></label><label>Rating<select id="lRating"><option>WARM</option><option>HOT</option><option>COLD</option></select></label><label>Owner<select id="lOwner"><option value="">Me</option>${ownerOptions()}</select></label></div><div class="dealactions"><button type="button" onclick="saveLead()">Save lead</button></div></aside></div>`;
+    document.getElementById('view').innerHTML = `<div class="cx ld">
+      <div class="cx-head"><div><h1>Leads</h1><div class="cx-muted">Unqualified prospects. Convert turns one into a contact, a deal, and a follow-up.</div></div><div><button type="button" class="cx-tool" onclick="setLd('panel')">Scoring</button> <button type="button" class="cx-go" onclick="document.getElementById('leadForm').hidden=false">+ Create lead</button></div></div>
+      <div class="cx-bar"><div class="cx-left"><input class="cx-search" placeholder="Search leads..." value="${esc(q)}" oninput="setLd('query', this.value)"><select onchange="ldOwner=this.value;drawLeadTable()"><option value="">Owner</option>${owners}</select><select onchange="ldStatus=this.value;drawLeadTable()"><option value="">Status</option>${['NEW','WORKING','QUALIFIED','CONVERTED','DEAD'].map((name) => `<option ${ldStatus===name?'selected':''}>${name}</option>`).join('')}</select><select onchange="ldSource=this.value;drawLeadTable()"><option value="">Source</option>${SOURCES.map((name) => `<option ${ldSource===name?'selected':''}>${name}</option>`).join('')}</select></div></div>
+      <div class="cx-views">${views.map(([id, label]) => `<button type="button" class="cx-tab ${ldSaved===id?'on':''}" onclick="setLd('saved','${id}')">${label}</button>`).join('')}</div>
+      <div class="ld-split ${panel ? '' : 'solo'}"><div><table class="cx-table"><tr><th>Lead</th><th>Email</th><th>Phone</th><th>Source</th><th>Score</th><th>Owner</th><th>Created</th><th></th><th></th></tr>${lines || '<tr><td colspan="9"><div class="cx-muted" style="padding:16px">No lead in this view.</div></td></tr>'}</table><div class="cx-muted" style="margin-top:8px">${rows.length} lead${rows.length===1?'':'s'}</div></div>${panel}</div>${form}</div>`;
+  };
+
+  drawLeads = function () { drawLeadTable(); };
+})();

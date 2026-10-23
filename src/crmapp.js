@@ -1030,6 +1030,12 @@ function scoreLeadV2(lead, activities, deals) {
   const src = String(lead.source || '').toLowerCase();
   if (/refer|partner|existing|repeat|word-of-mouth/.test(src)) {
     score += 12; reasons.push(`Quality source: ${lead.source}`); confidence += 8;
+  } else if (/whatsapp|wa\b/.test(src)) {
+    if (lead.phone || lead.mobile) { score += 8; reasons.push('WhatsApp lead with a phone'); }
+    else { score -= 4; concerns.push('WhatsApp lead with no phone'); }
+  } else if (/web|form|site/.test(src)) {
+    if (lead.email) { score += 8; reasons.push('Website lead with an email'); }
+    else { score -= 4; concerns.push('Website lead with no email'); }
   } else if (/cold|ads|purchased|bought/.test(src)) {
     score -= 5; concerns.push(`Cold source: ${lead.source}`);
   }
