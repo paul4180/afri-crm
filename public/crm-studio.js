@@ -3015,8 +3015,8 @@
     e.preventDefault();
     e.currentTarget.classList.remove('drop-target');
     const dealId = e.dataTransfer.getData('text/plain');
-    if (dealId && stageId && typeof window.move === 'function') {
-      await window.move(dealId, stageId);
+    if (dealId && stageId && typeof window.dropDeal === 'function') {
+      await window.dropDeal(dealId, stageId);
     }
   };
 
@@ -8679,8 +8679,8 @@ window.openSearchHit = function (kind, id) {
   };
   window.dropDeal = async function (id, stage) {
     const chance = (dealStages().find((row) => row[0] === stage) || [,,,0])[3];
-    const body = { stage, probability: stage === 'CLOSED_LOST' ? 0 : chance };
-    if (stage === 'CLOSED_LOST') {
+    const body = { stage, probability: String(stage).startsWith('CLOSED_LOST') ? 0 : chance };
+    if (String(stage).startsWith('CLOSED_LOST')) {
       const why = window.prompt('Why was it lost?');
       if (!why) return;
       body.lostReason = why;
@@ -8699,9 +8699,12 @@ window.openSearchHit = function (kind, id) {
   window.quoteThisDeal = async function () {
     const rec = window.__dealRec;
     if (!rec) return;
+    const stored = await api('/crm/api/deals/' + rec.id + '/lines');
+    const ready = Array.isArray(stored) ? stored : [];
     const amount = Number(rec.amount || 0);
-    if (!amount) return toast('Put an amount on the deal before a quote');
-    const result = await api('/crm/api/quotes', { method: 'POST', body: JSON.stringify({ companyId: rec.companyId || '', contactId: rec.contactId || '', dealId: rec.id, lines: [{ description: rec.name, quantity: 1, unitPrice: amount }] }) });
+    if (!ready.length && !amount) return toast('Put an amount on the deal, or add a product line, before a quote');
+    const lines = ready.length ? ready.map((row) => ({ description: row.description, quantity: row.quantity, unitPrice: row.unitPrice, productId: row.productId || '' })) : [{ description: rec.name, quantity: 1, unitPrice: amount }];
+    const result = await api('/crm/api/quotes', { method: 'POST', body: JSON.stringify({ companyId: rec.companyId || '', contactId: rec.contactId || '', dealId: rec.id, lines }) });
     if (!result || result.error) return toast((result && result.error) || 'Could not create the quote');
     toast('Quote ' + (result.number || '') + ' created');
     const sheet = document.getElementById('dlQuote');
@@ -8823,6 +8826,9 @@ window.openSearchHit = function (kind, id) {
     const shown = bits.filter((row) => dlFilter === 'all' || row.kind === dlFilter);
     const filters = ['all','note','call','email','meeting','task'].map((id) => `<button type="button" class="cx-tool ${dlFilter===id?'on':''}" onclick="setDlFilter('${id}')">${id === 'all' ? 'All activity' : id[0].toUpperCase()+id.slice(1)}</button>`).join('');
     const entries = shown.map((row) => `<article class="cr-entry ${row.kind}"><b>${esc(row.title || row.kind)}</b><div class="cx-muted">${esc(row.detail || '')}</div><div class="cx-muted">${esc(relativeTime(row.at) || '')}</div></article>`).join('') || '<div class="cx-muted">Nothing on this deal yet.</div>';
+    const lineRows = await api('/crm/api/deals/' + rec.id + '/lines');
+    const lines = Array.isArray(lineRows) ? lineRows : [];
+    const lineTable = `<table class="cx-table"><tr><th>Line</th><th>Qty</th><th>Price</th><th>Total</th><th></th></tr>${lines.map((row) => `<tr><td>${esc(row.description)}</td><td>${row.quantity}</td><td>${money(row.unitPrice)}</td><td>${money(row.lineTotal)}</td><td><button type="button" class="cx-tool" onclick="removeDealLine('${row.id}')">Remove</button></td></tr>`).join('') || '<tr><td colspan="5"><div class="cx-muted" style="padding:10px">No product on this deal yet. The amount stays as you typed it until you add a line.</div></td></tr>'}</table><div class="cx-panel"><label>Product<select id="lineProduct"><option value="">Type a name</option>${(bag.products || []).map((row) => `<option value="${row.id}" data-price="${row.price || 0}">${esc(row.name)} · ${money(row.price)}</option>`).join('')}</select></label> <label>Name<input id="lineName" placeholder="Installation"></label> <label>Qty<input id="lineQty" value="1" style="width:70px"></label> <label>Price<input id="linePrice" placeholder="0"></label> <button type="button" class="cx-go" onclick="addDealLine()">Add line</button></div>`;
     const quotes = (bag.quotes || []).filter((row) => row.dealId === rec.id);
     const quoteList = quotes.map((row) => `<div class="cr-prop"><b>${esc(row.number || 'Quote')}</b><span>${esc(row.status || '')} · ${money(row.total)}</span></div>`).join('') || '<div class="cx-muted">No quote on this deal.</div>';
     const files = (bag.objects || []).filter((row) => row.kind === 'document' && (row.dealId === rec.id));
@@ -8837,6 +8843,8 @@ window.openSearchHit = function (kind, id) {
           <label>Company<select data-key="companyId"><option value="">None</option>${(bag.companies||[]).map((row)=>`<option value="${row.id}" ${row.id===rec.companyId?'selected':''}>${esc(row.name)}</option>`).join('')}</select></label>
         </aside>
         <section class="cr-main">
+          <h2 style="font-size:14px;margin:0 0 8px">Products</h2>
+          ${lineTable}
           <div class="cr-feed">${filters}<button type="button" class="cx-go" onclick="document.getElementById('dlAdd').hidden=!document.getElementById('dlAdd').hidden">+ Add activity</button></div>
           <div id="dlAdd" hidden class="cx-panel"><button type="button" class="cx-tool" onclick="logOnDeal('note')">Add note</button> <button type="button" class="cx-tool" onclick="logOnDeal('call')">Log call</button> <button type="button" class="cx-tool" onclick="logOnDeal('email')">Log email</button> <button type="button" class="cx-tool" onclick="logOnDeal('meeting')">Log meeting</button></div>
           ${entries}
@@ -10908,6 +10916,25 @@ window.mergeIntoThis = async function (otherId) {
   const res = await api('/crm/api/contacts/' + focus.id + '/merge', { method: 'POST', body: JSON.stringify({ otherId }) });
   if (!res || res.error) return toast((res && res.error) || 'Could not merge');
   toast(res.merged ? res.merged + ' was merged into this person' : 'Merged');
+  if (typeof refresh === 'function') await refresh();
+  drawRecord();
+};
+
+window.addDealLine = async function () {
+  if (!focus || focus.type !== 'deal') return;
+  const product = document.getElementById('lineProduct');
+  const res = await api('/crm/api/deals/' + focus.id + '/lines', { method: 'POST', body: JSON.stringify({
+    productId: product && product.value, description: document.getElementById('lineName').value, quantity: document.getElementById('lineQty').value, unitPrice: document.getElementById('linePrice').value
+  }) });
+  if (!res || res.error) return toast((res && res.error) || 'Could not add the line');
+  toast('Line added. The deal amount is now the total of the lines.');
+  if (typeof refresh === 'function') await refresh();
+  drawRecord();
+};
+window.removeDealLine = async function (lineId) {
+  if (!focus || focus.type !== 'deal') return;
+  const res = await api('/crm/api/deals/' + focus.id + '/lines/' + lineId, { method: 'DELETE' });
+  if (!res || res.error) return toast((res && res.error) || 'Could not remove it');
   if (typeof refresh === 'function') await refresh();
   drawRecord();
 };

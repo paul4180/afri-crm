@@ -129,6 +129,10 @@ CREATE TABLE IF NOT EXISTS quote_lines (
   id TEXT PRIMARY KEY, quoteId TEXT NOT NULL, productId TEXT, description TEXT, quantity REAL,
   unitPrice REAL, discount REAL DEFAULT 0, lineTotal REAL
 );
+CREATE TABLE IF NOT EXISTS deal_lines (
+  id TEXT PRIMARY KEY, tenantId TEXT NOT NULL, dealId TEXT NOT NULL, productId TEXT,
+  description TEXT, quantity REAL DEFAULT 1, unitPrice REAL DEFAULT 0, lineTotal REAL DEFAULT 0
+);
 CREATE INDEX IF NOT EXISTS ix_crm_leads ON leads(tenantId, status);
 CREATE INDEX IF NOT EXISTS ix_crm_deals ON deals(tenantId, stage);
 CREATE INDEX IF NOT EXISTS ix_crm_act ON activities(tenantId, status);
@@ -1689,7 +1693,7 @@ export function registerCrm(app, prisma) {
         const dup = sameContact(user.tenantId, { ...before, ...data }, before.id);
         if (dup) return reply.code(409).send({ error: (dup.firstName + ' ' + (dup.lastName || '')).trim() + ' already has this email or phone.', duplicateId: dup.id });
       }
-      if (name === 'deals' && (data.stage || before.stage) === 'CLOSED_LOST') {
+      if (name === 'deals' && String(data.stage || before.stage).startsWith('CLOSED_LOST')) {
         const reason = String(data.lostReason ?? before.lostReason ?? '').trim();
         if (!reason || reason === 'Marked lost') return reply.code(400).send({ error: 'Say why the deal was lost' });
       }
@@ -4181,6 +4185,45 @@ function agentBrain(tenantId) {
     return { ok: true };
   });
 
+  function dealLineTotal(tenantId, dealId) {
+    const lines = db.prepare('SELECT lineTotal FROM deal_lines WHERE tenantId = ? AND dealId = ?').all(tenantId, dealId);
+    if (!lines.length) return null;
+    const total = lines.reduce((sum, row) => sum + Number(row.lineTotal || 0), 0);
+    db.prepare('UPDATE deals SET amount = ? WHERE tenantId = ? AND id = ?').run(total, tenantId, dealId);
+    return total;
+  }
+  app.get('/crm/api/deals/:id/lines', async (req, reply) => {
+    const user = await guard(req, reply); if (!user) return;
+    if (!one('deals', user.tenantId, req.params.id)) return reply.code(404).send({ error: 'Not found' });
+    return db.prepare('SELECT * FROM deal_lines WHERE tenantId = ? AND dealId = ? ORDER BY description').all(user.tenantId, req.params.id);
+  });
+  app.post('/crm/api/deals/:id/lines', async (req, reply) => {
+    const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+    const deal = one('deals', user.tenantId, req.params.id);
+    if (!deal) return reply.code(404).send({ error: 'Not found' });
+    const body = req.body || {};
+    const product = body.productId ? one('products', user.tenantId, body.productId) : null;
+    const description = String(body.description || (product && product.name) || '').trim().slice(0, 200);
+    const quantity = Number(body.quantity || 1);
+    const unitPrice = body.unitPrice === '' || body.unitPrice == null ? Number(product && product.price || 0) : Number(body.unitPrice);
+    if (!description) return reply.code(400).send({ error: 'Name the line' });
+    if (!Number.isFinite(quantity) || quantity <= 0) return reply.code(400).send({ error: 'Quantity has to be more than zero' });
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) return reply.code(400).send({ error: 'Price cannot be negative' });
+    const id = crypto.randomUUID();
+    db.prepare('INSERT INTO deal_lines (id, tenantId, dealId, productId, description, quantity, unitPrice, lineTotal) VALUES (?,?,?,?,?,?,?,?)')
+      .run(id, user.tenantId, deal.id, product ? product.id : null, description, quantity, unitPrice, Math.round(quantity * unitPrice));
+    const amount = dealLineTotal(user.tenantId, deal.id);
+    writeAudit(user.tenantId, user.sub, 'line', 'deals', deal.id, description);
+    return { id, amount };
+  });
+  app.delete('/crm/api/deals/:id/lines/:lineId', async (req, reply) => {
+    const user = await guard(req, reply); if (!user || !canWrite(user, reply)) return;
+    const line = db.prepare('SELECT * FROM deal_lines WHERE tenantId = ? AND dealId = ? AND id = ?').get(user.tenantId, req.params.id, req.params.lineId);
+    if (!line) return reply.code(404).send({ error: 'Not found' });
+    db.prepare('DELETE FROM deal_lines WHERE id = ? AND tenantId = ?').run(line.id, user.tenantId);
+    const amount = dealLineTotal(user.tenantId, req.params.id);
+    return { ok: true, amount };
+  });
   app.get('/crm/api/pipeline', async (req, reply) => {
     const user = await guard(req, reply); if (!user) return;
     const pipeline = ensurePipeline(user.tenantId);

@@ -34,3 +34,9 @@
 - A contact now stores a stage (subscriber through advocate), language, WhatsApp permission, consent, and the campaign that brought them in.
 - Opening a contact shows another record that looks like the same person, and Keep this record moves the other record's deals, notes, and tasks onto this one.
 - The contacts list shows that stage in the status column.
+
+## Phase 3, deals
+
+- A deal has a product list. Each line has a name, a quantity, and a price. The deal amount becomes the total of those lines.
+- Create quote uses those lines when they exist.
+- Dropping a deal on Closed lost asks why, including a second pipeline whose stage code starts with CLOSED_LOST.
