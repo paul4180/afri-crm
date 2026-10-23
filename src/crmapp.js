@@ -3836,19 +3836,75 @@ export function registerCrm(app, prisma) {
   app.get('/crm/api/search', async (req, reply) => {
     try {
       const user = await guard(req, reply); if (!user) return;
-      const q = String(req.query?.q || '').trim().toLowerCase().slice(0, 100);
-      if (q.length < 2) return { hits: [] };
-      // Escape SQL LIKE wildcards so users can't inject % or _
-      const escQ = q.replace(/[%_]/g, (c) => '\\' + c);
-      const like = '%' + escQ + '%';
+      const raw = String(req.query?.q || '').trim().slice(0, 80);
+      if (!raw) return { hits: [] };
+      const fold = (value) => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const digits = (value) => String(value || '').replace(/\D/g, '');
+      const phoneKey = (value) => {
+        let d = digits(value);
+        if (d.startsWith('234') && d.length >= 12) d = d.slice(3);
+        if (d.startsWith('0')) d = d.slice(1);
+        return d;
+      };
+      const oneEdit = (a, b) => {
+        if (Math.abs(a.length - b.length) > 1) return false;
+        let i = 0, j = 0, edits = 0;
+        while (i < a.length && j < b.length) {
+          if (a[i] === b[j]) { i++; j++; continue; }
+          if (++edits > 1) return false;
+          if (a.length === b.length) { i++; j++; }
+          else if (a.length > b.length) i++;
+          else j++;
+        }
+        if (i < a.length || j < b.length) edits++;
+        return edits <= 1;
+      };
+      const scoreOf = (query, text) => {
+        const q = fold(query).trim();
+        if (!q) return 1;
+        const hay = fold(text);
+        const hayPhone = phoneKey(text);
+        let score = 0;
+        for (const token of q.split(/\s+/).filter(Boolean)) {
+          let best = 0;
+          const at = hay.indexOf(token);
+          if (at >= 0) best = (at === 0 || hay[at - 1] === ' ') ? 100 : 60;
+          const key = phoneKey(token);
+          if (key.length >= 3 && hayPhone.includes(key)) best = Math.max(best, 85);
+          if (!best && token.length >= 4) {
+            for (const word of hay.split(/[^a-z0-9]+/)) {
+              if (word.length < 3) continue;
+              if (word.startsWith(token.slice(0, Math.min(4, token.length))) || oneEdit(token, word)) { best = 36; break; }
+            }
+          }
+          if (!best) return 0;
+          score += best;
+        }
+        return score;
+      };
+      const tid = user.tenantId;
+      const companies = db.prepare('SELECT id, name, industry, city, country, phone, email, website FROM companies WHERE tenantId = ? LIMIT 800').all(tid);
+      const companyName = new Map(companies.map((row) => [row.id, row.name]));
       const hits = [];
-      const push = (kind, id, title, detail) => { if (hits.length < 30) hits.push({ kind, id, title, detail }); };
-      for (const row of db.prepare("SELECT id, firstName, lastName, email FROM contacts WHERE tenantId = ? AND (lower(firstName) LIKE ? ESCAPE '\\' OR lower(lastName) LIKE ? ESCAPE '\\' OR lower(ifnull(email,'')) LIKE ? ESCAPE '\\') LIMIT 12").all(user.tenantId, like, like, like)) push('contact', row.id, ((row.firstName || '') + ' ' + (row.lastName || '')).trim(), row.email || '');
-      for (const row of db.prepare("SELECT id, name, industry FROM companies WHERE tenantId = ? AND lower(name) LIKE ? ESCAPE '\\' LIMIT 8").all(user.tenantId, like)) push('company', row.id, row.name, row.industry || '');
-      for (const row of db.prepare("SELECT id, firstName, lastName, companyName FROM leads WHERE tenantId = ? AND (lower(firstName) LIKE ? ESCAPE '\\' OR lower(ifnull(lastName,'')) LIKE ? ESCAPE '\\' OR lower(ifnull(companyName,'')) LIKE ? ESCAPE '\\') LIMIT 8").all(user.tenantId, like, like, like)) push('lead', row.id, ((row.firstName || '') + ' ' + (row.lastName || '')).trim(), row.companyName || '');
-      for (const row of db.prepare("SELECT id, name, stage FROM deals WHERE tenantId = ? AND lower(name) LIKE ? ESCAPE '\\' LIMIT 8").all(user.tenantId, like)) push('deal', row.id, row.name, row.stage || '');
-      for (const row of db.prepare("SELECT id, name, code FROM products WHERE tenantId = ? AND (lower(name) LIKE ? ESCAPE '\\' OR lower(ifnull(code,'')) LIKE ? ESCAPE '\\') LIMIT 8").all(user.tenantId, like, like)) push('product', row.id, row.name, row.code || '');
-      return { hits };
+      const consider = (kind, id, title, detail, blob) => {
+        const score = scoreOf(raw, blob);
+        if (score) hits.push({ kind, id, title: title || 'Untitled', detail: detail || '', score });
+      };
+      for (const row of db.prepare('SELECT id, firstName, lastName, email, phone, mobile, title, city, companyId FROM contacts WHERE tenantId = ? LIMIT 800').all(tid)) {
+        const company = companyName.get(row.companyId) || '';
+        consider('contact', row.id, ((row.firstName || '') + ' ' + (row.lastName || '')).trim(), [row.email, company].filter(Boolean).join(' · '), [row.firstName, row.lastName, row.email, row.phone, row.mobile, row.title, row.city, company].join(' '));
+      }
+      for (const row of companies) consider('company', row.id, row.name, [row.industry, row.city].filter(Boolean).join(' · '), [row.name, row.industry, row.city, row.country, row.phone, row.email, row.website].join(' '));
+      for (const row of db.prepare('SELECT id, name, stage, nextStep, companyId, contactId FROM deals WHERE tenantId = ? LIMIT 800').all(tid)) {
+        consider('deal', row.id, row.name, [row.stage, companyName.get(row.companyId)].filter(Boolean).join(' · '), [row.name, row.stage, row.nextStep, companyName.get(row.companyId)].join(' '));
+      }
+      for (const row of db.prepare('SELECT id, firstName, lastName, companyName, email, phone, source, city FROM leads WHERE tenantId = ? LIMIT 800').all(tid)) {
+        consider('lead', row.id, ((row.firstName || '') + ' ' + (row.lastName || '')).trim(), row.companyName || row.email || '', [row.firstName, row.lastName, row.companyName, row.email, row.phone, row.source, row.city].join(' '));
+      }
+      for (const row of db.prepare('SELECT id, name, code, description FROM products WHERE tenantId = ? LIMIT 400').all(tid)) consider('product', row.id, row.name, row.code || '', [row.name, row.code, row.description].join(' '));
+      for (const row of db.prepare('SELECT id, subject, notes, type FROM activities WHERE tenantId = ? LIMIT 800').all(tid)) consider('task', row.id, row.subject, row.type || '', [row.subject, row.notes, row.type].join(' '));
+      hits.sort((a, b) => b.score - a.score);
+      return { hits: hits.slice(0, 20).map(({ score, ...row }) => row), engine: 'smart' };
     } catch (e) {
       reply.code(500).send({ error: 'Search failed: ' + (e.message || 'unknown error') });
     }

@@ -619,7 +619,60 @@ function person(row) { return ((row.firstName || '') + ' ' + (row.lastName || ''
 function companyName(id) { return ((bag.companies || []).find((row) => row.id === id) || {}).name || ''; }
 function contactName(id) { const row = (bag.contacts || []).find((item) => item.id === id); return row ? person(row) : ''; }
 function stageOf(row) { return OLD[row.stage] || row.stage; }
-function hit(text) { const q = document.getElementById('q').value.trim().toLowerCase(); return !q || String(text || '').toLowerCase().includes(q); }
+function foldText(value) {
+  return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/['’]/g, '');
+}
+function digitText(value) { return String(value || '').replace(/\D/g, ''); }
+function phoneKey(value) {
+  let d = digitText(value);
+  if (d.startsWith('234') && d.length >= 12) d = d.slice(3);
+  if (d.startsWith('0')) d = d.slice(1);
+  return d;
+}
+function oneEdit(a, b) {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++edits > 1) return false;
+    if (a.length === b.length) { i++; j++; }
+    else if (a.length > b.length) i++;
+    else j++;
+  }
+  if (i < a.length || j < b.length) edits++;
+  return edits <= 1;
+}
+function smartScore(query, text) {
+  const q = foldText(query).trim();
+  if (!q) return 1;
+  const hay = foldText(text);
+  const hayPhone = phoneKey(text);
+  let score = 0;
+  for (const token of q.split(/\s+/).filter(Boolean)) {
+    let best = 0;
+    const at = hay.indexOf(token);
+    if (at >= 0) best = (at === 0 || hay[at - 1] === ' ') ? 100 : 60;
+    const key = phoneKey(token);
+    if (key.length >= 3 && hayPhone.includes(key)) best = Math.max(best, 85);
+    if (!best && token.length >= 4) {
+      for (const word of hay.split(/[^a-z0-9]+/)) {
+        if (word.length < 3) continue;
+        if (word.startsWith(token.slice(0, Math.min(4, token.length))) || oneEdit(token, word)) { best = 36; break; }
+      }
+    }
+    if (!best) return 0;
+    score += best;
+  }
+  if (hay.startsWith(q)) score += 25;
+  return score;
+}
+function smartMatch(query, text) {
+  return !String(query || '').trim() || smartScore(query, text) > 0;
+}
+function hit(text) {
+  const box = document.getElementById('q');
+  return smartMatch(box ? box.value : '', text);
+}
 function svg(body) { return `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`; }
 function navItem(id, label, icon) { return `<button type="button" data-page="${id}" data-tooltip="${label}" title="${label}" onclick="go('${id}')"><span class="ico">${icon}</span><span>${label}</span></button>`; }
 function paintNav() {
@@ -1238,8 +1291,10 @@ async function loadInbox(forceRefresh) {
       list.innerHTML = '';
       return;
     }
-    status.innerHTML = `<b>${inboxState.messages.length}</b> messages · <b style="color:#0d9488">${data.linked}</b> linked to contacts · <b>${data.unlinked}</b> unlinked`;
-    list.innerHTML = inboxState.messages.map((m) => {
+    const iq = (document.getElementById('q') || {}).value || '';
+    const shownMail = inboxState.messages.filter((m) => smartMatch(iq, [m.senderName, m.senderEmail, m.subject, m.snippet].join(' ')));
+    status.innerHTML = `<b>${shownMail.length}</b> messages` + (iq.trim() ? ` matching “${esc(iq.trim())}”` : '') + ` · <b style="color:#0d9488">${data.linked}</b> linked to contacts · <b>${data.unlinked}</b> unlinked`;
+    list.innerHTML = shownMail.map((m) => {
       const initials = (m.senderName || m.senderEmail || '?').charAt(0).toUpperCase();
       const dateStr = m.date ? new Date(m.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
       const isUnread = m.isUnread;
@@ -1313,7 +1368,7 @@ async function openMessage(id) {
 function drawDeals() {
   const q = document.getElementById('q').value.trim().toLowerCase();
   const mine = me.sub || me.id || '';
-  let rows = (bag.deals || []).filter((row) => !q || (row.name + companyName(row.companyId) + contactName(row.contactId)).toLowerCase().includes(q));
+  let rows = (bag.deals || []).filter((row) => smartMatch(q, [row.name, row.stage, row.nextStep, companyName(row.companyId), contactName(row.contactId)].join(' ')));
   if (dealMine) rows = rows.filter((row) => row.ownerId === mine);
   if (dealOwner) rows = rows.filter((row) => row.ownerId === dealOwner);
   if (dealFrom) rows = rows.filter((row) => String(row.createdAt || '').slice(0, 10) >= dealFrom);
@@ -1748,7 +1803,7 @@ function drawTasks() {
   if (taskType) rows = rows.filter((row) => row.type === taskType);
   if (taskStage) rows = rows.filter((row) => row.status === taskStage);
   if (taskDue) rows = rows.filter((row) => due(row) && due(row) <= taskDue);
-  if (q) rows = rows.filter((row) => (row.subject + ' ' + relatedName(row)).toLowerCase().includes(q));
+  if (q) rows = rows.filter((row) => smartMatch(q, [row.subject, row.notes, row.type, relatedName(row)].join(' ')));
   rows.sort((a, b) => taskSort === 'name' ? String(a.subject).localeCompare(String(b.subject)) : due(a).localeCompare(due(b)));
   const showTask = openForm === 'task';
   if (showTask) openForm = '';
@@ -2155,7 +2210,7 @@ async function quote(id, action) {
 }
 function ownerName(id) { const row = (bag.people || []).find((person) => person.id === id); return row ? (row.fullName || row.email) : ''; }
 function drawLeads() {
-  const rows = (bag.leads || []).filter((row) => hit(person(row) + (row.companyName || '') + (row.source || '')));
+  const rows = (bag.leads || []).filter((row) => hit([person(row), row.companyName, row.email, row.phone, row.source, row.city].join(' ')));
   const columns = [['NEW','New'],['WORKING','Working'],['QUALIFIED','Qualified'],['CONVERTED','Converted'],['DEAD','Dead']];
   const board = columns.map(([status, label]) => {
     const list = rows.filter((row) => (row.status || 'NEW') === status);
@@ -2727,7 +2782,7 @@ async function fulfill(id) {
   toast('Marked fulfilled'); refresh();
 }
 function drawProducts() {
-  const rows = (bag.products || []).filter((row) => hit(row.name));
+  const rows = (bag.products || []).filter((row) => hit([row.name, row.code, row.description].join(' ')));
   document.getElementById('view').innerHTML = `<div class="board-head"><h1>Products</h1></div><div class="card"><div class="pipe" style="grid-template-columns:1fr 1fr 1fr"><label>Name<input id="pName"></label><label>Code<input id="pCode"></label><label>Price<input id="pPrice" inputmode="decimal"></label></div><button type="button" onclick="saveProduct()">Save</button></div><div class="sheet"><table><tr><th>Name</th><th>Code</th><th>Price</th></tr>${rows.map((row) => `<tr><td>${esc(row.name)}</td><td>${esc(row.code)}</td><td>${money(row.price)}</td></tr>`).join('') || '<tr><td colspan="3">None yet.</td></tr>'}</table></div>`;
 }
 async function saveProduct() {
@@ -3001,7 +3056,7 @@ document.getElementById('email').value = localStorage.getItem('crmEmail') || '';
   if (token) boot();
 })();
 </script>
-<script src="/crm-studio.js?v=70"></script>
+<script src="/crm-studio.js?v=71"></script>
 </body>
 </html>
 

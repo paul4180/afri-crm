@@ -2687,10 +2687,10 @@
     clearTimeout(window.__find);
     const q = document.getElementById('q').value.trim();
     window.__find = setTimeout(async () => {
-      if (q.length < 2) { box.style.display = 'none'; return; }
-      const data = await api('/crm/api/search?q=' + encodeURIComponent(q));
-      const hits = (data && data.hits) || [];
-      box.innerHTML = hits.map((row) => `<button type="button" onclick="openRecord('${row.kind}','${row.id}');document.getElementById('searchhits').style.display='none'"><b>${esc(row.title)}</b><div class="meta">${esc(row.kind)} · ${esc(row.detail || '')}</div></button>`).join('') || '<div class="meta" style="padding:12px">No match.</div>';
+      if (!q) { box.style.display = 'none'; return; }
+      const hits = await window.crmLookup(q);
+      const paint = (value) => String(value || '').replace(/[&<>]/g, (c) => ({'&':'&','<':'<','>':'>'}[c]));
+      box.innerHTML = hits.map((row) => `<button type="button" onclick="openSearchHit('${row.kind}','${row.id}')"><b>${paint(row.title)}</b><div class="meta">${paint(row.kind)} · ${paint(row.detail || '')}</div></button>`).join('') || `<div class="meta" style="padding:12px">No record matches “${paint(q)}”. Try a name, email, phone, or company.</div>`;
       box.style.display = 'block';
     }, 180);
   };
@@ -3153,14 +3153,13 @@
     input.addEventListener('input', () => {
       const q = input.value.trim();
       clearTimeout(searchTimer);
-      if (q.length < 2) {
+      if (!q) {
         currentResults = []; selectedIdx = -1;
-        results.innerHTML = '<div class="cmdk-empty">Type to search across your CRM records.</div>';
+        results.innerHTML = '<div class="cmdk-empty">Type a name, email, phone, or company.</div>';
         return;
       }
       searchTimer = setTimeout(async () => {
-        const data = await api('/crm/api/search?q=' + encodeURIComponent(q));
-        currentResults = (data && Array.isArray(data.hits)) ? data.hits : [];
+        currentResults = await window.crmLookup(q);
         selectedIdx = currentResults.length ? 0 : -1;
         renderResults();
       }, 180);
@@ -8150,8 +8149,16 @@
     if (key === 'cols') cxShowCols = !cxShowCols;
     if (key === 'col') cxCols[value] = cxCols[value] ? 0 : 1;
     if (key === 'menu') cxMenu = cxMenu === value ? '' : value;
-    if (key === 'query') cxQuery = value;
+    if (key === 'query') {
+      cxQuery = value;
+      const box = document.querySelector('#view .cx-search');
+      window.__cxCaret = box ? box.selectionStart : String(value).length;
+    }
     drawContacts();
+    if (key === 'query') {
+      const box = document.querySelector('#view .cx-search');
+      if (box) { box.focus(); const n = Math.min(window.__cxCaret || 0, box.value.length); box.setSelectionRange(n, n); }
+    }
   };
   window.addContactView = function () {
     const name = window.prompt('Name this view. It keeps contacts whose name or email contains the word.');
@@ -8175,12 +8182,14 @@
       const word = cxSaved.slice(5).toLowerCase();
       rows = rows.filter((row) => (person(row) + ' ' + (row.email || '')).toLowerCase().includes(word));
     }
-    const q = (cxQuery || '').trim().toLowerCase();
-    rows = rows.filter((row) => hit(person(row) + (row.email || '') + (row.phone || '')) && (!q || (person(row) + ' ' + (row.email || '') + ' ' + companyName(row.companyId)).toLowerCase().includes(q)));
+    const q = (cxQuery || '').trim();
+    const hay = (row) => [person(row), row.email, row.phone, row.mobile, row.title, row.city, row.source, companyName(row.companyId), ownerName(row.ownerId)].join(' ');
+    rows = rows.filter((row) => smartMatch((document.getElementById('q') || {}).value || '', hay(row)) && smartMatch(q, hay(row)));
     if (contactOwner) rows = rows.filter((row) => row.ownerId === contactOwner);
     if (contactStatus) rows = rows.filter((row) => (row.status || 'ACTIVE') === contactStatus);
     if (contactFrom) rows = rows.filter((row) => String(row.createdAt || '').slice(0, 10) >= contactFrom);
     rows.sort((a, b) => {
+      if (q) return smartScore(q, hay(b)) - smartScore(q, hay(a));
       if (cxSort === 'new') return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
       if (cxSort === 'touch') return String(lastTouch(b.id)).localeCompare(String(lastTouch(a.id)));
       if (cxSort === 'value') return dealWorth(b.id) - dealWorth(a.id);
@@ -8416,8 +8425,16 @@
     if (key === 'cols') coShowCols = !coShowCols;
     if (key === 'col') coCols[value] = coCols[value] ? 0 : 1;
     if (key === 'menu') coMenu = coMenu === value ? '' : value;
-    if (key === 'query') coQuery = value;
+    if (key === 'query') {
+      coQuery = value;
+      const box = document.querySelector('#view .cx-search');
+      window.__coCaret = box ? box.selectionStart : String(value).length;
+    }
     drawCompanyList();
+    if (key === 'query') {
+      const box = document.querySelector('#view .cx-search');
+      if (box) { box.focus(); const n = Math.min(window.__coCaret || 0, box.value.length); box.setSelectionRange(n, n); }
+    }
   };
   window.addCompanyView = function () {
     const name = window.prompt('Name this view. It keeps companies whose name or industry contains the word.');
@@ -8439,11 +8456,13 @@
       const word = coSaved.slice(5).toLowerCase();
       rows = rows.filter((row) => ((row.name || '') + ' ' + (row.industry || '')).toLowerCase().includes(word));
     }
-    const q = coQuery.trim().toLowerCase();
-    rows = rows.filter((row) => hit((row.name || '') + (row.industry || '') + (row.city || '')) && (!q || ((row.name || '') + ' ' + (row.industry || '') + ' ' + (row.city || '')).toLowerCase().includes(q)));
+    const q = coQuery.trim();
+    const hay = (row) => [row.name, row.industry, row.city, row.phone, row.email, row.website, row.type, peopleOf(row.id).map(person).join(' ')].join(' ');
+    rows = rows.filter((row) => smartMatch((document.getElementById('q') || {}).value || '', hay(row)) && smartMatch(q, hay(row)));
     if (coOwner) rows = rows.filter((row) => row.ownerId === coOwner);
     if (coType) rows = rows.filter((row) => (row.type || 'PROSPECT') === coType);
     rows.sort((a, b) => {
+      if (q) return smartScore(q, hay(b)) - smartScore(q, hay(a));
       if (coSort === 'new') return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
       if (coSort === 'touch') return String(touchOf(b.id)).localeCompare(String(touchOf(a.id)));
       if (coSort === 'revenue') return revenueOf(b.id) - revenueOf(a.id);
@@ -8565,3 +8584,38 @@
       </div></div>`;
   };
 })();
+
+window.crmLookup = async function (q) {
+  const query = String(q || '').trim();
+  if (!query) return [];
+  const local = [];
+  const push = (kind, id, title, detail, blob) => {
+    const score = smartScore(query, blob);
+    if (score) local.push({ kind, id, title: title || 'Untitled', detail: detail || '', score });
+  };
+  (bag.contacts || []).forEach((row) => push('contact', row.id, person(row), [row.email, companyName(row.companyId)].filter(Boolean).join(' · '), [person(row), row.email, row.phone, row.mobile, row.title, row.city, companyName(row.companyId)].join(' ')));
+  (bag.companies || []).forEach((row) => push('company', row.id, row.name, [row.industry, row.city].filter(Boolean).join(' · '), [row.name, row.industry, row.city, row.country, row.phone, row.email, row.website].join(' ')));
+  (bag.deals || []).forEach((row) => push('deal', row.id, row.name, [row.stage, companyName(row.companyId)].filter(Boolean).join(' · '), [row.name, row.stage, row.nextStep, companyName(row.companyId), contactName(row.contactId)].join(' ')));
+  (bag.leads || []).forEach((row) => push('lead', row.id, person(row), row.companyName || row.email || '', [person(row), row.companyName, row.email, row.phone, row.source, row.city].join(' ')));
+  (bag.products || []).forEach((row) => push('product', row.id, row.name, row.code || '', [row.name, row.code, row.description].join(' ')));
+  (bag.activities || []).forEach((row) => push('task', row.id, row.subject, row.type || '', [row.subject, row.notes, row.type].join(' ')));
+  local.sort((a, b) => b.score - a.score || String(a.title).localeCompare(String(b.title)));
+  const seen = new Set(local.map((row) => row.kind + ':' + row.id));
+  try {
+    const data = await api('/crm/api/search?q=' + encodeURIComponent(query));
+    ((data && data.hits) || []).forEach((row) => {
+      const key = row.kind + ':' + row.id;
+      if (!seen.has(key)) { seen.add(key); local.push(row); }
+    });
+  } catch (e) {}
+  return local.slice(0, 20);
+};
+window.openSearchHit = function (kind, id) {
+  const box = document.getElementById('searchhits');
+  if (box) box.style.display = 'none';
+  if (window.closeCommandPalette) window.closeCommandPalette();
+  if (kind === 'task' || kind === 'activity') return go('tasks');
+  if (kind === 'product') return go('products');
+  if (kind === 'contact' || kind === 'company' || kind === 'deal' || kind === 'lead') return openRecord(kind, id);
+  go('home');
+};
