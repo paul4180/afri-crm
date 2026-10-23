@@ -1,5 +1,12 @@
 # Changelog
 
+## 23 October 2026 — prompt aligned
+
+- The updated Claude master prompt is now `MASTER-PROMPT.md` in the repo.
+- `DECISIONS.md` records why we stay on Fastify and SQLite for now, and that Section 3 of the prompt is an old snapshot.
+- `PHASES.md` maps each of the 11 phases to what is on main and what is still open.
+- Phase 7 is the next phase on this side. The gaps in Phases 1 to 6 that need a vendor stay with the other builder.
+
 ## 23 October 2026
 
 - Public pages: Pricing, Docs, API, Status, Community, Changelog. The footer no longer points at the sign-in screen or at an empty anchor.
