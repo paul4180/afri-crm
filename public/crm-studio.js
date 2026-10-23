@@ -9813,21 +9813,14 @@ window.openSearchHit = function (kind, id) {
     #view .ws-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
     #view .ws-metric { background: #f8fafc; border: 1px solid #e5e8eb; border-radius: 10px; padding: 10px; }
     #view .ws-metric b { display: block; font-size: 22px; }
-    #view .ws-table { width: 100%; border-collapse: collapse; }
-    #view .ws-table th { text-align: left; font-size: 11px; letter-spacing: .04em; color: #64748b !important; padding: 6px 8px; }
-    #view .ws-table td { padding: 8px; border-top: 1px solid #eef2f6; font-size: 13px; color: #0f172a !important; }
-    #view .ws-table tr.t-CALL td:first-child { box-shadow: inset 3px 0 #16a34a; }
-    #view .ws-table tr.t-EMAIL td:first-child { box-shadow: inset 3px 0 #2563eb; }
-    #view .ws-table tr.t-MEETING td:first-child { box-shadow: inset 3px 0 #7c3aed; }
-    #view .ws-table tr.t-WHATSAPP td:first-child { box-shadow: inset 3px 0 #0f766e; }
-    #view .ws-table tr.t-TASK td:first-child { box-shadow: inset 3px 0 #d97706; }
-    #view .ws-table tr.t-NOTE td:first-child { box-shadow: inset 3px 0 #64748b; }
-    #view .ws-table tr.t-CALL { background: #f0fdf4; }
-    #view .ws-table tr.t-EMAIL { background: #eff6ff; }
-    #view .ws-table tr.t-MEETING { background: #f5f3ff; }
-    #view .ws-table tr.t-WHATSAPP { background: #f0fdfa; }
-    #view .ws-table tr.t-TASK { background: #fffbeb; }
-    #view .ws-table tr.t-NOTE { background: #f8fafc; }
+    #view .ws-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+    #view .ws-table th { text-align: left; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #64748b !important; background: #f8fafc; padding: 8px 10px; border-bottom: 1px solid #e5e8eb; }
+    #view .ws-table td { padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #0f172a !important; background: #fff; vertical-align: middle; }
+    #view .ws-table tr:hover td { background: #f8fafc; }
+    #view .ws-table td.what { font-weight: 600; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #view .ws-table td.when { text-align: right; color: #64748b !important; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    #view .ws-dot { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #334155 !important; }
+    #view .ws-dot i { width: 8px; height: 8px; border-radius: 99px; display: inline-block; }
     #view .ws-pill { font-size: 11px; background: #f1f5f9; color: #334155 !important; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
     @media (max-width: 720px) { #view .ws-metrics { grid-template-columns: 1fr 1fr; } }
     #view .ws-slot { display: grid; grid-template-columns: 64px 1fr; min-height: 36px; border-top: 1px solid #eef2f6; position: relative; font-size: 12px; }
@@ -9995,9 +9988,9 @@ window.openSearchHit = function (kind, id) {
         [stalled.length + ' open deal' + (stalled.length === 1 ? '' : 's') + ' with no activity for 14 days', stalled.length ? `<button type="button" class="ws-btn" onclick="go('deals')">Open deals</button>` : ''],
         hour ? `Most completed calls were logged around ${hour.hour % 12 || 12}${hour.hour < 12 ? ' AM' : ' PM'} (${hour.count} of ${hour.total})` : 'Not enough completed calls to pick an hour. Log at least 3.',
       ];
-      const kinds = { CALL: 'Call', EMAIL: 'Email', MEETING: 'Meeting', WHATSAPP: 'WhatsApp', TASK: 'Task', NOTE: 'Note' };
+      const kinds = { CALL: ['Call', '#16a34a'], EMAIL: ['Email', '#2563eb'], MEETING: ['Meeting', '#7c3aed'], WHATSAPP: ['WhatsApp', '#0f766e'], TASK: ['Task', '#d97706'], NOTE: ['Note', '#64748b'] };
       const feedRows = (bag.activities || []).slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).slice(0, 8);
-      const feed = feedRows.length ? '<table class="ws-table"><tr><th>Activity</th><th>Type</th><th>When</th></tr>' + feedRows.map((row) => { const kind = kinds[row.type] ? row.type : 'NOTE'; return `<tr class="t-${kind}"><td>${esc(row.subject || 'Activity')}</td><td>${kinds[kind]}</td><td>${esc(rel(row.createdAt) || '—')}</td></tr>`; }).join('') + '</table>' : '<p class="cx-muted">No activity logged.</p>';
+      const feed = feedRows.length ? '<table class="ws-table"><thead><tr><th>Activity</th><th>Type</th><th>When</th></tr></thead><tbody>' + feedRows.map((row) => { const kind = kinds[row.type] || kinds.NOTE; return `<tr><td class="what">${esc(row.subject || 'Activity')}</td><td><span class="ws-dot"><i style="background:${kind[1]}"></i>${kind[0]}</span></td><td class="when">${esc(rel(row.createdAt) || '—')}</td></tr>`; }).join('') + '</tbody></table>' : '<p class="cx-muted">No activity logged.</p>';
       const sideBody = side === 'insights' ? insights.map((row) => `<div class="ws-line"><div>${esc(row[0])}</div>${row[1] || ''}</div>`).join('') : side === 'feed' ? '<p class="cx-muted">This is activity on the records. Page visits and email opens are not tracked.</p>' + feed : `<div class="ws-line" style="border:0"><b>${esc(label)}</b><span><button type="button" class="ws-btn" onclick="wsSet('day',-1)">‹</button> <button type="button" class="ws-btn" onclick="wsSet('day',1)">›</button></span></div>${schedule(today)}`;
       const sideTabs = [['schedule', 'Schedule'], ['insights', 'Insights'], ['feed', 'Feed']].map(([id, text]) => `<button type="button" class="ws-btn ${side === id ? 'on' : ''}" onclick="wsSet('side','${id}')">${text}</button>`).join(' ');
       main = `<div class="ws-split"><div>${card('tasks', 'Tasks', taskBody)}${card('out', 'Outreach today', outBody)}${card('pro', 'Prospects', sug)}</div><div class="ws-card"><div class="ws-tabs">${sideTabs}</div>${sideBody}</div></div>`;
