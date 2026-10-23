@@ -5516,6 +5516,7 @@
   // Inject "Get mobile app" button into the CRM top nav
   (function () {
     function injectMobileBtn() {
+      return;
       var nav = document.querySelector('.app > header, header, .topbar, #topbar, .nav');
       if (!nav) {
         // Fallback: try to find the bell/notifications area
@@ -7657,6 +7658,7 @@
       border-bottom: 1px solid rgba(255,255,255,0.07) !important; z-index: 40 !important;
       display: flex !important; align-items: center !important; gap: 8px !important; padding: 0 12px !important;
     }
+    .nav-mobile-btn, .mobile-pill { display: none !important; }
     .mobile-pill {
       flex: none; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px;
       border-radius: 999px; background: rgba(13,148,136,0.15); border: 1px solid rgba(13,148,136,0.35);
@@ -7682,6 +7684,10 @@
     .app > header .tools { display: flex !important; align-items: center !important; gap: 4px !important; }
     .app > header .iconbtn { width: 36px !important; height: 36px !important; color: #cbd5e1 !important; background: transparent !important; border-radius: 8px !important; }
     .app > header .iconbtn:hover { background: rgba(255,255,255,0.06) !important; }
+    #who { position: relative; }
+    #who .av::after { content: ""; position: absolute; right: -2px; bottom: -2px; width: 9px; height: 9px; border-radius: 99px; background: #22c55e; border: 2px solid #0f172a; }
+    #who[data-status="busy"] .av::after { background: #ef4444; }
+    #who[data-status="away"] .av::after { background: #f59e0b; }
     .app > header .iconbtn[title="Ask the records"]:hover { background: rgba(168,85,247,0.12) !important; color: #d8b4fe !important; }
     .status-dot { width: 10px; height: 10px; border-radius: 999px; display: inline-block; background: #22c55e; }
     .status-dot.busy { background: #ef4444; }
@@ -7763,32 +7769,7 @@
   document.body.appendChild(rail);
 
   const header = document.querySelector('.app > header');
-  if (header && !document.getElementById('mobilePill')) {
-    const pill = document.createElement('button');
-    pill.type = 'button';
-    pill.id = 'mobilePill';
-    pill.className = 'mobile-pill';
-    pill.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg> Mobile app';
-    pill.onclick = () => document.getElementById('phoneBox').classList.add('on');
-    header.insertBefore(pill, header.firstChild);
-    const tools = header.querySelector('.tools');
-    const status = document.createElement('button');
-    status.type = 'button';
-    status.className = 'iconbtn';
-    status.id = 'statusBtn';
-    status.title = 'Status';
-    status.innerHTML = '<span class="status-dot" id="statusDot"></span>';
-    status.onclick = (event) => {
-      event.stopPropagation();
-      const menu = document.getElementById('statusMenu');
-      menu.hidden = !menu.hidden;
-    };
-    if (tools) tools.appendChild(status);
-    const menu = document.createElement('div');
-    menu.id = 'statusMenu';
-    menu.hidden = true;
-    menu.innerHTML = '<button type="button" onclick="setPresence(\'available\')">Available</button><button type="button" onclick="setPresence(\'busy\')">Busy</button><button type="button" onclick="setPresence(\'away\')">Away</button>';
-    header.appendChild(menu);
+  if (header && !document.getElementById('shellHits')) {
     const hits = document.createElement('div');
     hits.id = 'shellHits';
     hits.hidden = true;
@@ -7804,10 +7785,10 @@
 
   window.setPresence = function (value) {
     localStorage.setItem('crm-status', value);
-    const dot = document.getElementById('statusDot');
-    if (dot) dot.className = 'status-dot' + (value === 'available' ? '' : ' ' + value);
-    const menu = document.getElementById('statusMenu');
-    if (menu) menu.hidden = true;
+    const who = document.getElementById('who');
+    if (who) who.dataset.status = value || 'available';
+    const menu = document.getElementById('menu');
+    if (menu) menu.classList.remove('on');
   };
   setPresence(localStorage.getItem('crm-status') || 'available');
 
