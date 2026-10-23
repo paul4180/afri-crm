@@ -4406,6 +4406,7 @@
     const res = await api('/crm/api/demo/clear', { method: 'POST', body: '{}' });
     if (!res || res.error) return toast((res && res.error) || 'Could not remove it');
     await refresh();
+    localStorage.setItem('crm-sample-off', '1');
     toast('Sample records removed');
   };
   async function showDemoBar() {
@@ -10907,6 +10908,7 @@ window.openSearchHit = function (kind, id) {
       if (!res || res.error) return toast((res && res.error) || 'Could not add it');
       sheet.remove();
       await refresh();
+      localStorage.removeItem('crm-sample-off');
       toast('Sample data is on. Look for [Sample].');
     };
     document.getElementById('sampleOff').onclick = async () => {
@@ -10918,6 +10920,7 @@ window.openSearchHit = function (kind, id) {
       if (!res || res.error) return toast((res && res.error) || 'Could not remove it');
       sheet.remove();
       await refresh();
+      localStorage.setItem('crm-sample-off', '1');
       toast('Sample data removed');
     };
   };

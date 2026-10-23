@@ -554,7 +554,23 @@
 <div class="shade" id="shade" onclick="closeLauncher()"></div>
 <div class="launcher" id="launcher"><div class="launch-top"><b>More</b><button type="button" class="ghost" onclick="closeLauncher()">Close</button></div><div class="launch-grid"><nav class="hubs" id="hubs"></nav><div class="hubitems" id="hubitems"></div></div></div>
 <script>
-const money = (n) => (localStorage.getItem('crm-currency') || 'NGN') + ' ' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 0 });
+const money = (n) => {
+  const code = localStorage.getItem('crm-currency') || 'NGN';
+  const symbols = { NGN: '₦', USD: '$', GHS: 'GH₵', KES: 'KSh', ZAR: 'R', GBP: '£' };
+  const mark = symbols[code] || (code + ' ');
+  const value = Number(n || 0);
+  const text = Math.abs(value).toLocaleString('en-NG', { maximumFractionDigits: 0 });
+  return (value < 0 ? '-' : '') + mark + text;
+};
+function phoneNG(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (!digits) return '';
+  let n = digits;
+  if (n.startsWith('0') && n.length === 11) n = '234' + n.slice(1);
+  else if (n.length === 10) n = '234' + n;
+  if (n.startsWith('234') && n.length >= 13) return '+234 ' + n.slice(3, 6) + ' ' + n.slice(6, 9) + ' ' + n.slice(9, 13);
+  return String(raw);
+}
 function zoneToday() { return new Intl.DateTimeFormat('en-CA', { timeZone: localStorage.getItem('crm-timezone') || 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
 function paintLogo(logo) { const el = document.getElementById('whoMark'); if (!el) return; if (logo) el.innerHTML = '<img alt="" src="' + logo + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'; }
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c]));
@@ -1023,6 +1039,10 @@ async function enter() {
   document.getElementById('app').style.display = 'grid';
   paintSetupCard();
   await refresh();
+  if (!localStorage.getItem('crm-sample-off') && !(bag.contacts || []).length && !(bag.companies || []).length && !(bag.deals || []).length) {
+    const seeded = await api('/crm/api/setup/demo', { method: 'POST', body: '{}' });
+    if (seeded && !seeded.error) await refresh();
+  }
 }
 function noteStages(stages) { if (Array.isArray(stages)) { bag.stages = stages; homePack = null; } }
 async function refresh() {
@@ -1569,17 +1589,25 @@ function avatarGradient(name) {
 }
 
 // Relative time — "Just now" / "5m ago" / "3h ago" / "2d ago" / "1w ago" / short date
+function lagosStamp(date) {
+  const zone = localStorage.getItem('crm-timezone') || 'Africa/Lagos';
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(date);
+  const get = (type) => (parts.find((part) => part.type === type) || {}).value || '';
+  return { day: get('year') + '-' + get('month') + '-' + get('day'), hour: Number(get('hour')), minute: Number(get('minute')) };
+}
 function relativeTime(value) {
   if (!value) return '';
   const d = new Date(value);
   if (isNaN(d.getTime())) return '';
   const diff = Date.now() - d.getTime();
+  const now = lagosStamp(new Date());
+  const then = lagosStamp(d);
   if (diff < 60000) return 'Just now';
-  if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
-  if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
-  if (diff < 604800000) return Math.floor(diff / 86400000) + 'd ago';
-  if (diff < 5259600000) return Math.floor(diff / 604800000) + 'w ago';
-  return shortDate(value) || '';
+  if (now.day === then.day) return diff < 3600000 ? Math.floor(diff / 60000) + 'm ago' : Math.floor(diff / 3600000) + 'h ago';
+  const days = Math.round((new Date(now.day + 'T00:00:00Z') - new Date(then.day + 'T00:00:00Z')) / 86400000);
+  if (days === 1) return 'Yesterday';
+  if (days > 1 && days < 7) return days + 'd ago';
+  return then.day;
 }
 
 // Health badge — Attio-inspired color-coded deal health.
@@ -1632,7 +1660,7 @@ function drawContacts() {
     const lastT = lastTouch(row.id);
     const lastLabel = relativeTime(lastT) || 'Never';
     const emailHtml = row.email ? `<a href="mailto:${esc(row.email)}" onclick="event.stopPropagation()">${esc(row.email)}</a>` : '—';
-    const phoneHtml = row.phone ? `<a href="tel:${esc(row.phone)}" onclick="event.stopPropagation()">${esc(row.phone)}</a>` : '—';
+    const phoneHtml = row.phone ? `<a href="tel:${esc(row.phone)}" onclick="event.stopPropagation()">${esc(phoneNG(row.phone))}</a>` : '—';
     return `<article class="contact-card" style="--avatar-bg:${grad}" onclick="openRecord('contact','${row.id}')">
       <div class="contact-head">
         <div class="contact-avatar">${esc(init)}</div>
@@ -1660,7 +1688,7 @@ function drawContacts() {
     </article>`;
   }).join('') || `<div class="contact-empty"><div class="empty-ico">👤</div><h2>No contacts yet.</h2><p>Import a CSV or add your first.</p><button type="button" onclick="document.getElementById('form').hidden=false">Add contact</button></div>`;
   // Table view (preserved for power users)
-  const body = rows.map((row) => `<tr><td><input type="checkbox" data-pick="contact" value="${row.id}"></td><td style="cursor:pointer" onclick="openRecord('contact','${row.id}')"><span class="avatar" style="--avatar-bg:${avatarGradient(person(row))}">${esc(initials(person(row)))}</span><span class="linkish">${esc(person(row))}</span></td><td>${row.email ? `<a class="linkish" href="mailto:${esc(row.email)}">${esc(row.email)}</a>` : '—'}</td><td>${esc(row.phone || '—')}</td><td>${esc(companyName(row.companyId) || '—')}</td><td>${esc(shortDate(lastTouch(row.id)) || 'No activity')}</td><td>${esc(ownerName(row.ownerId) || 'Unassigned')}</td></tr>`).join('');
+  const body = rows.map((row) => `<tr><td><input type="checkbox" data-pick="contact" value="${row.id}"></td><td style="cursor:pointer" onclick="openRecord('contact','${row.id}')"><span class="avatar" style="--avatar-bg:${avatarGradient(person(row))}">${esc(initials(person(row)))}</span><span class="linkish">${esc(person(row))}</span></td><td>${row.email ? `<a class="linkish" href="mailto:${esc(row.email)}">${esc(row.email)}</a>` : '—'}</td><td>${esc(phoneNG(row.phone) || '—')}</td><td>${esc(companyName(row.companyId) || '—')}</td><td>${esc(shortDate(lastTouch(row.id)) || 'No activity')}</td><td>${esc(ownerName(row.ownerId) || 'Unassigned')}</td></tr>`).join('');
   const empty = `<tr><td colspan="7"><div class="empty"><h2>No contacts match.</h2><p class="hello">Clear a filter, or add the person. A contact can sit under a company.</p><button type="button" onclick="document.getElementById('form').hidden=false">Add contact</button></div></td></tr>`;
   const tableView = `<div class="sheet"><table><tr><th></th><th>Name</th><th>Email</th><th>Phone</th><th>Company</th><th>Last activity</th><th>Owner</th></tr>${body || empty}</table></div>`;
   const cardsView = `<div class="contact-grid">${cards}</div>`;
@@ -3080,7 +3108,7 @@ document.getElementById('email').value = localStorage.getItem('crmEmail') || '';
   if (token) boot();
 })();
 </script>
-<script src="/crm-studio.js?v=102"></script>
+<script src="/crm-studio.js?v=103"></script>
 </body>
 </html>
 
